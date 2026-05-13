@@ -13,6 +13,36 @@ final class CameraController: NSObject {
 
     init(logger: AppLogger) {
         self.logger = logger
+        super.init()
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(sessionWasInterrupted),
+                                               name: AVCaptureSession.wasInterruptedNotification,
+                                               object: session)
+        NotificationCenter.default.addObserver(self,
+                                               selector: #selector(sessionInterruptionEnded),
+                                               name: AVCaptureSession.interruptionEndedNotification,
+                                               object: session)
+    }
+
+    @objc private func sessionWasInterrupted(_ notification: Notification) {
+        let reason = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int ?? -1
+        Task { @MainActor in
+            self.logger?.log("AVCaptureSession interrupted reason=\(reason)")
+        }
+    }
+
+    @objc private func sessionInterruptionEnded(_ notification: Notification) {
+        Task { @MainActor in
+            self.logger?.log("AVCaptureSession interruption ended — restarting")
+        }
+        sessionQueue.async {
+            if !self.session.isRunning {
+                self.session.startRunning()
+                Task { @MainActor in
+                    self.logger?.log("AVCaptureSession restarted after interruption")
+                }
+            }
+        }
     }
 
     func makePreviewLayer() -> AVCaptureVideoPreviewLayer {
@@ -144,8 +174,7 @@ final class CameraController: NSObject {
             autoDeferredSupported = false
         }
 
-        let longest = max(Int(selected.width), Int(selected.height))
-        let autoDeferredEnabled = autoDeferredSupported && longest >= 5712
+        let autoDeferredEnabled = false
         return CaptureCandidate(dimensions: selected,
                                 autoDeferredSupported: autoDeferredSupported,
                                 autoDeferredEnabled: autoDeferredEnabled)

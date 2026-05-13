@@ -4,6 +4,13 @@ import ImageIO
 import UniformTypeIdentifiers
 
 final class ReceivedPhotoStore {
+    private static let maxPhotos = 30
+    private static let filenameDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd_HHmmss"
+        return f
+    }()
+
     private(set) var photos: [ReceivedPhoto] = []
     private let directoryURL: URL
     private let outputSize: CGSize?
@@ -24,14 +31,41 @@ final class ReceivedPhotoStore {
         }
 
         let processed = processIfNeeded(imageData, fileType: envelope.metadata.fileType)
-        let fileName = "\(envelope.metadata.requestID)_\(processed.pixelWidth)x\(processed.pixelHeight).\(processed.fileExtension)"
+        let datePart = Self.filenameDateFormatter.string(from: envelope.metadata.creationDate)
+        let fileName = "\(datePart).\(processed.fileExtension)"
         let fileURL = directoryURL.appendingPathComponent(fileName)
         try processed.data.write(to: fileURL, options: .atomic)
 
         let photo = ReceivedPhoto(metadata: envelope.metadata, fileURL: fileURL)
         photos.insert(photo, at: 0)
+        trimToLimit()
         return photo
     }
+
+    // MARK: - Trimming (disk-based so it survives restarts)
+
+    private func trimToLimit() {
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: nil,
+            options: .skipsHiddenFiles
+        ) else { return }
+
+        let imageFiles = files
+            .filter { !$0.hasDirectoryPath }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent } // yyyyMMdd_HHmmss → oldest first
+
+        guard imageFiles.count > Self.maxPhotos else { return }
+
+        let toDelete = imageFiles.prefix(imageFiles.count - Self.maxPhotos)
+        for url in toDelete {
+            try? FileManager.default.removeItem(at: url)
+            photos.removeAll { $0.fileURL == url }
+            logger?.log("Trimmed old photo file=\(url.lastPathComponent)")
+        }
+    }
+
+    // MARK: - Image processing
 
     private func processIfNeeded(_ imageData: Data, fileType: String) -> ProcessedImage {
         guard let outputSize else {
@@ -137,12 +171,8 @@ final class ReceivedPhotoStore {
 
     private func preferredExtension(forType sourceType: CFString) -> String {
         if let type = UTType(sourceType as String) {
-            if type.conforms(to: .jpeg) {
-                return "jpg"
-            }
-            if type.conforms(to: .heic) || type.conforms(to: .heif) {
-                return "heic"
-            }
+            if type.conforms(to: .jpeg) { return "jpg" }
+            if type.conforms(to: .heic) || type.conforms(to: .heif) { return "heic" }
             return type.preferredFilenameExtension ?? "img"
         }
         return "heic"

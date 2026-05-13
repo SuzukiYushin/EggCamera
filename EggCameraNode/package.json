@@ -1,0 +1,12 @@
+{
+  "name": "egg-camera-node",
+  "version": "1.0.0",
+  "description": "Timed capture trigger for EggCamera Mac app",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5"
+  }
+}

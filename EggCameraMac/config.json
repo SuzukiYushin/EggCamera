@@ -3,13 +3,14 @@
   "iphonePort": 8080,
   "callbackHost": null,
   "callbackPort": 8081,
+  "triggerPort": 8082,
   "preferredWidth": 8064,
   "preferredHeight": 6048,
   "captureIntervalSeconds": 0,
-  "sendCaptureOnLaunch": true,
+  "sendCaptureOnLaunch": false,
   "outputWidth": 4000,
   "outputHeight": 6000,
   "centerCropToExactSize": true,
-  "receivedPhotosDirectory": "./ReceivedPhotos",
-  "logsDirectory": "./Logs"
+  "receivedPhotosDirectory": "../data/raw",
+  "logsDirectory": "../data/logs/swift"
 }

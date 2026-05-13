@@ -5,6 +5,7 @@ struct RuntimeConfiguration: Codable {
     let iphonePort: Int
     let callbackHost: String?
     let callbackPort: UInt16
+    let triggerPort: UInt16?
     let preferredWidth: Int?
     let preferredHeight: Int?
     let captureIntervalSeconds: Int
@@ -20,6 +21,7 @@ struct RuntimeConfiguration: Codable {
         iphonePort: 8080,
         callbackHost: nil,
         callbackPort: 8081,
+        triggerPort: nil,
         preferredWidth: 8064,
         preferredHeight: 6048,
         captureIntervalSeconds: 0,
@@ -27,8 +29,8 @@ struct RuntimeConfiguration: Codable {
         outputWidth: nil,
         outputHeight: nil,
         centerCropToExactSize: false,
-        receivedPhotosDirectory: "./ReceivedPhotos",
-        logsDirectory: "./Logs"
+        receivedPhotosDirectory: "../data/raw",
+        logsDirectory: "../data/logs/swift"
     )
 
     static func load(path: String = "config.json") -> RuntimeConfiguration {

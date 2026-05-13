@@ -14,6 +14,24 @@ actor PhotoLibraryManager {
         return status == .authorized || status == .limited
     }
 
+    func delete(localIdentifier: String) async {
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
+        guard assets.count > 0 else { return }
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                PHPhotoLibrary.shared().performChanges({
+                    PHAssetChangeRequest.deleteAssets(assets)
+                }, completionHandler: { _, error in
+                    if let error { continuation.resume(throwing: error) }
+                    else { continuation.resume() }
+                })
+            }
+            await logger?.log("Deleted asset from library localIdentifier=\(localIdentifier)")
+        } catch {
+            await logger?.log("Failed to delete asset localIdentifier=\(localIdentifier) error=\(error.localizedDescription)")
+        }
+    }
+
     func persist(intermediate: CaptureIntermediate) async throws -> FinalPhotoPayload {
         switch intermediate {
         case .photo(let data, let dimensions, let fileType, let deferred):

@@ -1,5 +1,7 @@
 import Foundation
 
+private struct CaptureTimeoutError: Error {}
+
 @MainActor
 final class AppRuntime {
     private let configuration: RuntimeConfiguration
@@ -9,6 +11,12 @@ final class AppRuntime {
     private lazy var receiverServer = UploadReceiverServer(port: configuration.callbackPort,
                                                            logger: logger,
                                                            store: store)
+    private lazy var triggerServer: TriggerReceiverServer? = {
+        guard let port = configuration.triggerPort else { return nil }
+        return TriggerReceiverServer(port: port, logger: logger) { [weak self] triggerId in
+            await self?.sendCapture(triggerId: triggerId)
+        }
+    }()
     private var loopTask: Task<Void, Never>?
     private var isSending = false
 
@@ -24,6 +32,9 @@ final class AppRuntime {
     func start() {
         do {
             try receiverServer.start()
+            if let triggerServer {
+                try triggerServer.start()
+            }
             logger.log("Background receiver started callback=http://\(configuration.resolvedCallbackHost):\(configuration.callbackPort)/upload")
             logger.log("Capture target host=\(configuration.iphoneHost ?? "bonjour"):\(configuration.iphonePort) preferred=\(configuration.preferredWidth?.description ?? "-")x\(configuration.preferredHeight?.description ?? "-") interval=\(configuration.captureIntervalSeconds)")
             logger.log("Output processing size=\(configuration.outputWidth?.description ?? "-")x\(configuration.outputHeight?.description ?? "-") centerCrop=\(configuration.centerCropToExactSize)")
@@ -53,9 +64,9 @@ final class AppRuntime {
         }
     }
 
-    private func sendCapture() async {
+    private func sendCapture(triggerId: String = "-") async {
         guard !isSending else {
-            logger.log("Capture skipped because a request is already in flight")
+            logger.log("[\(triggerId)] Capture skipped because a request is already in flight")
             return
         }
 
@@ -63,17 +74,29 @@ final class AppRuntime {
         defer { isSending = false }
 
         let callbackURL = "http://\(configuration.resolvedCallbackHost):\(configuration.callbackPort)/upload"
-        logger.log("Sending capture command callback=\(callbackURL)")
+        logger.log("[\(triggerId)] Sending capture command callback=\(callbackURL)")
 
         do {
-            try await commandClient.sendCapture(to: configuration.iphoneHost,
-                                                port: configuration.iphonePort,
-                                                callbackURL: callbackURL,
-                                                preferredWidth: configuration.preferredWidth,
-                                                preferredHeight: configuration.preferredHeight)
-            logger.log("Capture command accepted by iPhone")
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await self.commandClient.sendCapture(to: self.configuration.iphoneHost,
+                                                            port: self.configuration.iphonePort,
+                                                            callbackURL: callbackURL,
+                                                            preferredWidth: self.configuration.preferredWidth,
+                                                            preferredHeight: self.configuration.preferredHeight)
+                }
+                group.addTask {
+                    try await Task.sleep(for: .seconds(15))
+                    throw CaptureTimeoutError()
+                }
+                try await group.next()
+                group.cancelAll()
+            }
+            logger.log("[\(triggerId)] Capture command accepted by iPhone")
+        } catch is CaptureTimeoutError {
+            logger.log("[\(triggerId)] Capture command timed out — resetting")
         } catch {
-            logger.log("Capture command failed error=\(error.localizedDescription)")
+            logger.log("[\(triggerId)] Capture command failed error=\(error.localizedDescription)")
         }
     }
 }

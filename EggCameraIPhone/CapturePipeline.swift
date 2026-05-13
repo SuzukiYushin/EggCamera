@@ -3,16 +3,13 @@ import Foundation
 
 final class CapturePipeline {
     private let cameraController: CameraController
-    private let photoLibraryManager: PhotoLibraryManager
     private let transferClient: TransferClient
     private weak var logger: AppLogger?
 
     init(cameraController: CameraController,
-         photoLibraryManager: PhotoLibraryManager,
          transferClient: TransferClient,
          logger: AppLogger) {
         self.cameraController = cameraController
-        self.photoLibraryManager = photoLibraryManager
         self.transferClient = transferClient
         self.logger = logger
     }
@@ -26,11 +23,10 @@ final class CapturePipeline {
         let (intermediate, candidate) = try await cameraController.capture(preferredWidth: command.preferredWidth,
                                                                            preferredHeight: command.preferredHeight)
 
-        let finalPhoto = try await photoLibraryManager.persist(intermediate: intermediate)
-        let uploadedAt = Date()
+        let finalPhoto = makeFinalPhoto(from: intermediate)
         let metadata = CaptureMetadata(
             requestID: command.requestID,
-            localIdentifier: finalPhoto.localIdentifier,
+            localIdentifier: "",
             pixelWidth: finalPhoto.pixelWidth,
             pixelHeight: finalPhoto.pixelHeight,
             creationDate: finalPhoto.creationDate,
@@ -41,7 +37,7 @@ final class CapturePipeline {
             autoDeferredEnabled: candidate?.autoDeferredEnabled ?? false,
             captureStartedAt: captureStartedAt,
             assetReadyAt: Date(),
-            uploadedAt: uploadedAt,
+            uploadedAt: Date(),
             fileSizeBytes: finalPhoto.data.count
         )
 
@@ -51,9 +47,30 @@ final class CapturePipeline {
 
         try await transferClient.upload(finalPhoto: finalPhoto, metadata: metadata, callbackURL: callbackURL)
         await MainActor.run {
-            logger?.log("Capture pipeline finished id=\(command.requestID) result=\(finalPhoto.pixelWidth)x\(finalPhoto.pixelHeight) deferred=\(finalPhoto.deferred)")
+            logger?.log("Capture pipeline finished id=\(command.requestID) result=\(finalPhoto.pixelWidth)x\(finalPhoto.pixelHeight)")
         }
         return metadata
+    }
+
+    private func makeFinalPhoto(from intermediate: CaptureIntermediate) -> FinalPhotoPayload {
+        switch intermediate {
+        case .photo(let data, let dimensions, let fileType, let deferred):
+            return FinalPhotoPayload(data: data,
+                                     localIdentifier: "",
+                                     pixelWidth: Int(dimensions.width),
+                                     pixelHeight: Int(dimensions.height),
+                                     creationDate: Date(),
+                                     fileType: fileType,
+                                     deferred: deferred)
+        case .deferredProxy(let data, let selectedDimensions, let fileType):
+            return FinalPhotoPayload(data: data,
+                                     localIdentifier: "",
+                                     pixelWidth: Int(selectedDimensions.width),
+                                     pixelHeight: Int(selectedDimensions.height),
+                                     creationDate: Date(),
+                                     fileType: fileType,
+                                     deferred: true)
+        }
     }
 
     private func describe(_ dimensions: CMVideoDimensions?) -> String {

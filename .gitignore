@@ -1,5 +1,26 @@
-node_modules
-dist
-.next
-.cache
+# macOS
 .DS_Store
+
+# Swift build artifacts
+EggCameraMac/.build/
+EggCameraMac/Logs/
+EggCameraMac/ReceivedPhotos/
+EggCameraMac/CompositePhotos/
+
+# Xcode
+*.xcuserstate
+xcuserdata/
+
+# Node.js
+node_modules/
+dist/
+.next/
+.cache/
+
+# Runtime data (photos & logs are not source — keep directory structure via .gitkeep)
+data/raw/*
+!data/raw/.gitkeep
+data/composited/*
+!data/composited/.gitkeep
+data/logs/*
+!data/logs/.gitkeep

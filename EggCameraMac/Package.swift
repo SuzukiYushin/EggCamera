@@ -20,6 +20,7 @@ let package = Package(
                 "Package.swift",
                 "Logs",
                 "ReceivedPhotos",
+                "CompositePhotos",
                 "config.json",
                 "project.yml"
             ],
@@ -30,6 +31,7 @@ let package = Package(
                 "CaptureModels.swift",
                 "ReceivedPhotoStore.swift",
                 "RuntimeConfiguration.swift",
+                "TriggerReceiverServer.swift",
                 "UploadReceiverServer.swift",
                 "CLI/main.swift"
             ]
