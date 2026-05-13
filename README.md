@@ -63,9 +63,9 @@ cp EggCameraNode/.env.example EggCameraNode/.env   # なければ手動で作成
 `EggCameraNode/.env` に以下を記入（値は別途共有）：
 
 ```
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
+R2_ACCOUNT_ID=Cloudflareから取得してください
+R2_ACCESS_KEY_ID=Cloudflareから取得してください
+R2_SECRET_ACCESS_KEY=Cloudflareから取得してください
 R2_BUCKET_NAME=eggcamera-photos
 R2_PUBLIC_BASE_URL=https://pub-c35d182b845942f3b26d0ed65d668e0d.r2.dev
 PAGES_BASE_URL=https://eggcamera.pages.dev
