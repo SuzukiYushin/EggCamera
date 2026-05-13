@@ -1,0 +1,45 @@
+name: EggCameraMac
+
+options:
+  bundleIdPrefix: com.eggcamera
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: false
+
+targets:
+  EggCameraMac:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+
+    sources:
+      - path: .
+        excludes:
+          - CLI/**
+          - Package.swift
+          - project.yml
+          - Info.plist
+          - "*.xcodeproj/**"
+
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: EggCameraMac
+        CFBundleDisplayName: EggCameraMac
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        CallbackPort: 8081
+        CaptureIntervalSeconds: 0
+        IPhonePort: 8080
+        LSApplicationCategoryType: public.app-category.photography
+        LSUIElement: true
+        PreferredHeight: 6048
+        PreferredWidth: 8064
+        SendCaptureOnLaunch: true
+
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.siggaze.eggcamera.mac
+        CODE_SIGN_STYLE: Automatic

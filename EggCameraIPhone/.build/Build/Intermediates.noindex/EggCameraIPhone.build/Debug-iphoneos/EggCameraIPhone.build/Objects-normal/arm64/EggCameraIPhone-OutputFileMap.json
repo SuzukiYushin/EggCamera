@@ -1,0 +1,49 @@
+{
+  "" : {
+    "diagnostics" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraIPhone-primary.dia",
+    "emit-module-dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraIPhone-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraIPhone-primary-emit-module.dia",
+    "pch" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraIPhone-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraIPhone-primary.swiftdeps"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/CameraController.swift" : {
+    "const-values" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController.swiftconstvalues",
+    "dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController.d",
+    "diagnostics" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController.dia",
+    "index-unit-output-path" : "/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController.o",
+    "llvm-bc" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController.bc",
+    "object" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController.o",
+    "swift-dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController.swiftdeps",
+    "swiftmodule" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraController~partial.swiftmodule"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/CameraServer.swift" : {
+    "const-values" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer.swiftconstvalues",
+    "dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer.d",
+    "diagnostics" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer.dia",
+    "index-unit-output-path" : "/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer.o",
+    "llvm-bc" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer.bc",
+    "object" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer.o",
+    "swift-dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer.swiftdeps",
+    "swiftmodule" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/CameraServer~partial.swiftmodule"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/ContentView.swift" : {
+    "const-values" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/EggCameraApp.swift" : {
+    "const-values" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp.swiftconstvalues",
+    "dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp.d",
+    "diagnostics" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp.dia",
+    "index-unit-output-path" : "/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp.o",
+    "llvm-bc" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp.bc",
+    "object" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp.o",
+    "swift-dependencies" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp.swiftdeps",
+    "swiftmodule" : "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraIPhone/.build/Build/Intermediates.noindex/EggCameraIPhone.build/Debug-iphoneos/EggCameraIPhone.build/Objects-normal/arm64/EggCameraApp~partial.swiftmodule"
+  }
+}

@@ -1,0 +1,47 @@
+client:
+  name: basic
+  file-system: device-agnostic
+tools: {}
+targets:
+  "EggCameraMac-arm64-apple-macosx15.0-debug.module": ["<EggCameraMac-arm64-apple-macosx15.0-debug.module>"]
+  "PackageStructure": ["<PackageStructure>"]
+  "main": ["<EggCameraMac-arm64-apple-macosx15.0-debug.module>"]
+  "test": ["<EggCameraMac-arm64-apple-macosx15.0-debug.module>"]
+default: "main"
+nodes:
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/":
+    is-directory-structure: true
+    content-exclusion-patterns: [".git",".build"]
+commands:
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/sources":
+    tool: write-auxiliary-file
+    inputs: ["<sources-file-list>","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/AppLogger.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/AppRuntime.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CLI/main.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CaptureCommandClient.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CaptureModels.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/ReceivedPhotoStore.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/RuntimeConfiguration.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/UploadReceiverServer.swift"]
+    outputs: ["/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/sources"]
+    description: "Write auxiliary file /Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/sources"
+
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt":
+    tool: write-auxiliary-file
+    inputs: ["<swift-get-version>","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"]
+    outputs: ["/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"]
+    always-out-of-date: "true"
+    description: "Write auxiliary file /Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt"
+
+  "<EggCameraMac-arm64-apple-macosx15.0-debug.module>":
+    tool: phony
+    inputs: ["/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/Modules/EggCameraMac.swiftmodule"]
+    outputs: ["<EggCameraMac-arm64-apple-macosx15.0-debug.module>"]
+
+  "C.EggCameraMac-arm64-apple-macosx15.0-debug.module":
+    tool: shell
+    inputs: ["/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/AppLogger.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/AppRuntime.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CLI/main.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CaptureCommandClient.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CaptureModels.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/ReceivedPhotoStore.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/RuntimeConfiguration.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/UploadReceiverServer.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/sources"]
+    outputs: ["/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/Modules/EggCameraMac.swiftmodule"]
+    description: "Compiling Swift Module 'EggCameraMac' (8 sources)"
+    args: ["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc","-module-name","EggCameraMac","-emit-dependencies","-emit-module","-emit-module-path","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/Modules/EggCameraMac.swiftmodule","-output-file-map","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/output-file-map.json","-incremental","@/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/sources","-I","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/Modules","-target","arm64-apple-macosx14.0","-incremental","-enable-batch-mode","-serialize-diagnostics","-index-store-path","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-j8","-DSWIFT_PACKAGE","-DDEBUG","-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE","-module-cache-path","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-swift-version","5","-Xfrontend","-experimental-lazy-typecheck","-Xfrontend","-experimental-skip-all-function-bodies","-Xfrontend","-experimental-allow-module-with-compiler-errors","-Xfrontend","-empty-abi-descriptor","-plugin-path","/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-g","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks","-Xcc","-fPIC","-Xcc","-g","-package-name","eggcameramac"]
+
+  "PackageStructure":
+    tool: package-structure-tool
+    inputs: ["/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/Package.swift","/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/Package.resolved"]
+    outputs: ["<PackageStructure>"]
+    description: "Planning build"
+    allow-missing-inputs: true
+

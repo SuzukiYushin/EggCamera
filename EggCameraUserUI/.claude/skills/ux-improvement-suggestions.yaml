@@ -1,0 +1,4 @@
+name: ux-improvement-suggestions
+description: Suggest UX improvements while maintaining the familiar.co.jp tone
+prompt: |
+  Review the current UX/UI and suggest refinements that enhance usability for parents and children, keeping the warm, intuitive design from familiar.co.jp. Focus on camera functionality, navigation, accessibility, and overall user flow.

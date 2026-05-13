@@ -1,0 +1,4 @@
+name: design-consistency-check
+description: Check if the code maintains the familiar.co.jp design tone and visual consistency
+prompt: |
+  Analyze the provided code or design files for consistency with familiar.co.jp's warm, family-oriented tone. Look for color schemes, typography, layout, and overall user experience that aligns with the brand's aesthetic. Provide specific recommendations for any inconsistencies found.

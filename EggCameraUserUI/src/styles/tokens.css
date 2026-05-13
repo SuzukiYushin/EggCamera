@@ -1,0 +1,37 @@
+:root {
+  /* Brand Blues — familiar.co.jp logo color: #518FCC */
+  --color-brand-700:   #2C6499;  /* darker hover */
+  --color-brand-600:   #3A77B5;  /* active/pressed */
+  --color-brand-500:   #518FCC;  /* PRIMARY — familiar logo blue */
+  --color-brand-400:   #72A8D9;  /* secondary accent */
+  --color-brand-200:   #A3C4E6;  /* light tint */
+  --color-brand-100:   #C3D9EF;  /* very light tint */
+  --color-brand-50:    #E3EEF8;  /* background tint */
+
+  --color-check-navy:  #1E3054;
+
+  --color-white:       #FFFFFF;
+  --color-gray-50:     #F3F3F3;
+  --color-gray-100:    #F0F0F0;
+  --color-gray-200:    #E4E4E4;
+  --color-gray-300:    #D0D0D0;
+  --color-gray-400:    #B0B0B0;
+
+  --color-ink-900:     #121212;
+  --color-ink-700:     #555555;
+  --color-ink-500:     #666666;  /* was #888888, now 5.7:1 on white (WCAG AA) */
+  --color-ink-400:     #717171;  /* was #999999, now 4.6:1 on white (WCAG AA) */
+  --color-ink-300:     #767676;  /* was #AAAAAA, now 4.5:1 on white (WCAG AA) */
+  --color-ink-200:     #BBBBBB;
+  --color-ink-100:     #CCCCCC;
+
+  --color-success:     #4A7C59;
+  --color-success-bg:  #EEF5F1;
+  --color-warning:     #B5813B;
+  --color-error:       #B54040;
+
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-heading: 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+  --font-body:    'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+  --font-ui:      'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+}

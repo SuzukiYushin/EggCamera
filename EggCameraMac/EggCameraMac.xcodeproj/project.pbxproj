@@ -1,0 +1,316 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1EA76D29CCD16AF80D560768 /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FDC94042EC31DFACF01084B /* AppRuntime.swift */; };
+		50E2A81E8ED0EB94FD04A25A /* EggCameraMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5513647FC9B602161FD8C6FC /* EggCameraMacApp.swift */; };
+		575661EF085D016B4A865A4C /* ReceivedPhotoStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C00649FDF6E9C14D4AF93EC /* ReceivedPhotoStore.swift */; };
+		6CEAA3023E2C4FD7D1D9AAE2 /* CaptureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36D6C107327508E125B6FA03 /* CaptureModels.swift */; };
+		A633B90D3B0406272FBB9271 /* CaptureCommandClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA8AF16C10E878CCA646C820 /* CaptureCommandClient.swift */; };
+		B496EC80166FBE78FB9075A2 /* RuntimeConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7BFD42E26F5FCA57EF90678 /* RuntimeConfiguration.swift */; };
+		C9CAAFD905027DC620B51E40 /* UploadReceiverServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B3D66014E1B04DDF7FF55B6 /* UploadReceiverServer.swift */; };
+		EFA2912C4339BF838643F3A2 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C64C6CD0C86C2203AC3962 /* AppLogger.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		36D6C107327508E125B6FA03 /* CaptureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureModels.swift; sourceTree = "<group>"; };
+		3B3D66014E1B04DDF7FF55B6 /* UploadReceiverServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadReceiverServer.swift; sourceTree = "<group>"; };
+		5513647FC9B602161FD8C6FC /* EggCameraMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EggCameraMacApp.swift; sourceTree = "<group>"; };
+		6FDC94042EC31DFACF01084B /* AppRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntime.swift; sourceTree = "<group>"; };
+		8C00649FDF6E9C14D4AF93EC /* ReceivedPhotoStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReceivedPhotoStore.swift; sourceTree = "<group>"; };
+		9FFC1387457EC9F3F0EEB2C4 /* EggCameraMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EggCameraMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B7BFD42E26F5FCA57EF90678 /* RuntimeConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeConfiguration.swift; sourceTree = "<group>"; };
+		EA8AF16C10E878CCA646C820 /* CaptureCommandClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCommandClient.swift; sourceTree = "<group>"; };
+		F8C64C6CD0C86C2203AC3962 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1F9C4D09D734DC7132A3A300 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9FFC1387457EC9F3F0EEB2C4 /* EggCameraMac.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		8A50925A340F8075620C2A58 = {
+			isa = PBXGroup;
+			children = (
+				8B17C3A6AD292E02D3185103 /* EggCameraMac */,
+				1F9C4D09D734DC7132A3A300 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8B17C3A6AD292E02D3185103 /* EggCameraMac */ = {
+			isa = PBXGroup;
+			children = (
+				F8C64C6CD0C86C2203AC3962 /* AppLogger.swift */,
+				6FDC94042EC31DFACF01084B /* AppRuntime.swift */,
+				EA8AF16C10E878CCA646C820 /* CaptureCommandClient.swift */,
+				36D6C107327508E125B6FA03 /* CaptureModels.swift */,
+				5513647FC9B602161FD8C6FC /* EggCameraMacApp.swift */,
+				8C00649FDF6E9C14D4AF93EC /* ReceivedPhotoStore.swift */,
+				B7BFD42E26F5FCA57EF90678 /* RuntimeConfiguration.swift */,
+				3B3D66014E1B04DDF7FF55B6 /* UploadReceiverServer.swift */,
+			);
+			name = EggCameraMac;
+			path = .;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1641B82AF1F83E50B709194F /* EggCameraMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B346002D6059C38E9F04C5EC /* Build configuration list for PBXNativeTarget "EggCameraMac" */;
+			buildPhases = (
+				DC123BF765AD43F45EE4D966 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EggCameraMac;
+			packageProductDependencies = (
+			);
+			productName = EggCameraMac;
+			productReference = 9FFC1387457EC9F3F0EEB2C4 /* EggCameraMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3D50A3551161B1789DB13366 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					1641B82AF1F83E50B709194F = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = DEBAAD95B6F1E101F36A545D /* Build configuration list for PBXProject "EggCameraMac" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 8A50925A340F8075620C2A58;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1F9C4D09D734DC7132A3A300 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1641B82AF1F83E50B709194F /* EggCameraMac */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DC123BF765AD43F45EE4D966 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EFA2912C4339BF838643F3A2 /* AppLogger.swift in Sources */,
+				1EA76D29CCD16AF80D560768 /* AppRuntime.swift in Sources */,
+				A633B90D3B0406272FBB9271 /* CaptureCommandClient.swift in Sources */,
+				6CEAA3023E2C4FD7D1D9AAE2 /* CaptureModels.swift in Sources */,
+				50E2A81E8ED0EB94FD04A25A /* EggCameraMacApp.swift in Sources */,
+				575661EF085D016B4A865A4C /* ReceivedPhotoStore.swift in Sources */,
+				B496EC80166FBE78FB9075A2 /* RuntimeConfiguration.swift in Sources */,
+				C9CAAFD905027DC620B51E40 /* UploadReceiverServer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		06929C3DE0853686B810600C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		2EDEC29CA9018F22FB078A35 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.siggaze.eggcamera.mac;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		78E67B0BBF2954FB2CB4251A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A0FC4A5D716054B20CBD9570 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.siggaze.eggcamera.mac;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B346002D6059C38E9F04C5EC /* Build configuration list for PBXNativeTarget "EggCameraMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A0FC4A5D716054B20CBD9570 /* Debug */,
+				2EDEC29CA9018F22FB078A35 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DEBAAD95B6F1E101F36A545D /* Build configuration list for PBXProject "EggCameraMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				78E67B0BBF2954FB2CB4251A /* Debug */,
+				06929C3DE0853686B810600C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 3D50A3551161B1789DB13366 /* Project object */;
+}

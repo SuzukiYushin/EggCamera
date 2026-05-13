@@ -1,0 +1,15 @@
+{
+  "iphoneHost": null,
+  "iphonePort": 8080,
+  "callbackHost": null,
+  "callbackPort": 8081,
+  "preferredWidth": 8064,
+  "preferredHeight": 6048,
+  "captureIntervalSeconds": 0,
+  "sendCaptureOnLaunch": true,
+  "outputWidth": 4000,
+  "outputHeight": 6000,
+  "centerCropToExactSize": true,
+  "receivedPhotosDirectory": "./ReceivedPhotos",
+  "logsDirectory": "./Logs"
+}

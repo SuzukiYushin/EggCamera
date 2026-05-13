@@ -1,0 +1,61 @@
+{
+  "": {
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/master.swiftdeps"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/AppLogger.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppLogger.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppLogger.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppLogger~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppLogger.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppLogger.dia"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/AppRuntime.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppRuntime.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppRuntime.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppRuntime~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppRuntime.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/AppRuntime.dia"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CLI/main.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/main.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/main.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/main~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/main.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/main.dia"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CaptureCommandClient.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureCommandClient.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureCommandClient.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureCommandClient~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureCommandClient.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureCommandClient.dia"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/CaptureModels.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureModels.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureModels.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureModels~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureModels.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/CaptureModels.dia"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/ReceivedPhotoStore.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/ReceivedPhotoStore.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/ReceivedPhotoStore.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/ReceivedPhotoStore~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/ReceivedPhotoStore.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/ReceivedPhotoStore.dia"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/RuntimeConfiguration.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/RuntimeConfiguration.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/RuntimeConfiguration.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/RuntimeConfiguration~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/RuntimeConfiguration.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/RuntimeConfiguration.dia"
+  },
+  "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/UploadReceiverServer.swift": {
+    "dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/UploadReceiverServer.d",
+    "object": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/UploadReceiverServer.swift.o",
+    "swiftmodule": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/UploadReceiverServer~partial.swiftmodule",
+    "swift-dependencies": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/UploadReceiverServer.swiftdeps",
+    "diagnostics": "/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/.build/index-build/arm64-apple-macosx/debug/EggCameraMac.build/UploadReceiverServer.dia"
+  }
+}

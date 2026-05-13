@@ -1,0 +1,368 @@
+@import './tokens.css';
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* Keyboard focus ring — visible only for keyboard/switch users, not mouse */
+*:focus { outline: none; }
+*:focus-visible {
+  outline: 3px solid var(--color-brand-500);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+html, body, #root {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: #F0EDE8;
+  font-family: var(--font-body);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+}
+
+/* ── iPad shell ── */
+.ipad-shell {
+  width: 768px;
+  height: 1024px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.08),
+    0 2px 4px rgba(0,0,0,0.06),
+    0 12px 40px rgba(0,0,0,0.16),
+    0 32px 80px rgba(0,0,0,0.12);
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Status bar */
+.status-bar {
+  height: 32px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 28px;
+  flex-shrink: 0;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+}
+.status-bar span {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+}
+.status-bar .brand-name {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  opacity: 1;
+  font-size: 12px;
+}
+
+/* Progress bar */
+.prog-bar {
+  height: 2px;
+  background: rgba(0,0,0,0.06);
+  flex-shrink: 0;
+  margin-top: 32px;
+}
+.prog-fill {
+  height: 100%;
+  background: var(--color-brand-400);
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+
+/* Screen body */
+.screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  animation: slideIn 0.32s cubic-bezier(0.4,0,0.2,1) both;
+  will-change: opacity, transform;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Typography */
+.t-eyebrow {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-ink-300);
+}
+.t-heading {
+  font-family: var(--font-heading);
+  font-size: 28px;
+  font-weight: 300;
+  color: var(--color-ink-900);
+  line-height: 1.35;
+}
+.t-body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--color-ink-500);
+  line-height: 1.7;
+}
+.t-caption {
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--color-ink-300);
+}
+
+/* Buttons */
+.btn-primary {
+  width: 100%;
+  height: 68px;
+  background: var(--color-brand-500);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: background 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-primary:active {
+  background: var(--color-brand-700);
+  transform: scale(0.99);
+}
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  width: 100%;
+  height: 60px;
+  background: transparent;
+  color: var(--color-ink-400);
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: 12px;
+  font-family: var(--font-ui);
+  font-size: 15px;
+  font-weight: 400;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-ghost:hover {
+  border-color: var(--color-gray-300);
+  color: var(--color-ink-700);
+}
+
+/* Input */
+.input-wrap {
+  border: 1.5px solid var(--color-gray-200);
+  border-radius: 10px;
+  height: 64px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input-wrap.focused {
+  border-color: var(--color-brand-400);
+  box-shadow: 0 0 0 3px rgba(81,143,204,0.12);
+}
+.input-wrap input {
+  border: none;
+  outline: none;
+  flex: 1;
+  font-family: var(--font-ui);
+  font-size: 18px;
+  font-weight: 300;
+  color: var(--color-ink-900);
+  background: transparent;
+}
+
+/* Photo cell */
+.photo-cell {
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.15s;
+  background: var(--color-gray-50);
+}
+.photo-cell:active { transform: scale(0.97); }
+.photo-cell.selected {
+  outline: 3px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+.photo-cell .check {
+  position: absolute; top: 10px; right: 10px;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: var(--color-brand-500);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 13px; font-weight: 700;
+  box-shadow: 0 2px 8px rgba(81,143,204,0.4);
+}
+
+/* Frame thumbnail */
+.frame-thumb {
+  flex-shrink: 0;
+  width: 110px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  background: var(--color-gray-50);
+}
+.frame-thumb.selected {
+  border-color: var(--color-brand-500);
+  box-shadow: 0 0 0 3px rgba(81,143,204,0.15);
+}
+
+/* Keyboard placeholder */
+.keyboard-ph {
+  height: 300px;
+  background: #D1D5DB;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+.kb-row { display: flex; gap: 6px; justify-content: center; }
+.kb-key {
+  height: 44px; min-width: 38px; padding: 0 6px;
+  background: #fff; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; color: #222; font-weight: 400;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.3);
+}
+.kb-key.wide { min-width: 72px; }
+.kb-key.space { flex: 1; max-width: 260px; }
+.kb-key.dark { background: #ADB5BD; font-size: 12px; }
+.kb-key.confirm { background: var(--color-brand-500); color: #fff; }
+
+/* QR */
+.qr-frame {
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 8px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+  display: inline-flex;
+}
+
+/* Screen nav tabs */
+.screen-nav {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 768px;
+}
+.screen-nav-btn {
+  padding: 5px 12px;
+  border-radius: 99px;
+  border: 1.5px solid #ddd;
+  background: #fff;
+  color: #888;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 400;
+}
+.screen-nav-btn.active {
+  border-color: var(--color-brand-500);
+  background: var(--color-brand-500);
+  color: #fff;
+  font-weight: 500;
+}
+
+@keyframes shutterFlash {
+  0%  { background: rgba(255,255,255,0.7); }
+  100%{ background: rgba(255,255,255,0); }
+}
+
+@keyframes frameSwitch {
+  from { opacity: 0.5; transform: scale(0.97); }
+  to   { opacity: 1;   transform: scale(1); }
+}
+
+@keyframes countPop {
+  0%   { transform: scale(0.85); opacity: 0.6; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+/* ── Frame grid scrollbar ── */
+.frame-grid::-webkit-scrollbar {
+  width: 4px;
+}
+.frame-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.frame-grid::-webkit-scrollbar-thumb {
+  background: var(--color-brand-200);
+  border-radius: 99px;
+  transition: background 0.2s;
+}
+.frame-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-400);
+}
+.frame-grid {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-brand-200) transparent;
+}
+
+/* ── Reduced-motion: replace translate/scale with simple fades ── */
+@media (prefers-reduced-motion: reduce) {
+  @keyframes slideIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  @keyframes shutterFlash {
+    from { opacity: 0; }
+    to   { opacity: 0; }
+  }
+  @keyframes frameSwitch {
+    from { opacity: 0.85; }
+    to   { opacity: 1; }
+  }
+  @keyframes countPop {
+    from { opacity: 0.7; }
+    to   { opacity: 1; }
+  }
+  .screen {
+    animation-duration: 0.15s;
+  }
+  .btn-primary:active {
+    transform: none;
+  }
+  .btn-ghost:active {
+    transform: none;
+  }
+}

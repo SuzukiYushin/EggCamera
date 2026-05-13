@@ -1,0 +1,4 @@
+name: tonema-review
+description: Review and ensure maintenance of the familiar.co.jp tone in all content and interactions
+prompt: |
+  Evaluate text, interactions, and visual elements to ensure they maintain the warm, family-friendly tone of familiar.co.jp. Check for appropriate language, imagery, and user interactions that resonate with parents and children.

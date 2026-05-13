@@ -1,0 +1,20 @@
+[2026/4/23 16:12:49] Background receiver started callback=http://macbook-air-6.local:8081/upload
+[2026/4/23 16:12:49] Capture target host=bonjour:8080 preferred=8064x6048 interval=0
+[2026/4/23 16:12:49] ReceivedPhotos directory=/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/./ReceivedPhotos
+[2026/4/23 16:12:49] Logs directory=/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/./Logs
+[2026/4/23 16:12:49] Upload receiver listening on :8081
+[2026/4/23 16:12:49] Sending capture command callback=http://macbook-air-6.local:8081/upload
+[2026/4/23 16:12:49] Capture command accepted by iPhone
+[2026/4/23 16:12:53] Received photo id=B747287D-C41E-439F-9DC4-D8D83542A871 size=3024x4032 deferred=true
+[2026/4/23 16:12:53] Saved photo path=/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/./ReceivedPhotos/B747287D-C41E-439F-9DC4-D8D83542A871_3024x4032.heic
+[2026/4/23 16:26:23] Background receiver started callback=http://macbook-air-6.local:8081/upload
+[2026/4/23 16:26:23] Capture target host=bonjour:8080 preferred=8064x6048 interval=0
+[2026/4/23 16:26:23] Output processing size=4000x6000 centerCrop=true
+[2026/4/23 16:26:23] ReceivedPhotos directory=/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/./ReceivedPhotos
+[2026/4/23 16:26:23] Logs directory=/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/./Logs
+[2026/4/23 16:26:23] Upload receiver listening on :8081
+[2026/4/23 16:26:23] Sending capture command callback=http://macbook-air-6.local:8081/upload
+[2026/4/23 16:26:23] Capture command accepted by iPhone
+[2026/4/23 16:26:28] Processed image on Mac: 6048x8064 -> 4000x6000 cropCenter=true
+[2026/4/23 16:26:28] Received photo id=98595603-9C21-43A4-BD9A-8B419CBC638D size=3024x4032 deferred=true
+[2026/4/23 16:26:28] Saved photo path=/Users/suzukiyoshinobu/Documents/siggaze/請負/SANDWICH/EggCamera/EggCameraMac/./ReceivedPhotos/98595603-9C21-43A4-BD9A-8B419CBC638D_4000x6000.heic

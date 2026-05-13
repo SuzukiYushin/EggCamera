@@ -1,0 +1,52 @@
+name: EggCameraIPhone
+
+options:
+  bundleIdPrefix: com.eggcamera
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: false
+
+targets:
+  EggCameraIPhone:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+
+    sources:
+      - path: .
+        excludes:
+          - project.yml
+          - Makefile
+          - Info.plist
+          - "*.xcodeproj/**"
+          - ".build/**"
+
+    # Info.plist は XcodeGen が自動生成する
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: EggCamera
+        CFBundleDisplayName: EggCamera
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        LSRequiresIPhoneOS: true
+        UIRequiredDeviceCapabilities:
+          - arm64
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen: {}
+        NSCameraUsageDescription: "定期撮影のためカメラを使用します"
+        NSLocalNetworkUsageDescription: "Macとの通信にローカルネットワークを使用します"
+        NSBonjourServices:
+          - "_eggcamera._tcp"
+
+    settings:
+      base:
+        SWIFT_VERSION: "5.9"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.siggaze.eggcamera
+        CODE_SIGN_STYLE: Automatic
+        # DEVELOPMENT_TEAM は make 実行時に渡す:
+        #   make install DEVELOPMENT_TEAM=XXXXXXXXXX
