@@ -3,8 +3,7 @@ import { IPad } from '../IPad';
 import { Page } from '../Page';
 
 interface QRProps {
-  onNext: () => void;
-  onRestart: () => void;
+  onDone: () => void;
 }
 
 const QR_CELLS = [
@@ -32,22 +31,25 @@ const STEPS = [
   { n: '3', t: '写真をダウンロード' },
 ];
 
-export function QR({ onRestart }: QRProps) {
+export function QR({ onDone }: QRProps) {
   const [secs, setSecs] = useState(600);
 
   useEffect(() => {
-    const t = setInterval(() => setSecs(s => Math.max(s - 1, 0)), 1000);
+    const t = setInterval(() => setSecs(s => {
+      if (s <= 1) { onDone(); return 0; }
+      return s - 1;
+    }), 1000);
     return () => clearInterval(t);
-  }, []);
+  }, [onDone]);
 
-  const mm = String(Math.floor(secs / 60)).padStart(2, '0');
-  const ss = String(secs % 60).padStart(2, '0');
+  const mm     = String(Math.floor(secs / 60)).padStart(2, '0');
+  const ss     = String(secs % 60).padStart(2, '0');
   const urgent = secs < 60;
 
   return (
-    <IPad step={8} animKey="qr">
+    <IPad step={6} totalSteps={7} animKey="qr">
       <Page style={{ paddingTop: 28, paddingBottom: 36 }}>
-        <div className="t-eyebrow" style={{ marginBottom: 10 }}>ステップ 8 / 9</div>
+        <div className="t-eyebrow" style={{ marginBottom: 10 }}>ステップ 6 / 7</div>
         <div className="t-heading" style={{ fontSize: 26, marginBottom: 4 }}>
           写真の準備ができました
         </div>
@@ -59,11 +61,9 @@ export function QR({ onRestart }: QRProps) {
           {/* QR code */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <div className="qr-frame">
-              <svg
-                width={200} height={200}
+              <svg width={200} height={200}
                 viewBox={`0 0 ${QR_CELLS.length} ${QR_CELLS.length}`}
-                shapeRendering="crispEdges"
-              >
+                shapeRendering="crispEdges">
                 <rect width={QR_CELLS.length} height={QR_CELLS.length} fill="white" />
                 {QR_CELLS.flatMap((row, y) =>
                   row.map((v, x) =>
@@ -77,7 +77,7 @@ export function QR({ onRestart }: QRProps) {
             </div>
           </div>
 
-          {/* Instructions + timer */}
+          {/* Steps + timer */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
             {STEPS.map(s => (
               <div key={s.n} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
@@ -108,12 +108,6 @@ export function QR({ onRestart }: QRProps) {
               }}>{mm}:{ss}</div>
             </div>
           </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-          <button className="btn-ghost" style={{ flex: 1 }} onClick={onRestart}>
-            TOPに戻る
-          </button>
         </div>
       </Page>
     </IPad>

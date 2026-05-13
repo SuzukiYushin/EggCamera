@@ -6,7 +6,7 @@ interface EndProps {
 
 export function End({ onRestart }: EndProps) {
   return (
-    <IPad step={9} animKey="end">
+    <IPad step={7} totalSteps={7} animKey="end">
       <div style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
@@ -40,7 +40,7 @@ export function End({ onRestart }: EndProps) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-          <button className="btn-primary" onClick={onRestart}>もう一度撮影する</button>
+          <button className="btn-primary" onClick={onRestart}>TOPに戻る</button>
           {/* <button className="btn-ghost" onClick={onRestart}>終了する</button> */}
         </div>
       </div>

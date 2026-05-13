@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { IPad } from '../IPad';
-import flameImg from '../../assets/flame.png';
 import babyImg from '../../assets/baby.png';
 
 interface CaptureProps {
@@ -8,39 +7,30 @@ interface CaptureProps {
 }
 
 export function Capture({ onNext }: CaptureProps) {
-  const [count, setCount] = useState(1);
+  const [count, setCount]     = useState(0);
+  const [flashKey, setFlashKey] = useState(0);
 
-  useEffect(() => {
-    if (count >= 6) {
-      const t = setTimeout(onNext, 800);
-      return () => clearTimeout(t);
-      return;
-    }
-    const t = setTimeout(() => setCount(c => c + 1), 900);
-    return () => clearTimeout(t);
-  }, [count, onNext]);
-
-  const done = count >= 6;
+  const shoot = () => {
+    setCount(c => c + 1);
+    setFlashKey(k => k + 1);
+  };
 
   return (
-    <IPad step={4} animKey="capture">
+    <IPad step={3} totalSteps={7} animKey="capture">
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', padding: '12px 32px 20px' }}>
 
         {/* Header */}
         <div style={{ flexShrink: 0, marginBottom: 10 }}>
-          <div className="t-eyebrow" style={{ marginBottom: 4 }}>ステップ 4 / 9</div>
+          <div className="t-eyebrow" style={{ marginBottom: 4 }}>ステップ 3 / 7</div>
           <div className="t-heading" style={{ fontSize: 20 }}>
-            {done ? '撮影完了！' : '自動撮影中です'}
+            シャッターを押してください
           </div>
         </div>
 
-        {/* Camera preview — fills remaining height, 2:3 ratio */}
+        {/* Camera view — NO frame overlay */}
         <div style={{
-          flex: 1,
-          minHeight: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
+          flex: 1, minHeight: 0,
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
         }}>
           <div style={{
             aspectRatio: '2 / 3',
@@ -57,86 +47,68 @@ export function Capture({ onNext }: CaptureProps) {
               alt="カメラ映像"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
-            <img
-              src={flameImg}
-              alt="フレーム"
-              style={{
-                position: 'absolute', inset: 0,
-                width: '100%', height: '100%', objectFit: 'fill',
-                display: 'block', pointerEvents: 'none',
-              }}
-            />
 
             {/* Shutter flash */}
-            <div key={count} style={{
+            <div key={flashKey} style={{
               position: 'absolute', inset: 0,
-              background: 'rgba(255,255,255,0)',
-              animation: 'shutterFlash 0.3s ease-out',
+              background: flashKey === 0 ? 'transparent' : 'rgba(255,255,255,0)',
+              animation: flashKey === 0 ? 'none' : 'shutterFlash 0.3s ease-out',
               pointerEvents: 'none',
             }} />
 
-            {/* Counter — overlaid top-left */}
-            <div
-              aria-live="polite"
-              aria-atomic="true"
-              aria-label={done ? '撮影完了' : `${count} 枚目を撮影中`}
-              style={{
+            {/* Shot counter */}
+            {count > 0 && (
+              <div style={{
                 position: 'absolute', top: 16, left: 16,
-                display: 'flex', alignItems: 'baseline', gap: 4,
                 background: 'rgba(0,0,0,0.50)',
-                borderRadius: 99,
-                padding: '6px 16px',
-              }}
-            >
-              <span
-                key={count}
-                aria-hidden="true"
-                style={{
-                  fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 44,
-                  color: done ? '#4ade80' : '#fff',
-                  lineHeight: 1,
-                  display: 'inline-block',
-                  animation: 'countPop 0.28s cubic-bezier(0.34,1.56,0.64,1)',
-                }}
-              >{done ? '✓' : count}</span>
-              {!done && (
-                <span aria-hidden="true" style={{ fontFamily: 'Noto Sans JP', fontSize: 18, color: 'rgba(255,255,255,0.65)' }}>
-                  / 6 枚
+                borderRadius: 99, padding: '6px 16px',
+                display: 'flex', alignItems: 'baseline', gap: 4,
+              }}>
+                <span style={{
+                  fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 36,
+                  color: '#fff', lineHeight: 1,
+                }}>{count}</span>
+                <span style={{ fontFamily: 'Noto Sans JP', fontSize: 14, color: 'rgba(255,255,255,0.65)' }}>
+                  枚撮影済み
                 </span>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Camera label — overlaid bottom-center */}
             <div style={{
               position: 'absolute', bottom: 14, left: '50%', transform: 'translateX(-50%)',
-              background: 'rgba(0,0,0,0.45)', borderRadius: 99,
-              padding: '4px 14px',
+              background: 'rgba(0,0,0,0.45)', borderRadius: 99, padding: '4px 14px',
               fontFamily: 'Noto Sans JP', fontSize: 11, color: 'rgba(255,255,255,0.85)',
-              letterSpacing: '0.06em',
-              whiteSpace: 'nowrap',
+              letterSpacing: '0.06em', whiteSpace: 'nowrap',
             }}>真上からのカメラ映像</div>
           </div>
         </div>
 
-        {/* Pip indicators */}
-        <div style={{ flexShrink: 0, display: 'flex', gap: 10, justifyContent: 'center', marginTop: 14 }}>
-          {[1, 2, 3, 4, 5, 6].map(n => (
-            <div key={n} style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: n < count
-                ? 'var(--color-brand-400)'
-                : n === count
-                  ? 'var(--color-brand-500)'
-                  : 'var(--color-gray-100)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: n <= count ? '#fff' : 'var(--color-ink-300)',
-              fontFamily: 'Noto Sans JP', fontSize: 14, fontWeight: 500,
-              transition: 'background 0.3s, color 0.3s',
-              boxShadow: n === count && !done ? '0 0 0 4px rgba(81,143,204,0.2)' : 'none',
-            }}>
-              {n < count ? '✓' : n}
-            </div>
-          ))}
+        {/* Shutter button + next */}
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16 }}>
+          <button
+            onClick={shoot}
+            style={{
+              height: 68, borderRadius: 12, border: 'none', cursor: 'pointer',
+              background: '#fff',
+              boxShadow: '0 0 0 2px var(--color-brand-200), 0 4px 16px rgba(81,143,204,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              fontFamily: 'Noto Sans JP', fontSize: 18, fontWeight: 500,
+              color: 'var(--color-ink-900)',
+              transition: 'transform 0.1s, box-shadow 0.1s',
+            }}
+            onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <span style={{ fontSize: 28 }}>📷</span> シャッター
+          </button>
+
+          <button
+            className="btn-primary"
+            disabled={count === 0}
+            onClick={onNext}
+          >
+            {count === 0 ? 'シャッターを押してください' : `${count}枚で決定する`}
+          </button>
         </div>
 
       </div>

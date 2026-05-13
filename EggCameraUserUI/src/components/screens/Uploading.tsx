@@ -17,45 +17,18 @@ export function Uploading({ onNext }: UploadingProps) {
     return () => clearTimeout(t);
   }, [prog, onNext]);
 
-  const circumference = 2 * Math.PI * 42;
-
   return (
-    <IPad step={7} animKey="upload">
+    <IPad step={5} totalSteps={7} animKey="upload">
       <div style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '64px 80px', gap: 36,
       }}>
-        {/* Circular progress */}
-        <div style={{ position: 'relative', width: 100, height: 100 }}>
-          <svg width="100" height="100" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" r="42" fill="none"
-              stroke="var(--color-gray-100)" strokeWidth="6" />
-            <circle cx="50" cy="50" r="42" fill="none"
-              stroke="var(--color-brand-400)" strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - prog / 100)}
-              transform="rotate(-90 50 50)"
-              style={{ transition: 'stroke-dashoffset 0.1s' }} />
-          </svg>
-          <div style={{
-            position: 'absolute', inset: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 18,
-            color: 'var(--color-brand-500)',
-          }}>
-            {prog < 100 ? `${prog}%` : '✓'}
-          </div>
+        <div className="t-heading" style={{ fontSize: 24, textAlign: 'center' }}>
+          {prog < 100 ? '写真を保存しています' : '保存完了'}
         </div>
-
-        <div style={{ textAlign: 'center' }}>
-          <div className="t-heading" style={{ fontSize: 24, marginBottom: 8 }}>
-            {prog < 100 ? '写真を保存しています' : '保存完了'}
-          </div>
-          <div className="t-body" style={{ fontSize: 14 }}>
-            {prog < 100 ? 'しばらくお待ちください…' : 'QRコードを表示します'}
-          </div>
+        <div className="t-body" style={{ fontSize: 14, textAlign: 'center' }}>
+          {prog < 100 ? 'しばらくお待ちください…' : 'QRコードを表示します'}
         </div>
 
         <div
@@ -64,12 +37,16 @@ export function Uploading({ onNext }: UploadingProps) {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-label="写真を保存中"
-          style={{ width: '100%', height: 4, background: 'var(--color-gray-100)', borderRadius: 2, overflow: 'hidden' }}
+          style={{
+            width: '100%', height: 6,
+            background: 'var(--color-gray-100)',
+            borderRadius: 99, overflow: 'hidden',
+          }}
         >
           <div style={{
             height: '100%', width: `${prog}%`,
             background: 'var(--color-brand-400)',
-            borderRadius: 2,
+            borderRadius: 99,
             transition: 'width 0.1s',
           }} />
         </div>

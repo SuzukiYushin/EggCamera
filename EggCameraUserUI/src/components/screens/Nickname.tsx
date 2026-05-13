@@ -3,6 +3,8 @@ import { IPad } from '../IPad';
 import { Page } from '../Page';
 
 interface NicknameProps {
+  nickname: string;
+  onChange: (v: string) => void;
   onNext: () => void;
   onSkip: () => void;
 }
@@ -13,14 +15,13 @@ const KB_ROWS = [
   ['z','x','c','v','b','n','m'],
 ];
 
-export function Nickname({ onNext, onSkip }: NicknameProps) {
-  const [val, setVal] = useState('ゆうちゃん');
+export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) {
   const [focused, setFocused] = useState(false);
 
   return (
-    <IPad step={1} animKey="nick">
+    <IPad step={1} totalSteps={7} animKey="nick">
       <Page style={{ paddingTop: 28 }}>
-        <div className="t-eyebrow" style={{ marginBottom: 12 }}>ステップ 1 / 9</div>
+        <div className="t-eyebrow" style={{ marginBottom: 12 }}>ステップ 1 / 7</div>
         <div id="nickname-title" className="t-heading" style={{ marginBottom: 8 }}>
           ニックネームを<br />教えてください
         </div>
@@ -28,7 +29,7 @@ export function Nickname({ onNext, onSkip }: NicknameProps) {
           写真にお名前を入れることができます（任意）
         </div>
 
-        <div className={`input-wrap${focused || val ? ' focused' : ''}`} style={{ marginBottom: 12 }}>
+        <div className={`input-wrap${focused || nickname ? ' focused' : ''}`} style={{ marginBottom: 12 }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <circle cx="9" cy="6" r="3.5" stroke="var(--color-brand-400)" strokeWidth="1.5" />
             <path d="M2 16c0-3.866 3.134-7 7-7s7 3.134 7 7"
@@ -39,8 +40,8 @@ export function Nickname({ onNext, onSkip }: NicknameProps) {
             aria-labelledby="nickname-title"
             aria-required="false"
             maxLength={10}
-            value={val}
-            onChange={e => setVal(e.target.value)}
+            value={nickname}
+            onChange={e => onChange(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder="例：ゆうちゃん"
@@ -60,9 +61,7 @@ export function Nickname({ onNext, onSkip }: NicknameProps) {
         {KB_ROWS.map((row, ri) => (
           <div className="kb-row" key={ri}>
             {ri === 2 && <div className="kb-key dark wide">⇧</div>}
-            {row.map(k => (
-              <div className="kb-key" key={k}>{k}</div>
-            ))}
+            {row.map(k => <div className="kb-key" key={k}>{k}</div>)}
             {ri === 2 && <div className="kb-key dark wide">⌫</div>}
           </div>
         ))}

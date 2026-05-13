@@ -2,19 +2,32 @@ import { IPad } from '../IPad';
 import { Page } from '../Page';
 
 interface BirthdayProps {
-  onNext: () => void;
+  onNext: (days: number) => void;
   onSkip: () => void;
 }
 
+// Mock selected date — picker is visual only in this prototype
+const MOCK_YEAR  = 2024;
+const MOCK_MONTH = 8;
+const MOCK_DAY   = 12;
+
+function calcDays(year: number, month: number, day: number): number {
+  const birth = new Date(year, month - 1, day);
+  const today = new Date();
+  return Math.max(0, Math.floor((today.getTime() - birth.getTime()) / 86_400_000));
+}
+
+const MOCK_DAYS = calcDays(MOCK_YEAR, MOCK_MONTH, MOCK_DAY);
+
 export function Birthday({ onNext, onSkip }: BirthdayProps) {
   return (
-    <IPad step={2} animKey="bday">
+    <IPad step={2} totalSteps={7} animKey="bday">
       <Page style={{ paddingTop: 28 }}>
-        <div className="t-eyebrow" style={{ marginBottom: 12 }}>ステップ 2 / 9</div>
+        <div className="t-eyebrow" style={{ marginBottom: 12 }}>ステップ 2 / 7</div>
         <div className="t-heading" style={{ marginBottom: 8 }}>
           生年月日を<br />教えてください
         </div>
-        <div className="t-body" style={{ marginBottom: 32 }}>月齢の計算に使います</div>
+        <div className="t-body" style={{ marginBottom: 32 }}>日数の計算に使います</div>
 
         <div style={{
           border: '1.5px solid var(--color-gray-200)',
@@ -22,16 +35,13 @@ export function Birthday({ onNext, onSkip }: BirthdayProps) {
           marginBottom: 20, background: '#fff',
         }}>
           <div style={{ display: 'flex', height: 200 }}>
-            {/* Year column */}
             <PickerCol items={['2022年', '2023年', '2024年', '2025年']} selectedIndex={2} />
-            {/* Month column */}
             <PickerCol items={['6月', '7月', '8月', '9月', '10月']} selectedIndex={2} />
-            {/* Day column */}
             <PickerCol items={['10日', '11日', '12日', '13日', '14日']} selectedIndex={2} isLast />
           </div>
         </div>
 
-        {/* Birthday result card */}
+        {/* Result card */}
         <div style={{
           marginBottom: 'auto',
           borderRadius: 4,
@@ -40,7 +50,6 @@ export function Birthday({ onNext, onSkip }: BirthdayProps) {
           display: 'flex',
           boxShadow: '0 4px 16px rgba(81,143,204,0.12)',
         }}>
-          {/* Left: date */}
           <div style={{
             flex: 1,
             padding: '20px 22px',
@@ -56,10 +65,9 @@ export function Birthday({ onNext, onSkip }: BirthdayProps) {
               fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 22,
               color: 'var(--color-ink-900)', lineHeight: 1.4,
             }}>
-              2024年<br />8月 12日
+              {MOCK_YEAR}年<br />{MOCK_MONTH}月 {MOCK_DAY}日
             </div>
           </div>
-          {/* Right: age in months */}
           <div style={{
             width: 120,
             background: 'var(--color-brand-500)',
@@ -72,18 +80,18 @@ export function Birthday({ onNext, onSkip }: BirthdayProps) {
               letterSpacing: '0.14em', color: 'rgba(255,255,255,0.7)',
             }}>生後</div>
             <div style={{
-              fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 52,
+              fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 44,
               color: '#fff', lineHeight: 1,
-            }}>8</div>
+            }}>{MOCK_DAYS}</div>
             <div style={{
               fontFamily: 'Noto Sans JP', fontSize: 13,
               color: 'rgba(255,255,255,0.85)',
-            }}>ヶ月</div>
+            }}>日</div>
           </div>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 36, marginTop: 24 }}>
-          <button className="btn-primary" onClick={onNext}>次へ</button>
+          <button className="btn-primary" onClick={() => onNext(MOCK_DAYS)}>次へ</button>
           <button className="btn-ghost" onClick={onSkip}>スキップ</button>
         </div>
       </Page>
@@ -119,9 +127,7 @@ function PickerCol({ items, selectedIndex, isLast }: PickerColProps) {
           fontWeight: i === selectedIndex ? 500 : 300,
           fontFamily: 'Noto Sans JP',
           transition: 'all 0.2s',
-        }}>
-          {item}
-        </div>
+        }}>{item}</div>
       ))}
     </div>
   );
