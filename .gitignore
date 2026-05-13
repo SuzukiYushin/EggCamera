@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 
+# Secrets
+.env
+.env.local
+
 # Swift build artifacts
 EggCameraMac/.build/
 EggCameraMac/Logs/
@@ -16,11 +20,14 @@ node_modules/
 dist/
 .next/
 .cache/
+.wrangler/
 
 # Runtime data (photos & logs are not source — keep directory structure via .gitkeep)
 data/raw/*
 !data/raw/.gitkeep
 data/composited/*
 !data/composited/.gitkeep
+data/qrcodes/*
+!data/qrcodes/.gitkeep
 data/logs/*
 !data/logs/.gitkeep

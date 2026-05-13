@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Egg Camera</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ── Design tokens (mirrors EggCameraUserUI/src/styles/tokens.css) ── */
+    :root {
+      --color-brand-700:  #2C6499;
+      --color-brand-500:  #518FCC;
+      --color-brand-100:  #C3D9EF;
+      --color-brand-50:   #E3EEF8;
+      --color-gray-200:   #E4E4E4;
+      --color-ink-900:    #121212;
+      --color-ink-500:    #666666;
+      --color-ink-300:    #767676;
+      --color-ink-200:    #BBBBBB;
+      --font-display:     'Cormorant Garamond', Georgia, serif;
+      --font-body:        'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    * { -webkit-font-smoothing: antialiased; }
+
+    body {
+      height: 100svh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #F0EDE8;
+      font-family: var(--font-body);
+      padding: 32px 24px 36px;
+      gap: 16px;
+    }
+
+    /* Eyebrow / logo */
+    .logo {
+      flex-shrink: 0;
+      font-family: var(--font-display);
+      font-style: italic;
+      font-weight: 300;
+      font-size: 18px;
+      letter-spacing: 0.12em;
+      color: var(--color-ink-300);
+    }
+
+    /* Photo card */
+    .photo-wrap {
+      flex: 1;
+      min-height: 0;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .photo-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Notice */
+    .notice {
+      flex-shrink: 0;
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--color-ink-300);
+      letter-spacing: 0.03em;
+    }
+
+    /* Primary button (mirrors .btn-primary) */
+    .btn-download {
+      flex-shrink: 0;
+      width: 100%;
+      max-width: 480px;
+      height: 64px;
+      background: var(--color-brand-500);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: var(--font-body);
+      font-size: 17px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-appearance: none;
+    }
+    .btn-download:active {
+      background: var(--color-brand-700);
+      transform: scale(0.99);
+    }
+    .btn-download:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* Hint */
+    .hint {
+      flex-shrink: 0;
+      font-family: var(--font-body);
+      font-size: 12px;
+      font-weight: 400;
+      color: var(--color-ink-200);
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    /* Error state */
+    .error {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 8px;
+    }
+    .error .t-heading {
+      font-family: var(--font-body);
+      font-size: 18px;
+      font-weight: 300;
+      color: var(--color-ink-900);
+    }
+    .error .t-body {
+      font-size: 14px;
+      color: var(--color-ink-500);
+      line-height: 1.8;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .btn-download:active { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <p class="logo">Egg Camera</p>
+
+  <div id="photo-wrap" class="photo-wrap" style="display:none;">
+    <img id="photo" alt="お写真">
+  </div>
+
+  <p id="notice" class="notice" style="display:none;">24時間以内にダウンロードしてください</p>
+
+  <button id="dl-btn" class="btn-download" style="display:none;">↓ 写真を保存する</button>
+
+  <p id="hint" class="hint" style="display:none;">
+    保存できない場合は、写真を長押し →「写真に追加」
+  </p>
+
+  <div id="error" class="error" style="display:none;">
+    <p class="t-heading">お写真が見つかりませんでした</p>
+    <p class="t-body">有効期限が切れているか、<br>URLが正しくない可能性があります。</p>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const id     = params.get('id');
+
+    if (!id) {
+      show('error');
+    } else {
+      const imgUrl = `/image/${id}.jpg`;
+      const img    = document.getElementById('photo');
+
+      img.onload = () => {
+        show('photo-wrap');
+        show('notice');
+        show('dl-btn');
+        show('hint');
+      };
+      img.onerror = () => show('error');
+      img.src = imgUrl;
+
+      document.getElementById('dl-btn').addEventListener('click', () => savePhoto(imgUrl, id));
+    }
+
+    function show(id) {
+      document.getElementById(id).style.display = '';
+    }
+
+    async function savePhoto(imgUrl, id) {
+      const btn = document.getElementById('dl-btn');
+      btn.disabled    = true;
+      btn.textContent = '準備中...';
+
+      try {
+        const res  = await fetch(imgUrl);
+        const blob = await res.blob();
+        const file = new File([blob], `photo_${id}.jpg`, { type: 'image/jpeg' });
+
+        if (navigator.canShare?.({ files: [file] })) {
+          await navigator.share({ files: [file] });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a   = Object.assign(document.createElement('a'), {
+            href: url, download: `photo_${id}.jpg`,
+          });
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+      } catch (e) {
+        // AbortError はキャンセルなので無視
+      } finally {
+        btn.disabled    = false;
+        btn.textContent = '↓ 写真を保存する';
+      }
+    }
+  </script>
+</body>
+</html>

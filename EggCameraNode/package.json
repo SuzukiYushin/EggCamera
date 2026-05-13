@@ -2,11 +2,15 @@
   "name": "egg-camera-node",
   "version": "1.0.0",
   "description": "Timed capture trigger for EggCamera Mac app",
+  "type": "commonjs",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "dotenv": "^17.4.2",
+    "qrcode": "^1.5.4",
     "sharp": "^0.34.5"
   }
 }
