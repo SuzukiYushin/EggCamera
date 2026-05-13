@@ -91,7 +91,7 @@ export function Capture({ onNext }: CaptureProps) {
               height: 68, borderRadius: 12, border: 'none', cursor: 'pointer',
               background: '#fff',
               boxShadow: '0 0 0 2px var(--color-brand-200), 0 4px 16px rgba(81,143,204,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontFamily: 'Noto Sans JP', fontSize: 18, fontWeight: 500,
               color: 'var(--color-ink-900)',
               transition: 'transform 0.1s, box-shadow 0.1s',
@@ -99,7 +99,7 @@ export function Capture({ onNext }: CaptureProps) {
             onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
             onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
-            <span style={{ fontSize: 28 }}>📷</span> シャッター
+            シャッター
           </button>
 
           <button
@@ -107,7 +107,7 @@ export function Capture({ onNext }: CaptureProps) {
             disabled={count === 0}
             onClick={onNext}
           >
-            {count === 0 ? 'シャッターを押してください' : `${count}枚で決定する`}
+            {count === 0 ? 'シャッターを押してください' : 'この写真にする'}
           </button>
         </div>
 
