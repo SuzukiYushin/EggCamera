@@ -1,13 +1,16 @@
 import { IPad } from '../IPad';
+import { useLang } from '../../LangContext';
 
 interface EndProps {
   onRestart: () => void;
 }
 
 export function End({ onRestart }: EndProps) {
+  const { T } = useLang();
+
   return (
     <IPad step={7} totalSteps={7} animKey="end">
-      <div style={{
+      <div data-section="end-screen" style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
         padding: '64px 72px', gap: 40,
@@ -26,12 +29,9 @@ export function End({ onRestart }: EndProps) {
           </svg>
         </div>
 
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="t-heading">ありがとうございました</div>
-          <div className="t-body" style={{ lineHeight: 1.9 }}>
-            写真はスマホに保存されています。<br />
-            またのご来店をお待ちしております。
-          </div>
+        <div data-ui="end-message" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="t-heading">{T.end.heading}</div>
+          <div className="t-body" style={{ lineHeight: 1.9, whiteSpace: 'pre-line' }}>{T.end.body}</div>
           <div style={{
             fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic',
             fontSize: 14, color: 'var(--color-ink-200)', marginTop: 8,
@@ -39,9 +39,8 @@ export function End({ onRestart }: EndProps) {
           }}>familiar</div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-          <button className="btn-primary" onClick={onRestart}>TOPに戻る</button>
-          {/* <button className="btn-ghost" onClick={onRestart}>終了する</button> */}
+        <div style={{ width: '100%' }}>
+          <button className="btn-primary" onClick={onRestart}>{T.end.restart}</button>
         </div>
       </div>
     </IPad>

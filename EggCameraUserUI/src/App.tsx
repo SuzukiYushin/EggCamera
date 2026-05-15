@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './styles/global.css';
+import { LangProvider } from './LangContext';
 import { Start }        from './components/screens/Start';
 import { Nickname }     from './components/screens/Nickname';
 import { Birthday }     from './components/screens/Birthday';
@@ -46,29 +47,31 @@ export default function App() {
   };
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
-      minHeight: '100vh', padding: '40px 20px', gap: 20,
-    }}>
-      <nav className="screen-nav">
-        {NAV_TABS.map(([id, label]) => (
-          <button
-            key={id}
-            className={`screen-nav-btn${screen === id ? ' active' : ''}`}
-            onClick={() => go(id)}
-          >{label}</button>
-        ))}
-      </nav>
+    <LangProvider>
+      <div style={{
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        minHeight: '100vh', padding: '40px 20px', gap: 20,
+      }}>
+        <nav className="screen-nav">
+          {NAV_TABS.map(([id, label]) => (
+            <button
+              key={id}
+              className={`screen-nav-btn${screen === id ? ' active' : ''}`}
+              onClick={() => go(id)}
+            >{label}</button>
+          ))}
+        </nav>
 
-      {screen === 'start'   && <Start       onNext={() => go('nick')} />}
-      {screen === 'nick'    && <Nickname    nickname={nickname} onChange={setNickname} onNext={() => go('bday')} onSkip={() => go('bday')} />}
-      {screen === 'bday'    && <Birthday    onNext={goCapture} onSkip={() => goCapture(0)} />}
-      {screen === 'capture' && <Capture     onNext={() => go('preview')} />}
-      {screen === 'preview' && <FinalPreview nickname={nickname} days={days} frameLabel={frameLabel} onNext={() => go('upload')} />}
-      {screen === 'upload'  && <Uploading   onNext={() => go('qr')} />}
-      {screen === 'qr'      && <QR          onDone={() => go('end')} />}
-      {screen === 'end'     && <End         onRestart={restart} />}
-    </div>
+        {screen === 'start'   && <Start       onNext={() => go('nick')} />}
+        {screen === 'nick'    && <Nickname    nickname={nickname} onChange={setNickname} onNext={() => go('bday')} onSkip={() => go('bday')} />}
+        {screen === 'bday'    && <Birthday    onNext={goCapture} onSkip={() => goCapture(0)} />}
+        {screen === 'capture' && <Capture     onNext={() => go('preview')} />}
+        {screen === 'preview' && <FinalPreview nickname={nickname} days={days} frameLabel={frameLabel} onNext={() => go('upload')} />}
+        {screen === 'upload'  && <Uploading   onNext={() => go('qr')} />}
+        {screen === 'qr'      && <QR          onDone={() => go('end')} />}
+        {screen === 'end'     && <End         onRestart={restart} />}
+      </div>
+    </LangProvider>
   );
 }

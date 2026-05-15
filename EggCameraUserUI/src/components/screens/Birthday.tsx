@@ -1,12 +1,13 @@
+import type { CSSProperties } from 'react';
 import { IPad } from '../IPad';
 import { Page } from '../Page';
+import { useLang } from '../../LangContext';
 
 interface BirthdayProps {
   onNext: (days: number) => void;
   onSkip: () => void;
 }
 
-// Mock selected date — picker is visual only in this prototype
 const MOCK_YEAR  = 2024;
 const MOCK_MONTH = 8;
 const MOCK_DAY   = 12;
@@ -19,17 +20,32 @@ function calcDays(year: number, month: number, day: number): number {
 
 const MOCK_DAYS = calcDays(MOCK_YEAR, MOCK_MONTH, MOCK_DAY);
 
+// Sky Blue palette — brand tokens
+const C = {
+  number:  'var(--color-brand-400)',  // #72A8D9
+  caption: 'var(--color-brand-600)',  // #3A77B5
+  sparkle: 'var(--color-brand-200)',  // #A3C4E6
+  dot:     'var(--color-brand-100)',  // #C3D9EF
+};
+
 export function Birthday({ onNext, onSkip }: BirthdayProps) {
+  const { lang, T } = useLang();
+
+  const dateLabel = lang === 'ja'
+    ? `${MOCK_YEAR}年 ${MOCK_MONTH}月 ${MOCK_DAY}日 生まれ`
+    : `Born on ${MOCK_YEAR}.${MOCK_MONTH}.${MOCK_DAY}`;
+
   return (
     <IPad step={2} totalSteps={7} animKey="bday">
-      <Page style={{ paddingTop: 28 }}>
-        <div className="t-eyebrow" style={{ marginBottom: 12 }}>ステップ 2 / 7</div>
-        <div className="t-heading" style={{ marginBottom: 8 }}>
-          生年月日を<br />教えてください
+      <Page data-section="birthday-screen" style={{ paddingTop: 28 }}>
+        <div className="t-eyebrow" style={{ marginBottom: 12 }}>{T.birthday.step}</div>
+        <div className="t-heading" style={{ marginBottom: 8, whiteSpace: 'pre-line' }}>
+          {T.birthday.heading}
         </div>
-        <div className="t-body" style={{ marginBottom: 32 }}>日数の計算に使います</div>
+        <div className="t-body" style={{ marginBottom: 28 }}>{T.birthday.body}</div>
 
-        <div style={{
+        {/* Date picker */}
+        <div data-ui="date-picker" style={{
           border: '1.5px solid var(--color-gray-200)',
           borderRadius: 4, overflow: 'hidden',
           marginBottom: 20, background: '#fff',
@@ -41,64 +57,126 @@ export function Birthday({ onNext, onSkip }: BirthdayProps) {
           </div>
         </div>
 
-        {/* Result card */}
-        <div style={{
+        {/* Days since birth — center minimal, no card/background */}
+        <div data-ui="birthday-result" style={{
           marginBottom: 'auto',
-          borderRadius: 4,
-          overflow: 'hidden',
-          border: '1.5px solid var(--color-brand-100)',
-          display: 'flex',
-          boxShadow: '0 4px 16px rgba(81,143,204,0.12)',
+          marginTop: 100,
+          position: 'relative',
+          textAlign: 'center',
         }}>
+          {/* "生後" eyebrow */}
           <div style={{
-            flex: 1,
-            padding: '20px 22px',
-            background: 'var(--color-brand-50)',
-            borderRight: '1.5px solid var(--color-brand-100)',
+            fontFamily: 'var(--font-ui)',
+            fontSize: 12, fontWeight: 500,
+            letterSpacing: '0.18em',
+            color: C.caption,
+            marginBottom: 4,
           }}>
-            <div style={{
-              fontFamily: 'Noto Sans JP', fontSize: 11, fontWeight: 500,
-              letterSpacing: '0.18em', textTransform: 'uppercase',
-              color: 'var(--color-brand-400)', marginBottom: 10,
-            }}>BIRTHDAY</div>
-            <div style={{
-              fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 22,
-              color: 'var(--color-ink-900)', lineHeight: 1.4,
-            }}>
-              {MOCK_YEAR}年<br />{MOCK_MONTH}月 {MOCK_DAY}日
-            </div>
+            {T.birthday.daysSince}
           </div>
+
+          {/* Number + unit + decorative scatter */}
           <div style={{
-            width: 120,
-            background: 'var(--color-brand-500)',
-            display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center',
-            gap: 2, padding: '16px',
+            display: 'inline-flex',
+            alignItems: 'baseline',
+            gap: 10,
+            position: 'relative',
           }}>
-            <div style={{
-              fontFamily: 'Noto Sans JP', fontSize: 10, fontWeight: 500,
-              letterSpacing: '0.14em', color: 'rgba(255,255,255,0.7)',
-            }}>生後</div>
-            <div style={{
-              fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 44,
-              color: '#fff', lineHeight: 1,
-            }}>{MOCK_DAYS}</div>
-            <div style={{
-              fontFamily: 'Noto Sans JP', fontSize: 13,
-              color: 'rgba(255,255,255,0.85)',
-            }}>日</div>
+            {/* Sparkles (4-point stars) */}
+            <Sparkle size={18} color={C.sparkle} style={{ position: 'absolute', top: -22, left: -52 }} />
+            <Sparkle size={11} color={C.dot}     style={{ position: 'absolute', top: 22,  left: -64 }} />
+            <Sparkle size={14} color={C.sparkle} style={{ position: 'absolute', top: 78,  left: -42 }} />
+            <Sparkle size={9}  color={C.dot}     style={{ position: 'absolute', top: -32, left: 28 }} />
+            <Sparkle size={13} color={C.sparkle} style={{ position: 'absolute', top: -18, right: -36 }} />
+            <Sparkle size={16} color={C.dot}     style={{ position: 'absolute', top: 40,  right: -64 }} />
+            <Sparkle size={10} color={C.sparkle} style={{ position: 'absolute', top: 92,  right: -28 }} />
+            <Sparkle size={12} color={C.dot}     style={{ position: 'absolute', top: 116, left: 12 }} />
+            {/* Dots */}
+            <Dot size={7} color={C.number}  style={{ position: 'absolute', top: 8,   left: -82 }} />
+            <Dot size={4} color={C.dot}     style={{ position: 'absolute', top: 56,  left: -78 }} />
+            <Dot size={5} color={C.sparkle} style={{ position: 'absolute', top: -8,  left: 60 }} />
+            <Dot size={6} color={C.dot}     style={{ position: 'absolute', top: 6,   right: -60 }} />
+            <Dot size={4} color={C.number}  style={{ position: 'absolute', top: 78,  right: -82 }} />
+            <Dot size={5} color={C.sparkle} style={{ position: 'absolute', top: 124, right: -8 }} />
+            <Dot size={3} color={C.number}  style={{ position: 'absolute', top: 134, left: -18 }} />
+            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top: -28, right: 18 }} />
+
+            <span style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic',
+              fontWeight: 500,
+              fontSize: 138,
+              lineHeight: 0.82,
+              color: C.number,
+              letterSpacing: '-0.03em',
+              position: 'relative', zIndex: 1,
+            }}>
+              {MOCK_DAYS}
+            </span>
+            <span style={{
+              fontFamily: 'var(--font-ui)',
+              fontSize: 28,
+              fontWeight: 400,
+              color: C.number,
+              paddingBottom: 12,
+              position: 'relative', zIndex: 1,
+            }}>
+              {T.birthday.days}
+            </span>
+          </div>
+
+          {/* Date caption */}
+          <div style={{
+            fontFamily: 'var(--font-ui)',
+            fontSize: 13, fontWeight: 400,
+            color: C.caption,
+            marginTop: 12,
+            letterSpacing: '0.04em',
+          }}>
+            {dateLabel}
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 36, marginTop: 24 }}>
-          <button className="btn-primary" onClick={() => onNext(MOCK_DAYS)}>次へ</button>
-          <button className="btn-ghost" onClick={onSkip}>スキップ</button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 36, marginTop: 20 }}>
+          <button className="btn-primary" onClick={() => onNext(MOCK_DAYS)}>{T.birthday.next}</button>
+          <button className="btn-ghost" onClick={onSkip}>{T.birthday.skip}</button>
         </div>
       </Page>
     </IPad>
   );
 }
 
+// ── Decorative components ────────────────────────────────────────
+interface DecoProps {
+  size?: number;
+  color: string;
+  style?: CSSProperties;
+}
+
+function Sparkle({ size = 14, color, style }: DecoProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" style={style}>
+      <path
+        d="M10 1 L11.4 8.6 L19 10 L11.4 11.4 L10 19 L8.6 11.4 L1 10 L8.6 8.6 Z"
+        fill={color}
+      />
+    </svg>
+  );
+}
+
+function Dot({ size = 6, color, style }: DecoProps) {
+  return (
+    <span style={{
+      display: 'inline-block',
+      width: size, height: size,
+      borderRadius: '50%',
+      background: color,
+      ...style,
+    }} />
+  );
+}
+
+// ── Picker column ────────────────────────────────────────────────
 interface PickerColProps {
   items: string[];
   selectedIndex: number;
@@ -126,7 +204,6 @@ function PickerCol({ items, selectedIndex, isLast }: PickerColProps) {
           color: i === selectedIndex ? 'var(--color-ink-900)' : 'var(--color-ink-300)',
           fontWeight: i === selectedIndex ? 500 : 300,
           fontFamily: 'Noto Sans JP',
-          transition: 'all 0.2s',
         }}>{item}</div>
       ))}
     </div>

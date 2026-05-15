@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IPad } from '../IPad';
 import { Page } from '../Page';
+import { useLang } from '../../LangContext';
 
 interface QRProps {
   onDone: () => void;
@@ -25,14 +26,9 @@ const QR_CELLS = [
   [1,1,1,1,1,1,1,0,1,0,1,1,0,0,1,0,1],
 ];
 
-const STEPS = [
-  { n: '1', t: 'スマホのカメラを開く' },
-  { n: '2', t: 'QRコードをかざす' },
-  { n: '3', t: '写真をダウンロード' },
-];
-
 export function QR({ onDone }: QRProps) {
-  const [secs, setSecs] = useState(600);
+  const { T } = useLang();
+  const [secs, setSecs] = useState(180);
 
   useEffect(() => {
     const t = setInterval(() => setSecs(s => {
@@ -48,18 +44,13 @@ export function QR({ onDone }: QRProps) {
 
   return (
     <IPad step={6} totalSteps={7} animKey="qr">
-      <Page style={{ paddingTop: 28, paddingBottom: 36 }}>
-        <div className="t-eyebrow" style={{ marginBottom: 10 }}>ステップ 6 / 7</div>
-        <div className="t-heading" style={{ fontSize: 26, marginBottom: 4 }}>
-          写真の準備ができました
-        </div>
-        <div className="t-body" style={{ fontSize: 14, marginBottom: 24 }}>
-          QRコードをスキャンして受け取ってください
-        </div>
+      <Page data-section="qr-screen" style={{ paddingTop: 28, paddingBottom: 36 }}>
+        <div className="t-eyebrow" style={{ marginBottom: 10 }}>{T.qr.step}</div>
+        <div className="t-heading" style={{ fontSize: 26, marginBottom: 4 }}>{T.qr.heading}</div>
+        <div className="t-body" style={{ fontSize: 14, marginBottom: 24 }}>{T.qr.body}</div>
 
         <div style={{ flex: 1, display: 'flex', gap: 40, alignItems: 'center' }}>
-          {/* QR code */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <div data-ui="qr-code" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <div className="qr-frame">
               <svg width={200} height={200}
                 viewBox={`0 0 ${QR_CELLS.length} ${QR_CELLS.length}`}
@@ -72,35 +63,29 @@ export function QR({ onDone }: QRProps) {
                 )}
               </svg>
             </div>
-            <div className="t-caption" style={{ textAlign: 'center' }}>
-              スマホのカメラでスキャン
-            </div>
+            <div className="t-caption" style={{ textAlign: 'center' }}>{T.qr.scanHint}</div>
           </div>
 
-          {/* Steps + timer */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {STEPS.map(s => (
-              <div key={s.n} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+          <div data-ui="qr-instructions" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {T.qr.steps.map((step, i) => (
+              <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                 <div style={{
                   width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
                   background: 'var(--color-brand-500)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   color: '#fff', fontFamily: 'Noto Sans JP', fontWeight: 500, fontSize: 15,
-                }}>{s.n}</div>
-                <div style={{
-                  fontFamily: 'Noto Sans JP', fontSize: 17,
-                  color: 'var(--color-ink-900)',
-                }}>{s.t}</div>
+                }}>{i + 1}</div>
+                <div style={{ fontFamily: 'Noto Sans JP', fontSize: 17, color: 'var(--color-ink-900)' }}>{step}</div>
               </div>
             ))}
 
-            <div style={{
+            <div data-ui="qr-timer" style={{
               padding: '14px 20px', borderRadius: 4,
               background: urgent ? '#FEF2F2' : 'var(--color-brand-50)',
               border: `1px solid ${urgent ? '#FECACA' : 'var(--color-brand-100)'}`,
               transition: 'background 0.3s',
             }}>
-              <div className="t-caption" style={{ marginBottom: 4 }}>有効期限まで</div>
+              <div className="t-caption" style={{ marginBottom: 4 }}>{T.qr.timer}</div>
               <div style={{
                 fontFamily: 'Noto Sans JP', fontWeight: 300, fontSize: 36,
                 color: urgent ? '#DC2626' : 'var(--color-brand-500)',
