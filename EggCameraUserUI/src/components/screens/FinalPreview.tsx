@@ -11,7 +11,7 @@ interface FinalPreviewProps {
   onNext: () => void;
 }
 
-export function FinalPreview({ nickname, days, frameLabel, onNext }: FinalPreviewProps) {
+export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
   const { T } = useLang();
   const daysText = days > 0 ? T.preview.daysSinceBirth(days) : '';
 
@@ -42,8 +42,8 @@ export function FinalPreview({ nickname, days, frameLabel, onNext }: FinalPrevie
           }}>
             <img src={babyImg} alt="photo"
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            {/* <img src={flameImg} alt="frame overlay"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', display: 'block', pointerEvents: 'none' }} /> */}
+            <img src={flameImg} alt="frame overlay"
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', display: 'block', pointerEvents: 'none' }} />
 
             {/* Name & days badge — "famichan / 365 days since the birth" style */}
             {(nickname || daysText) && (
