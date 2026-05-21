@@ -29,7 +29,7 @@ export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
 
         {/* Header — decorative, mirrors Birthday number display */}
         <div data-ui="preview-header" style={{ marginBottom: 16, flexShrink: 0, textAlign: 'center' }}>
-          <div className="t-eyebrow" style={{ marginBottom: 10 }}>{T.preview.step}</div>
+          <div className="t-eyebrow" style={{ marginBottom: 30 }}>{T.preview.step}</div>
 
           <div style={{ display: 'inline-block', position: 'relative' }}>
             {/* Sparkles — scaled ~0.5× from Birthday */}
