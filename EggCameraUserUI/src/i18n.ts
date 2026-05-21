@@ -33,6 +33,7 @@ export const translations = {
       decide: 'この写真にする',
       decideDisabled: 'シャッターを押してください',
       maxReached: 'これ以上撮影できません',
+      shotLimit: '写真は３枚まで撮影できます',
     },
     preview: {
       step: 'ステップ 4 / 7',
@@ -97,6 +98,7 @@ export const translations = {
       decide: 'Use this photo',
       decideDisabled: 'Press the shutter',
       maxReached: 'No more shots',
+      shotLimit: 'You can take up to 3 photos',
     },
     preview: {
       step: 'Step 4 / 7',

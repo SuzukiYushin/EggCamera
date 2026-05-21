@@ -22,8 +22,19 @@ export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
         {/* Header */}
         <div data-ui="preview-header" style={{ marginBottom: 16, flexShrink: 0 }}>
           <div className="t-eyebrow" style={{ marginBottom: 6 }}>{T.preview.step}</div>
-          <div className="t-heading" style={{ fontSize: 24 }}>{T.preview.heading}</div>
-          <div className="t-body" style={{ fontSize: 13, marginTop: 2, color: 'var(--color-ink-400)' }}>{T.preview.subheading}</div>
+          <div style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontStyle: 'italic', fontWeight: 500,
+            fontSize: 28, lineHeight: 1.2,
+            color: 'var(--color-brand-400)',
+          }}>{T.preview.heading}</div>
+          <div style={{
+            fontFamily: "'Playfair Display', Georgia, serif",
+            fontStyle: 'italic', fontWeight: 400,
+            fontSize: 15, marginTop: 4,
+            color: 'var(--color-brand-400)',
+            opacity: 0.8,
+          }}>{T.preview.subheading}</div>
         </div>
 
         {/* Photo composite */}

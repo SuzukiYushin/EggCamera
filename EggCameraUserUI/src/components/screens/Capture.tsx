@@ -65,6 +65,11 @@ export function Capture({ onNext }: CaptureProps) {
         <div data-ui="camera-controls" style={{
           flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16,
         }}>
+          {/* Shot limit info */}
+          <div className="t-caption" style={{ textAlign: 'center', letterSpacing: '0.04em' }}>
+            {T.capture.shotLimit}
+          </div>
+
           {/* Shot counter */}
           {hasShot && (
             <div style={{
