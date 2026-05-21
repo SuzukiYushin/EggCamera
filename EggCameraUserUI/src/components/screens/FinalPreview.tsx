@@ -1,8 +1,16 @@
+import type { CSSProperties } from 'react';
 import { IPad } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
 import flameImg from '../../assets/flame.png';
 import babyImg  from '../../assets/baby2.png';
+
+const C = {
+  number:  'var(--color-brand-400)',
+  caption: 'var(--color-brand-600)',
+  sparkle: 'var(--color-brand-200)',
+  dot:     'var(--color-brand-100)',
+};
 
 interface FinalPreviewProps {
   nickname:   string;
@@ -19,21 +27,44 @@ export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
     <IPad step={4} totalSteps={7} animKey="preview">
       <Page data-section="preview-screen" style={{ paddingTop: 24, paddingBottom: 28 }}>
 
-        {/* Header */}
-        <div data-ui="preview-header" style={{ marginBottom: 16, flexShrink: 0 }}>
-          <div className="t-eyebrow" style={{ marginBottom: 6 }}>{T.preview.step}</div>
+        {/* Header — decorative, mirrors Birthday number display */}
+        <div data-ui="preview-header" style={{ marginBottom: 16, flexShrink: 0, textAlign: 'center' }}>
+          <div className="t-eyebrow" style={{ marginBottom: 10 }}>{T.preview.step}</div>
+
+          <div style={{ display: 'inline-block', position: 'relative' }}>
+            {/* Sparkles — scaled ~0.5× from Birthday */}
+            <Sparkle size={14} color={C.sparkle} style={{ position: 'absolute', top: -14, left:  -36 }} />
+            <Sparkle size={9}  color={C.dot}     style={{ position: 'absolute', top:  13, left:  -44 }} />
+            <Sparkle size={11} color={C.sparkle} style={{ position: 'absolute', top:  46, left:  -28 }} />
+            <Sparkle size={7}  color={C.dot}     style={{ position: 'absolute', top: -20, left:   18 }} />
+            <Sparkle size={10} color={C.sparkle} style={{ position: 'absolute', top: -11, right: -24 }} />
+            <Sparkle size={12} color={C.dot}     style={{ position: 'absolute', top:  24, right: -44 }} />
+            <Sparkle size={8}  color={C.sparkle} style={{ position: 'absolute', top:  56, right: -20 }} />
+            <Sparkle size={9}  color={C.dot}     style={{ position: 'absolute', top:  70, left:    8 }} />
+            {/* Dots */}
+            <Dot size={5} color={C.number}  style={{ position: 'absolute', top:   5, left:  -56 }} />
+            <Dot size={4} color={C.dot}     style={{ position: 'absolute', top:  32, left:  -52 }} />
+            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top:  -5, left:   40 }} />
+            <Dot size={5} color={C.dot}     style={{ position: 'absolute', top:   4, right: -42 }} />
+            <Dot size={4} color={C.number}  style={{ position: 'absolute', top:  46, right: -56 }} />
+            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top:  72, right:  -6 }} />
+            <Dot size={3} color={C.number}  style={{ position: 'absolute', top:  78, left:  -12 }} />
+            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top: -17, right:  12 }} />
+
+            <div style={{
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontStyle: 'italic', fontWeight: 500,
+              fontSize: 56, lineHeight: 1,
+              color: C.number,
+              position: 'relative', zIndex: 1,
+            }}>{T.preview.heading}</div>
+          </div>
+
           <div style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontStyle: 'italic', fontWeight: 500,
-            fontSize: 28, lineHeight: 1.2,
-            color: 'var(--color-brand-400)',
-          }}>{T.preview.heading}</div>
-          <div style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontStyle: 'italic', fontWeight: 400,
-            fontSize: 15, marginTop: 4,
-            color: 'var(--color-brand-400)',
-            opacity: 0.8,
+            fontFamily: 'var(--font-ui)',
+            fontSize: 13, fontWeight: 400,
+            color: C.caption,
+            marginTop: 10, letterSpacing: '0.04em',
           }}>{T.preview.subheading}</div>
         </div>
 
@@ -124,5 +155,35 @@ export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
         </div>
       </Page>
     </IPad>
+  );
+}
+
+// ── Decorative components (same design as Birthday) ──────────────
+interface DecoProps {
+  size?: number;
+  color: string;
+  style?: CSSProperties;
+}
+
+function Sparkle({ size = 14, color, style }: DecoProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 20 20" style={style}>
+      <path
+        d="M10 1 L11.4 8.6 L19 10 L11.4 11.4 L10 19 L8.6 11.4 L1 10 L8.6 8.6 Z"
+        fill={color}
+      />
+    </svg>
+  );
+}
+
+function Dot({ size = 6, color, style }: DecoProps) {
+  return (
+    <span style={{
+      display: 'inline-block',
+      width: size, height: size,
+      borderRadius: '50%',
+      background: color,
+      ...style,
+    }} />
   );
 }
