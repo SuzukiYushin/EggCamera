@@ -1,5 +1,7 @@
 @import './tokens.css';
 
+:root { color-scheme: light; }
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 /* Keyboard focus ring — visible only for keyboard/switch users, not mouse */

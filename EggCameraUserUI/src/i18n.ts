@@ -32,6 +32,7 @@ export const translations = {
       retake: '撮りなおす',
       decide: 'この写真にする',
       decideDisabled: 'シャッターを押してください',
+      maxReached: 'これ以上撮影できません',
     },
     preview: {
       step: 'ステップ 4 / 7',
@@ -39,7 +40,7 @@ export const translations = {
       subheading: '大切な今日の思い出に。',
       frameLabel: 'フレーム',
       save: 'この写真を保存する',
-      daysSinceBirth: (days: number) => `${days} days since the birth`,
+      daysSinceBirth: (days: number) => `生後 ${days}日`,
     },
     uploading: {
       step: 'ステップ 5 / 7',
@@ -56,6 +57,7 @@ export const translations = {
       steps: ['スマホのカメラを開く', 'QRコードをかざす', '写真をダウンロード'],
       timer: '有効期限まで',
       scanHint: 'スマホのカメラでスキャン',
+      restart: 'TOPに戻る',
     },
     end: {
       heading: 'ありがとうございました',
@@ -94,6 +96,7 @@ export const translations = {
       retake: 'Retake',
       decide: 'Use this photo',
       decideDisabled: 'Press the shutter',
+      maxReached: 'No more shots',
     },
     preview: {
       step: 'Step 4 / 7',
@@ -101,7 +104,7 @@ export const translations = {
       subheading: 'A memory to keep forever.',
       frameLabel: 'Frame',
       save: 'Save this photo',
-      daysSinceBirth: (days: number) => `${days} days since the birth`,
+      daysSinceBirth: (days: number) => `${days} days since birth`,
     },
     uploading: {
       step: 'Step 5 / 7',
@@ -118,6 +121,7 @@ export const translations = {
       steps: ['Open your camera app', 'Scan the QR code', 'Download your photo'],
       timer: 'Time remaining',
       scanHint: 'Scan with your smartphone',
+      restart: 'Back to Top',
     },
     end: {
       heading: 'Thank you!',

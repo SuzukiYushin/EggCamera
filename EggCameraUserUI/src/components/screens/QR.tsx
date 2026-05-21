@@ -5,6 +5,7 @@ import { useLang } from '../../LangContext';
 
 interface QRProps {
   onDone: () => void;
+  onRestart: () => void;
 }
 
 const QR_CELLS = [
@@ -26,7 +27,7 @@ const QR_CELLS = [
   [1,1,1,1,1,1,1,0,1,0,1,1,0,0,1,0,1],
 ];
 
-export function QR({ onDone }: QRProps) {
+export function QR({ onDone, onRestart }: QRProps) {
   const { T } = useLang();
   const [secs, setSecs] = useState(180);
 
@@ -93,6 +94,10 @@ export function QR({ onDone }: QRProps) {
               }}>{mm}:{ss}</div>
             </div>
           </div>
+        </div>
+
+        <div style={{ flexShrink: 0, marginTop: 20 }}>
+          <button className="btn-ghost" onClick={onRestart}>{T.qr.restart}</button>
         </div>
       </Page>
     </IPad>

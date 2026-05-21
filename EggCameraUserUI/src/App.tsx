@@ -69,7 +69,7 @@ export default function App() {
         {screen === 'capture' && <Capture     onNext={() => go('preview')} />}
         {screen === 'preview' && <FinalPreview nickname={nickname} days={days} frameLabel={frameLabel} onNext={() => go('upload')} />}
         {screen === 'upload'  && <Uploading   onNext={() => go('qr')} />}
-        {screen === 'qr'      && <QR          onDone={() => go('end')} />}
+        {screen === 'qr'      && <QR          onDone={() => go('end')} onRestart={restart} />}
         {screen === 'end'     && <End         onRestart={restart} />}
       </div>
     </LangProvider>

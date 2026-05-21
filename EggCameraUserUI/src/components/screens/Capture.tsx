@@ -7,17 +7,21 @@ interface CaptureProps {
   onNext: () => void;
 }
 
+const MAX_SHOTS = 3;
+
 export function Capture({ onNext }: CaptureProps) {
   const { T } = useLang();
   const [count, setCount]       = useState(0);
   const [flashKey, setFlashKey] = useState(0);
 
+  const canShoot = count < MAX_SHOTS;
+  const hasShot  = count > 0;
+
   const shoot = () => {
+    if (!canShoot) return;
     setCount(c => c + 1);
     setFlashKey(k => k + 1);
   };
-
-  const hasShot = count > 0;
 
   return (
     <IPad step={3} totalSteps={7} animKey="capture">
@@ -61,21 +65,34 @@ export function Capture({ onNext }: CaptureProps) {
         <div data-ui="camera-controls" style={{
           flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, marginTop: 16,
         }}>
+          {/* Shot counter */}
+          {hasShot && (
+            <div style={{
+              textAlign: 'center',
+              fontFamily: 'Noto Sans JP', fontSize: 12, color: 'var(--color-ink-300)',
+            }}>
+              {count} / {MAX_SHOTS}
+            </div>
+          )}
+
           <button
             data-ui="shutter-btn"
             onClick={shoot}
+            disabled={!canShoot}
             style={{
-              height: 68, borderRadius: 12, border: 'none', cursor: 'pointer',
-              background: '#fff',
-              boxShadow: '0 0 0 2px var(--color-brand-200), 0 4px 16px rgba(81,143,204,0.2)',
+              height: 68, borderRadius: 12, border: 'none',
+              cursor: canShoot ? 'pointer' : 'not-allowed',
+              background: canShoot ? '#fff' : 'var(--color-gray-100)',
+              boxShadow: canShoot ? '0 0 0 2px var(--color-brand-200), 0 4px 16px rgba(81,143,204,0.2)' : 'none',
               fontFamily: 'Noto Sans JP', fontSize: 18, fontWeight: 500,
-              color: 'var(--color-ink-900)',
-              transition: 'transform 0.1s, box-shadow 0.1s',
+              color: canShoot ? 'var(--color-ink-900)' : 'var(--color-ink-300)',
+              transition: 'transform 0.1s, box-shadow 0.1s, background 0.2s',
+              opacity: canShoot ? 1 : 0.5,
             }}
-            onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
+            onMouseDown={e => { if (canShoot) e.currentTarget.style.transform = 'scale(0.97)'; }}
             onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
-            {hasShot ? T.capture.retake : T.capture.shutter}
+            {!canShoot ? T.capture.maxReached : hasShot ? T.capture.retake : T.capture.shutter}
           </button>
 
           <button
