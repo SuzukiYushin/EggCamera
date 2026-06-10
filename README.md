@@ -5,15 +5,19 @@ Baby photo booth system. iPhone captures photos, Mac mini composites and uploads
 ## System Overview
 
 ```
-Node.js (timer) → Swift Mac app → iPhone (capture)
-                                       ↓
-                              data/raw/*.heic
-                                       ↓
-                        Node.js (composite + upload)
-                                       ↓
-                    data/composited/*.jpg   Cloudflare R2
-                    data/qrcodes/*.png
+iPad (kiosk UI) ⇄ Node.js (Express: REST API + 静的UI配信, :3000)
+                          │ POST /capture（オンデマンド）
+                          ▼
+                   Swift Mac app (:8082) → iPhone (capture)
+                          │
+                   data/raw/*.heic
+                          │
+                   Node.js (HEIC→JPEG preview, composite + R2 upload + QR)
+                          │
+        data/composited/*.jpg ──▶ Cloudflare R2 ──▶ QR (data URL, iPadへ返却)
 ```
+
+UIからの操作はすべて `/api/sessions/...` 経由のオンデマンドリクエスト。Node.jsの自動撮影タイマーは廃止済み。
 
 ## Branch Strategy
 
@@ -69,7 +73,21 @@ R2_SECRET_ACCESS_KEY=Cloudflareから取得してください
 R2_BUCKET_NAME=eggcamera-photos
 R2_PUBLIC_BASE_URL=https://pub-c35d182b845942f3b26d0ed65d668e0d.r2.dev
 PAGES_BASE_URL=https://eggcamera.pages.dev
+
+# ── Server ──────────────────────────────────────────────
+PORT=3000
+STATIC_DIR=
+
+# ── Capture trigger (Mac TriggerReceiverServer) ──────────
+SWIFT_HOST=localhost
+SWIFT_PORT=8082
+CAPTURE_TIMEOUT_MS=25000
+
+# ── Sessions ──────────────────────────────────────────────
+SESSION_TTL_MS=1800000
 ```
+
+> `Server` / `Capture trigger` / `Sessions` セクションは未記載でもデフォルト値で動作します（Mac mini上でSwiftアプリと同居する通常構成ならそのままでOK）。
 
 > `.env` は git 管理外のため、MacBook から `scp` で転送するか手動で作成。
 > ```bash
@@ -85,7 +103,18 @@ npm install
 cd ..
 ```
 
-### 5. Build Swift App
+### 5. Build the iPad UI
+
+EggCameraNode が `EggCameraUserUI/dist` をそのまま静的配信するため、事前にビルドしておく。
+
+```bash
+cd EggCameraUserUI
+npm install
+npm run build   # → dist/ を生成
+cd ..
+```
+
+### 6. Build Swift App
 
 ```bash
 cd EggCameraMac
@@ -93,15 +122,15 @@ swift build -c release
 cd ..
 ```
 
-### 6. Verify Data Directory
+### 7. Verify Data Directory
 
 以下のディレクトリが存在することを確認：
 
 ```
 data/
 ├── raw/               ← Swift が写真を保存（自動作成）
-├── composited/        ← Node.js が合成画像を保存（自動作成）
-├── qrcodes/           ← Node.js が QR コードを保存（自動作成）
+│   └── .preview/      ← Node.js が生成するプレビューJPEGキャッシュ（自動作成）
+├── composited/        ← Node.js が合成画像を保存（自動作成、最新30枚を保持）
 ├── assets/
 │   └── frames/
 │       └── flame_sample.png   ← ← 必須
@@ -115,6 +144,8 @@ data/
 scp data/assets/frames/flame_sample.png [user]@[mac-mini-ip]:~/EggCamera/data/assets/frames/
 ```
 
+> QRコードはファイル保存せず、その場で data URL を生成して iPad に返すため `data/qrcodes/` は不要。
+
 ---
 
 ## Startup
@@ -126,26 +157,29 @@ cd EggCameraMac
 .build/release/EggCameraMac
 ```
 
-**ターミナル 2 — Node.js (compositor + trigger):**
+**ターミナル 2 — Node.js (UI配信 + セッションAPI):**
 
 ```bash
 cd EggCameraNode
-node index.js
+node server.js
 ```
 
 正常起動時のログ例：
 
 ```
-[...] Watching ../data/raw
-[...] Trigger: host=localhost port=8082 interval=5000ms
-[...] t-1 → 202
+[...] EggCameraNode listening on :3000 (static: .../EggCameraUserUI/dist)
+[...] R2 cleanup: N objects (...MB), M to delete
 ```
+
+**iPad:**
+
+Safari で `http://<Mac miniのIP>:3000` を開く（フルスクリーン/ガイドアクセス推奨）。UIとAPIは同一オリジンなので追加設定は不要。
 
 ### Environment Variables (optional)
 
 ```bash
-INTERVAL_MS=10000 node index.js   # 撮影間隔を10秒に変更
-SWIFT_HOST=192.168.1.x node index.js   # iPhone に直接接続する場合
+SWIFT_HOST=192.168.1.x node server.js   # iPhone/Mac側のトリガー受信先を変更する場合
+PORT=8000 node server.js                # 待受ポートを変更する場合
 ```
 
 ---
@@ -159,6 +193,8 @@ SWIFT_HOST=192.168.1.x node index.js   # iPhone に直接接続する場合
 | `iphonePort` | `8080` | iPhone アプリのポート |
 | `callbackPort` | `8081` | Mac が写真を受け取るポート |
 | `triggerPort` | `8082` | Node.js からのトリガー受信ポート |
+| `captureIntervalSeconds` | `0` | 自動撮影間隔（`0`＝無効、iPad起点のオンデマンド撮影のみ） |
+| `sendCaptureOnLaunch` | `false` | 起動時の自動撮影トリガー |
 | `outputWidth/Height` | `4000/6000` | 出力解像度 |
 | `receivedPhotosDirectory` | `../data/raw` | 生写真の保存先 |
 
@@ -166,7 +202,8 @@ SWIFT_HOST=192.168.1.x node index.js   # iPhone に直接接続する場合
 
 ## Notes
 
-- **R2 retention**: 3日（`R2_RETENTION_MS` in `index.js`）。検証時は `3 * 60 * 1000`（3分）に変更可。
-- **Local photo limit**: `raw/` と `composited/` はそれぞれ最大30枚。アプリ再起動後もディスク上のファイル数をもとに計算。
+- **R2 retention**: 3分（`R2_RETENTION_MS` in `EggCameraNode/src/config.js`）。本番運用時は `3 * 24 * 60 * 60 * 1000`（3日）等に変更。
+- **Local photo limit**: `composited/` は最大30枚（`MAX_COMPOSITED`、`src/config.js`）。アプリ再起動後もディスク上のファイル数をもとに計算。`raw/` および `raw/.preview/` は自動削除されないため、定期的な手動クリーンアップを検討。
 - **iPhone lock prevention**: アプリ起動中は `isIdleTimerDisabled = true` で画面ロックを抑制。
 - **Session interruption**: カメラセッションが中断された場合（ロック等）、解除後に自動復帰。
+- **セッションAPI**: `POST /api/sessions`（セッション作成）、`POST /api/sessions/:id/capture`（1枚撮影トリガー）、`POST /api/sessions/:id/select`（合成・R2アップロード・QR生成を開始）、`GET /api/sessions/:id`（ステータス確認）、`GET /api/photos/:photoId`（プレビュー画像）。セッションはメモリ上で管理され、`SESSION_TTL_MS`（既定30分）で自動失効。
