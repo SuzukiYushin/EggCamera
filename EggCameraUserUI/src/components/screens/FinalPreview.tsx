@@ -4,7 +4,6 @@ import { IPad } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
 import frameImg from '../../assets/photo_frame.png';
-import babyImg  from '../../assets/baby_illustrator.png';
 
 const BURST_COLORS = [
   '#FFD700', '#FF6B35', '#FF9E2C', '#FF5C8D',
@@ -49,10 +48,11 @@ interface FinalPreviewProps {
   nickname:   string;
   days:       number;
   frameLabel: string;
+  photoUrl:   string;
   onNext: () => void;
 }
 
-export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
+export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewProps) {
   const { T } = useLang();
   const daysText = days > 0 ? T.preview.daysSinceBirth(days) : '';
   const [bursts, setBursts] = useState<Burst[]>([]);
@@ -105,7 +105,7 @@ export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
             border: 'none',
             animation: 'cameraGlow 4.4s ease-in-out infinite',
           }}>
-            <img src={babyImg} alt="photo"
+            <img src={photoUrl} alt="photo"
               style={{
                 position: 'absolute', top: '50%', left: '50%',
                 transform: 'translate(-52%, -30%)',

@@ -1,20 +1,17 @@
 import { useState } from 'react';
 import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
-import babyA from '../../assets/baby_a.png';
-import babyB from '../../assets/baby_b.png';
-import babyC from '../../assets/baby_c.png';
+import type { SessionPhoto } from '../../api';
 
 interface PhotoSelectProps {
-  onNext: () => void;
+  photos: SessionPhoto[];
+  onNext: (photoId: string) => void;
   onBack: () => void;
 }
 
-const PHOTOS = [babyA, babyB, babyC];
-
-export function PhotoSelect({ onNext, onBack }: PhotoSelectProps) {
+export function PhotoSelect({ photos, onNext, onBack }: PhotoSelectProps) {
   const { T } = useLang();
-  const [sel, setSel] = useState<number | null>(1);
+  const [sel, setSel] = useState<string | null>(photos[1]?.photoId ?? photos[0]?.photoId ?? null);
 
   return (
     <IPad step={4} totalSteps={7} animKey="photosel">
@@ -44,15 +41,15 @@ export function PhotoSelect({ onNext, onBack }: PhotoSelectProps) {
             minHeight: 0,
           }}
         >
-          {PHOTOS.map((src, i) => (
+          {photos.map((photo, i) => (
             <div
-              key={i}
+              key={photo.photoId}
               role="radio"
-              aria-checked={sel === i}
+              aria-checked={sel === photo.photoId}
               aria-label={`写真 ${i + 1}`}
               tabIndex={0}
-              onClick={() => setSel(i)}
-              onKeyDown={e => (e.key === ' ' || e.key === 'Enter') && setSel(i)}
+              onClick={() => setSel(photo.photoId)}
+              onKeyDown={e => (e.key === ' ' || e.key === 'Enter') && setSel(photo.photoId)}
               style={{
                 flex: 1,
                 aspectRatio: '2/3',
@@ -61,17 +58,17 @@ export function PhotoSelect({ onNext, onBack }: PhotoSelectProps) {
                 overflow: 'hidden',
                 cursor: 'pointer',
                 position: 'relative',
-                border: sel === i
+                border: sel === photo.photoId
                   ? '9.5px solid var(--color-brand-500)'
                   : '9.5px solid transparent',
-                boxShadow: sel === i
+                boxShadow: sel === photo.photoId
                   ? 'none'
                   : '0 2px 12px rgba(0,0,0,0.12)',
                 transition: 'border-color 0.15s, box-shadow 0.15s',
               }}
             >
               <img
-                src={src}
+                src={photo.url}
                 alt=""
                 aria-hidden="true"
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
@@ -85,7 +82,7 @@ export function PhotoSelect({ onNext, onBack }: PhotoSelectProps) {
           <button
             className="btn-primary"
             disabled={sel === null}
-            onClick={() => sel !== null && onNext()}
+            onClick={() => sel !== null && onNext(sel)}
           >
             {T.photoselect.decide}
           </button>

@@ -2,10 +2,13 @@ import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
+import { capturePhoto, ApiError } from '../../api';
+import type { SessionPhoto } from '../../api';
 import babyImg from '../../assets/baby_illustrator.png';
 
 interface CaptureProps {
-  onNext: () => void;
+  sessionId: string | null;
+  onComplete: (photos: SessionPhoto[]) => void;
 }
 
 const MAX_SHOTS = 3;
@@ -50,29 +53,55 @@ function makeBurst(): Burst {
   };
 }
 
-export function Capture({ onNext }: CaptureProps) {
+type CaptureError = 'mac_unreachable' | 'capture_timeout' | 'capture_failed';
+
+export function Capture({ sessionId, onComplete }: CaptureProps) {
   const { T } = useLang();
-  const [count,    setCount]    = useState(0);
+  const [photos,   setPhotos]   = useState<SessionPhoto[]>([]);
   const [flashKey, setFlashKey] = useState(0);
   const [bursts,   setBursts]   = useState<Burst[]>([]);
   const [started,  setStarted]  = useState(false);
+  const [error,    setError]    = useState<CaptureError | null>(null);
 
-  const canShoot = !started && count < MAX_SHOTS;
+  const canShoot = !!sessionId && !started && photos.length < MAX_SHOTS;
 
-  const shoot = () => {
-    if (!canShoot) return;
+  const shoot = async () => {
+    if (!canShoot || !sessionId) return;
     setStarted(true);
-    for (let i = 0; i < MAX_SHOTS; i++) {
-      setTimeout(() => {
-        setCount(c => c + 1);
+    setError(null);
+
+    const acc = [...photos];
+    while (acc.length < MAX_SHOTS) {
+      try {
+        const photo = await capturePhoto(sessionId);
+        acc.push(photo);
+        setPhotos([...acc]);
         setFlashKey(k => k + 1);
         const burst = makeBurst();
         setBursts(b => [...b, burst]);
         setTimeout(() => setBursts(b => b.filter(x => x.id !== burst.id)), 900);
-      }, i * SHOT_INTERVAL);
+        if (acc.length < MAX_SHOTS) {
+          await new Promise(r => setTimeout(r, SHOT_INTERVAL));
+        }
+      } catch (err) {
+        setStarted(false);
+        if (err instanceof ApiError && err.code === 'mac_unreachable') setError('mac_unreachable');
+        else if (err instanceof ApiError && err.code === 'capture_timeout') setError('capture_timeout');
+        else setError('capture_failed');
+        return;
+      }
     }
-    setTimeout(onNext, (MAX_SHOTS - 1) * SHOT_INTERVAL + 700);
+    setTimeout(() => onComplete(acc), 700);
   };
+
+  const errorText = error === 'mac_unreachable' ? T.capture.errorMacUnreachable
+    : error === 'capture_timeout' ? T.capture.errorCaptureTimeout
+    : error === 'capture_failed' ? T.capture.errorGeneric
+    : null;
+
+  const shutterLabel = error ? T.capture.retry
+    : started ? T.capture.capturing
+    : T.capture.shutter;
 
   return (
     <IPad animKey="capture" lightStatus>
@@ -134,13 +163,30 @@ export function Capture({ onNext }: CaptureProps) {
         ))}
 
         {/* Shot counter */}
-        {count > 0 && (
+        {photos.length > 0 && (
           <div style={{
             position: 'absolute', bottom: 116, left: 0, right: 0,
             textAlign: 'center',
             fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 400,
             color: 'rgba(255,255,255,0.85)',
-          }}>{count} / {MAX_SHOTS}</div>
+          }}>{photos.length} / {MAX_SHOTS}</div>
+        )}
+
+        {/* Error message */}
+        {errorText && (
+          <div style={{
+            position: 'absolute', bottom: 134, left: 24, right: 24,
+            textAlign: 'center',
+          }}>
+            <div style={{
+              display: 'inline-block',
+              background: 'rgba(0,0,0,0.7)',
+              color: '#fff',
+              borderRadius: 8,
+              padding: '10px 18px',
+              fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500,
+            }}>{errorText}</div>
+          </div>
         )}
 
         {/* Circular shutter button — outer navy ring + inner blue circle with label */}
@@ -170,10 +216,11 @@ export function Capture({ onNext }: CaptureProps) {
               background: canShoot ? 'var(--color-brand-500)' : 'rgba(81,143,204,0.4)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 0.2s',
-              fontFamily: "var(--font-ui)", fontSize: 18, fontWeight: 500,
-              color: '#fff', letterSpacing: '0.1em',
+              fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500,
+              color: '#fff', letterSpacing: '0.06em',
+              textAlign: 'center',
             }}>
-              {T.capture.shutter}
+              {shutterLabel}
             </div>
           </button>
         </div>

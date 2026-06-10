@@ -7,6 +7,9 @@ export default defineConfig({
   base: './',
   server: {
     port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
+    proxy: {
+      '/api': 'http://localhost:3000',
+    },
   },
   build: {
     outDir: 'dist',

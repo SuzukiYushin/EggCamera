@@ -1,42 +1,31 @@
 import { useState, useEffect } from 'react';
 import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
+import type { SessionResult } from '../../api';
 
 interface QRProps {
+  result: SessionResult | null;
   onDone: () => void;
   onRestart: () => void;
 }
 
-const QR_CELLS = [
-  [1,1,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1],
-  [1,0,0,0,0,0,1,0,0,1,0,1,1,0,0,0,1],
-  [1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,1,1],
-  [1,0,1,1,1,0,1,0,0,1,0,1,1,0,1,1,1],
-  [1,0,0,0,0,0,1,0,1,0,1,0,1,0,0,0,1],
-  [1,1,1,1,1,1,1,0,1,0,1,1,1,1,1,1,1],
-  [0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0],
-  [1,0,1,1,0,1,1,1,1,0,1,0,1,0,1,0,1],
-  [0,1,0,0,1,0,0,0,0,1,0,1,0,1,0,1,0],
-  [1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,1,1],
-  [0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0],
-  [1,1,1,1,1,1,1,0,1,0,1,0,1,1,1,0,1],
-  [1,0,0,0,0,0,1,0,0,1,0,1,0,0,0,1,0],
-  [1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1],
-  [1,0,0,0,0,0,1,0,0,1,0,0,0,1,0,0,1],
-  [1,1,1,1,1,1,1,0,1,0,1,1,0,0,1,0,1],
-];
-
-export function QR({ onDone, onRestart }: QRProps) {
+export function QR({ result, onDone, onRestart }: QRProps) {
   const { T } = useLang();
-  const [secs, setSecs] = useState(180);
+  const [secs, setSecs] = useState(() =>
+    result ? Math.max(0, Math.ceil((result.expiresAt - Date.now()) / 1000)) : 0
+  );
 
   useEffect(() => {
-    const t = setInterval(() => setSecs(s => {
-      if (s <= 1) { onDone(); return 0; }
-      return s - 1;
-    }), 1000);
+    if (!result) return;
+    const update = () => {
+      const remaining = Math.max(0, Math.ceil((result.expiresAt - Date.now()) / 1000));
+      setSecs(remaining);
+      if (remaining <= 0) onDone();
+    };
+    update();
+    const t = setInterval(update, 1000);
     return () => clearInterval(t);
-  }, [onDone]);
+  }, [result, onDone]);
 
   const mm     = String(Math.floor(secs / 60)).padStart(2, '0');
   const ss     = String(secs % 60).padStart(2, '0');
@@ -75,18 +64,14 @@ export function QR({ onDone, onRestart }: QRProps) {
 
         {/* QR code — centered, no frame */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
-          <svg
-            width={200} height={200}
-            viewBox={`0 0 ${QR_CELLS.length} ${QR_CELLS.length}`}
-            shapeRendering="crispEdges"
-          >
-            <rect width={QR_CELLS.length} height={QR_CELLS.length} fill="white" />
-            {QR_CELLS.flatMap((row, y) =>
-              row.map((v, x) =>
-                v ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill="#3A3A3A" /> : null
-              )
-            )}
-          </svg>
+          {result && (
+            <img
+              src={result.qrDataUrl}
+              alt="QR code"
+              width={200} height={200}
+              style={{ display: 'block' }}
+            />
+          )}
         </div>
 
         {/* Timer pill — compact */}
