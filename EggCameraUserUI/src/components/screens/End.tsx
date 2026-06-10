@@ -1,5 +1,6 @@
 import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
+import bearImg from '../../assets/bear_thanks.png';
 
 interface EndProps {
   onRestart: () => void;
@@ -9,39 +10,58 @@ export function End({ onRestart }: EndProps) {
   const { T } = useLang();
 
   return (
-    <IPad step={7} totalSteps={7} animKey="end">
+    <IPad animKey="end" statusBg="#F6F3E9" statusTextColor="var(--color-brand-600)">
       <div data-section="end-screen" style={{
         flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center',
-        padding: '64px 72px', gap: 40,
-        background: 'linear-gradient(160deg, #E6EEF7 0%, #ffffff 60%)',
+        alignItems: 'center',
+        background: 'var(--color-brand-500)',
+        padding: '72px 40px 52px',
       }}>
+
+        {/* Thanks! heading */}
         <div style={{
-          width: 96, height: 96, borderRadius: '50%',
-          background: 'var(--color-brand-500)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 6px 24px rgba(81,143,204,0.35)',
-        }}>
-          <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
-            <path d="M8 21l9 10L34 12"
-              stroke="white" strokeWidth="3.5"
-              strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          fontFamily: "var(--font-futura)",
+          fontSize: 64, fontWeight: 700,
+          color: '#F6F3E9',
+          letterSpacing: '0.02em',
+          lineHeight: 1,
+          textAlign: 'center',
+          marginBottom: 20,
+        }}>{T.end.heading}</div>
+
+        {/* Body text */}
+        <div style={{
+          fontFamily: "var(--font-ui)",
+          fontSize: 18, fontWeight: 400,
+          color: '#F6F3E9',
+          textAlign: 'center',
+          lineHeight: 1.9,
+          letterSpacing: '0.1em',
+          whiteSpace: 'pre-line',
+          marginBottom: 32,
+        }}>{T.end.body}</div>
+
+        {/* Bear mascot — waving */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img
+            src={bearImg}
+            alt=""
+            aria-hidden="true"
+            style={{
+              width: 320, height: 'auto',
+              objectFit: 'contain',
+              display: 'block',
+            }}
+          />
         </div>
 
-        <div data-ui="end-message" style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div className="t-heading">{T.end.heading}</div>
-          <div className="t-body" style={{ lineHeight: 1.9, whiteSpace: 'pre-line' }}>{T.end.body}</div>
-          <div style={{
-            fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic',
-            fontSize: 14, color: 'var(--color-ink-200)', marginTop: 8,
-            letterSpacing: '0.12em',
-          }}>familiar</div>
+        {/* Restart button */}
+        <div style={{ width: '100%', flexShrink: 0 }}>
+          <button className="btn-cream" onClick={onRestart}>
+            {T.end.restart}
+          </button>
         </div>
 
-        <div style={{ width: '100%' }}>
-          <button className="btn-primary" onClick={onRestart}>{T.end.restart}</button>
-        </div>
       </div>
     </IPad>
   );

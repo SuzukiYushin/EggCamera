@@ -1,9 +1,9 @@
 :root {
-  /* Brand Blues — familiar.co.jp logo color: #518FCC */
-  --color-brand-700:   #2C6499;  /* darker hover */
-  --color-brand-600:   #3A77B5;  /* active/pressed */
-  --color-brand-500:   #518FCC;  /* PRIMARY — familiar logo blue */
-  --color-brand-400:   #72A8D9;  /* secondary accent */
+  /* Brand Blues — from Illustrator design */
+  --color-brand-700:   #05195A;  /* darker hover */
+  --color-brand-600:   #06236F;  /* dark navy — headings, labels */
+  --color-brand-500:   #5087C0;  /* PRIMARY — bright blue */
+  --color-brand-400:   #4C9BF0;  /* accent — same bright blue */
   --color-brand-200:   #A3C4E6;  /* light tint */
   --color-brand-100:   #C3D9EF;  /* very light tint */
   --color-brand-50:    #E3EEF8;  /* background tint */
@@ -30,8 +30,8 @@
   --color-warning:     #B5813B;
   --color-error:       #B54040;
 
-  --font-display: 'Cormorant Garamond', Georgia, serif;
-  --font-heading: 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
-  --font-body:    'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
-  --font-ui:      'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+  --font-futura:  'Futura', 'Century Gothic', sans-serif;
+  --font-heading: 'Hiragino Kaku Gothic Pro', 'ヒラギノ角ゴ Pro W6', 'Noto Sans JP', sans-serif;
+  --font-body:    'Hiragino Kaku Gothic Pro', 'ヒラギノ角ゴ Pro W6', 'Noto Sans JP', sans-serif;
+  --font-ui:      'Hiragino Kaku Gothic Pro', 'ヒラギノ角ゴ Pro W6', 'Noto Sans JP', sans-serif;
 }

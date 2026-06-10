@@ -1,82 +1,99 @@
 import { useState } from 'react';
 import { IPad } from '../IPad';
-import babyImg from '../../assets/baby.png';
-import flameImg from '../../assets/flame.png';
+import { useLang } from '../../LangContext';
+import babyA from '../../assets/baby_a.png';
+import babyB from '../../assets/baby_b.png';
+import babyC from '../../assets/baby_c.png';
 
 interface PhotoSelectProps {
   onNext: () => void;
+  onBack: () => void;
 }
 
-export function PhotoSelect({ onNext }: PhotoSelectProps) {
-  const [sel, setSel] = useState<number | null>(null);
+const PHOTOS = [babyA, babyB, babyC];
+
+export function PhotoSelect({ onNext, onBack }: PhotoSelectProps) {
+  const { T } = useLang();
+  const [sel, setSel] = useState<number | null>(1);
 
   return (
-    <IPad step={5} animKey="photosel">
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '24px 48px 40px', flexShrink: 0 }}>
-          <div className="t-eyebrow" style={{ marginBottom: 10 }}>ステップ 5 / 9</div>
-          <div className="t-heading" style={{ fontSize: 24 }}>1枚選んでください</div>
-          <div className="t-body" style={{ fontSize: 13, marginTop: 4 }}>
-            6枚の中からお気に入りを1枚だけ
-          </div>
+    <IPad step={4} totalSteps={7} animKey="photosel">
+      <div data-section="photoselect-screen" style={{
+        flex: 1, display: 'flex', flexDirection: 'column',
+        padding: '50px 40px 40px',
+      }}>
+
+        {/* Step */}
+        <div className="t-eyebrow" style={{ marginBottom: 170, marginLeft: 0 }}>{T.photoselect.step}</div>
+
+        {/* Heading */}
+        <div className="t-heading" style={{ textAlign: 'center', marginBottom: -50 }}>
+          {T.photoselect.heading}
         </div>
 
-        {/* 2×3 grid */}
+        {/* 3 photos in a row */}
         <div
           role="radiogroup"
-          aria-label="撮影した写真から1枚を選んでください"
+          aria-label="写真を1枚選んでください"
           style={{
-            flex: 1, padding: '10px 48px',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            gridAutoRows: 'auto',
-            gap: 10,
-            overflowY: 'auto',
-            alignContent: 'start',
+            flex: 1,
+            display: 'flex',
+            gap: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
             minHeight: 0,
           }}
         >
-          {[0, 1, 2, 3, 4, 5].map(i => (
+          {PHOTOS.map((src, i) => (
             <div
               key={i}
               role="radio"
               aria-checked={sel === i}
               aria-label={`写真 ${i + 1}`}
               tabIndex={0}
-              className={`photo-cell${sel === i ? ' selected' : ''}`}
               onClick={() => setSel(i)}
               onKeyDown={e => (e.key === ' ' || e.key === 'Enter') && setSel(i)}
-              style={{ background: '#000', aspectRatio: '2/3' }}
+              style={{
+                flex: 1,
+                aspectRatio: '2/3',
+                maxHeight: '100%',
+                borderRadius: 8,
+                overflow: 'hidden',
+                cursor: 'pointer',
+                position: 'relative',
+                border: sel === i
+                  ? '9.5px solid var(--color-brand-500)'
+                  : '9.5px solid transparent',
+                boxShadow: sel === i
+                  ? 'none'
+                  : '0 2px 12px rgba(0,0,0,0.12)',
+                transition: 'border-color 0.15s, box-shadow 0.15s',
+              }}
             >
               <img
-                src={babyImg}
+                src={src}
                 alt=""
                 aria-hidden="true"
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
-              <img
-                src={flameImg}
-                alt="フレーム"
-                style={{
-                  position: 'absolute', inset: 0,
-                  width: '100%', height: '100%', objectFit: 'fill',
-                  display: 'block', pointerEvents: 'none',
-              }}
-            />
-              {sel === i && <div className="check" aria-hidden="true">✓</div>}
             </div>
           ))}
         </div>
 
-        <div style={{ padding: '14px 48px 32px', flexShrink: 0 }}>
+        {/* Decide button */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 32 }}>
           <button
             className="btn-primary"
             disabled={sel === null}
             onClick={() => sel !== null && onNext()}
           >
-            この写真に決める
+            {T.photoselect.decide}
+          </button>
+          <button className="btn-ghost" onClick={onBack}>
+            {T.photoselect.back}
           </button>
         </div>
+
       </div>
     </IPad>
   );

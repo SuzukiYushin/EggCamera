@@ -22,23 +22,17 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
 
   return (
     <IPad step={1} totalSteps={7} animKey="nick">
-      <Page data-section="nickname-screen" style={{ paddingTop: 28 }}>
-        <div className="t-eyebrow" style={{ marginBottom: 12 }}>{T.nickname.step}</div>
-        <div id="nickname-title" className="t-heading" style={{ marginBottom: 8, whiteSpace: 'pre-line' }}>
+      <Page data-section="nickname-screen" style={{ paddingTop: 50 }}>
+        <div className="t-eyebrow" style={{ marginBottom: 50, marginLeft: 0 }}>{T.nickname.step}</div>
+        <div id="nickname-title" className="t-heading" style={{ marginBottom: 30, whiteSpace: 'pre-line' }}>
           {T.nickname.heading}
         </div>
-        <div className="t-body" style={{ marginBottom: 32 }}>{T.nickname.body}</div>
 
         <div
           data-ui="nickname-input"
           className={`input-wrap${focused || nickname ? ' focused' : ''}`}
-          style={{ marginBottom: 12 }}
+          style={{ marginBottom: 40 }}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-            <circle cx="9" cy="6" r="3.5" stroke="var(--color-brand-400)" strokeWidth="1.5" />
-            <path d="M2 16c0-3.866 3.134-7 7-7s7 3.134 7 7"
-              stroke="var(--color-brand-400)" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
           <input
             id="nickname-input"
             aria-labelledby="nickname-title"
@@ -51,7 +45,7 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
             placeholder={T.nickname.placeholder}
           />
         </div>
-        <div className="t-caption" style={{ marginBottom: 'auto' }}>{T.nickname.caption}</div>
+        <div className="t-body" style={{ marginBottom: 'auto' }}>{T.nickname.body}</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 32, marginTop: 24 }}>
           <button className="btn-primary" onClick={onNext}>{T.nickname.next}</button>

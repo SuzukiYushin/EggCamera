@@ -1,16 +1,49 @@
+import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { IPad } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
-import flameImg from '../../assets/flame.png';
-import babyImg  from '../../assets/baby2.png';
+import frameImg from '../../assets/photo_frame.png';
+import babyImg  from '../../assets/baby_illustrator.png';
 
-const C = {
-  number:  'var(--color-brand-400)',
-  caption: 'var(--color-brand-600)',
-  sparkle: 'var(--color-brand-200)',
-  dot:     'var(--color-brand-100)',
-};
+const BURST_COLORS = [
+  '#FFD700', '#FF6B35', '#FF9E2C', '#FF5C8D',
+  '#FFC857', '#FF7B54', '#FF4E50', '#FFCF5C',
+  '#FF8C42', '#FF3E7F', '#FFB300', '#FF6F61',
+];
+
+const BASE_ANGLES = Array.from({ length: 16 }, (_, i) => (360 / 16) * i);
+
+interface Burst {
+  id: number;
+  particles: {
+    tx: number; ty: number;
+    color: string; size: number;
+    shape: 'circle' | 'square' | 'star';
+    duration: number; delay: number;
+  }[];
+}
+
+let burstId = 0;
+
+function makeBurst(): Burst {
+  return {
+    id: ++burstId,
+    particles: BASE_ANGLES.map((base, i) => {
+      const angle = (base + (Math.random() - 0.5) * 20) * (Math.PI / 180);
+      const dist  = 80 + Math.random() * 100;
+      return {
+        tx: Math.cos(angle) * dist,
+        ty: Math.sin(angle) * dist,
+        color: BURST_COLORS[i % BURST_COLORS.length],
+        size: 10 + Math.random() * 12,
+        shape: (['circle', 'square', 'star'] as const)[i % 3],
+        duration: 650 + Math.random() * 300,
+        delay: Math.random() * 80,
+      };
+    }),
+  };
+}
 
 interface FinalPreviewProps {
   nickname:   string;
@@ -22,133 +55,98 @@ interface FinalPreviewProps {
 export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
   const { T } = useLang();
   const daysText = days > 0 ? T.preview.daysSinceBirth(days) : '';
+  const [bursts, setBursts] = useState<Burst[]>([]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const b = makeBurst();
+      setBursts([b]);
+      setTimeout(() => setBursts([]), 1100);
+    }, 900);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
-    <IPad step={4} totalSteps={7} animKey="preview">
-      <Page data-section="preview-screen" style={{ paddingTop: 24, paddingBottom: 28 }}>
+    <IPad step={5} totalSteps={7} animKey="preview">
+      <Page data-section="preview-screen" style={{ paddingTop: 50, paddingBottom: 28 }}>
 
-        {/* Header — decorative, mirrors Birthday number display */}
-        <div data-ui="preview-header" style={{ marginBottom: 16, flexShrink: 0, textAlign: 'center' }}>
-          <div className="t-eyebrow" style={{ marginBottom: 30 }}>{T.preview.step}</div>
-
-          <div style={{ display: 'inline-block', position: 'relative' }}>
-            {/* Sparkles — scaled ~0.5× from Birthday */}
-            <Sparkle size={14} color={C.sparkle} style={{ position: 'absolute', top: -14, left:  -36 }} />
-            <Sparkle size={9}  color={C.dot}     style={{ position: 'absolute', top:  13, left:  -44 }} />
-            <Sparkle size={11} color={C.sparkle} style={{ position: 'absolute', top:  46, left:  -28 }} />
-            <Sparkle size={7}  color={C.dot}     style={{ position: 'absolute', top: -20, left:   18 }} />
-            <Sparkle size={10} color={C.sparkle} style={{ position: 'absolute', top: -11, right: -24 }} />
-            <Sparkle size={12} color={C.dot}     style={{ position: 'absolute', top:  24, right: -44 }} />
-            <Sparkle size={8}  color={C.sparkle} style={{ position: 'absolute', top:  56, right: -20 }} />
-            <Sparkle size={9}  color={C.dot}     style={{ position: 'absolute', top:  70, left:    8 }} />
-            {/* Dots */}
-            <Dot size={5} color={C.number}  style={{ position: 'absolute', top:   5, left:  -56 }} />
-            <Dot size={4} color={C.dot}     style={{ position: 'absolute', top:  32, left:  -52 }} />
-            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top:  -5, left:   40 }} />
-            <Dot size={5} color={C.dot}     style={{ position: 'absolute', top:   4, right: -42 }} />
-            <Dot size={4} color={C.number}  style={{ position: 'absolute', top:  46, right: -56 }} />
-            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top:  72, right:  -6 }} />
-            <Dot size={3} color={C.number}  style={{ position: 'absolute', top:  78, left:  -12 }} />
-            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top: -17, right:  12 }} />
-
-            <div style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontStyle: 'italic', fontWeight: 500,
-              fontSize: 56, lineHeight: 1,
-              color: C.number,
-              position: 'relative', zIndex: 1,
-            }}>{T.preview.heading}</div>
+        {/* Header */}
+        <div data-ui="preview-header" style={{ marginBottom: 0, flexShrink: 0, textAlign: 'center' }}>
+          <div className="t-eyebrow" style={{ marginBottom: 40, marginLeft: 0, textAlign: 'left' }}>{T.preview.step}</div>
+          <div className="t-heading" style={{ display: 'inline-block', marginBottom: 0, animation: 'countPop 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both' }}>
+            {T.preview.heading}
           </div>
-
-          <div style={{
-            fontFamily: 'var(--font-ui)',
-            fontSize: 13, fontWeight: 400,
-            color: C.caption,
-            marginTop: 10, letterSpacing: '0.04em',
-          }}>{T.preview.subheading}</div>
         </div>
 
         {/* Photo composite */}
         <div data-ui="photo-composite" style={{
           flex: 1, minHeight: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32,
+          position: 'relative',
         }}>
+          {/* Particle burst */}
+          {bursts.map(burst => (
+            <div key={burst.id} style={{
+              position: 'absolute',
+              top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none', zIndex: 10,
+            }}>
+              {burst.particles.map((p, i) => <ParticleEl key={i} {...p} />)}
+            </div>
+          ))}
+
           <div style={{
             position: 'relative',
             aspectRatio: '2/3',
-            height: '100%',
+            height: '90%',
             borderRadius: 4,
             overflow: 'hidden',
-            border: '1.5px solid var(--color-brand-100)',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+            border: 'none',
+            animation: 'cameraGlow 4.4s ease-in-out infinite',
           }}>
             <img src={babyImg} alt="photo"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            <img src={flameImg} alt="frame overlay"
+              style={{
+                position: 'absolute', top: '50%', left: '50%',
+                transform: 'translate(-52%, -30%)',
+                width: '200%', height: '200%', objectFit: 'cover', display: 'block',
+              }} />
+            <img src={frameImg} alt="frame overlay"
               style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', display: 'block', pointerEvents: 'none' }} />
 
-            {/* Name & days badge — "famichan / 365 days since the birth" style */}
             {(nickname || daysText) && (
               <div data-ui="name-badge" style={{
-                position: 'absolute', top: 20, left: 0, right: 0,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                position: 'absolute', top: '58%', left: 50, right: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1,
                 pointerEvents: 'none',
               }}>
                 {nickname && (
                   <div style={{
-                    fontFamily: "'Nunito', 'Noto Sans JP', sans-serif",
+                    fontFamily: 'var(--font-heading)',
                     fontSize: 50, fontWeight: 900,
                     letterSpacing: '-0.01em',
-                    color: '#fff',
-                    textShadow: '0 2px 10px rgba(0,0,0,0.35)',
+                    color: '#000000',
                     lineHeight: 1.1,
+                    textAlign: 'left',
+                    WebkitTextStroke: '2px currentColor',
                   }}>{nickname}</div>
                 )}
                 {daysText && (
                   <div style={{
-                    fontFamily: "'Nunito', 'Noto Sans JP', sans-serif",
-                    fontSize: 30, fontWeight: 800,
+                    fontFamily: 'var(--font-futura)',
+                    fontSize: 28, fontWeight: 600,
                     letterSpacing: '0.01em',
-                    color: 'rgba(255,255,255,0.95)',
-                    textShadow: '0 1px 6px rgba(0,0,0,0.35)',
+                    color: 'rgba(0, 0, 0, 0.95)',
                     lineHeight: 1.2,
+                    textAlign: 'left',
+                    whiteSpace: 'pre-line',
+                    WebkitTextStroke: '0.6px currentColor',
                   }}>{daysText}</div>
                 )}
               </div>
             )}
-
-            {/* Watermark */}
-            <div style={{
-              position: 'absolute', bottom: 10, right: 14,
-              fontFamily: 'Cormorant Garamond, serif', fontStyle: 'italic',
-              fontSize: 11, color: 'rgba(81,143,204,0.6)', letterSpacing: '0.1em',
-              pointerEvents: 'none',
-            }}>Egg Camera</div>
           </div>
         </div>
-
-        {/* Frame label — prominent warm */}
-        {/* {frameLabel && (
-          <div data-ui="frame-label" style={{
-            flexShrink: 0, display: 'flex', justifyContent: 'center', marginTop: 14,
-          }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: '#e76f66', color: '#fff',
-              borderRadius: 99, padding: '8px 22px',
-              boxShadow: '0 3px 12px rgba(210,118,74,0.35)',
-            }}>
-              <span style={{
-                fontFamily: 'Noto Sans JP', fontSize: 10, fontWeight: 400,
-                letterSpacing: '0.16em', opacity: 0.8,
-              }}>{T.preview.frameLabel}</span>
-              <span style={{
-                fontFamily: 'Noto Sans JP', fontSize: 17, fontWeight: 700,
-                letterSpacing: '0.04em',
-              }}>{frameLabel}</span>
-            </div>
-          </div>
-        )} */}
 
         <div style={{ flexShrink: 0, marginTop: 14 }}>
           <button className="btn-primary" onClick={onNext}>{T.preview.save}</button>
@@ -158,32 +156,38 @@ export function FinalPreview({ nickname, days, onNext }: FinalPreviewProps) {
   );
 }
 
-// ── Decorative components (same design as Birthday) ──────────────
-interface DecoProps {
-  size?: number;
-  color: string;
-  style?: CSSProperties;
+// ── Particle element ──────────────────────────────────────────────
+interface ParticleProps {
+  tx: number; ty: number;
+  color: string; size: number;
+  shape: 'circle' | 'square' | 'star';
+  duration: number; delay: number;
 }
 
-function Sparkle({ size = 14, color, style }: DecoProps) {
+function ParticleEl({ tx, ty, color, size, shape, duration, delay }: ParticleProps) {
+  const base: CSSProperties = {
+    position: 'absolute',
+    width: size, height: size,
+    background: color,
+    animation: `particleFly ${duration}ms ease-out forwards`,
+    animationDelay: `${delay}ms`,
+    opacity: 0,
+    ['--tx' as string]: `${tx}px`,
+    ['--ty' as string]: `${ty}px`,
+  };
+
+  if (shape === 'circle') return <span style={{ ...base, borderRadius: '50%' }} />;
+  if (shape === 'square') return <span style={{ ...base, borderRadius: 3, transform: 'rotate(45deg)' }} />;
   return (
-    <svg width={size} height={size} viewBox="0 0 20 20" style={style}>
-      <path
-        d="M10 1 L11.4 8.6 L19 10 L11.4 11.4 L10 19 L8.6 11.4 L1 10 L8.6 8.6 Z"
-        fill={color}
-      />
+    <svg width={size} height={size} viewBox="0 0 20 20" style={{
+      position: 'absolute',
+      animation: `particleFly ${duration}ms ease-out forwards`,
+      animationDelay: `${delay}ms`,
+      opacity: 0,
+      ['--tx' as string]: `${tx}px`,
+      ['--ty' as string]: `${ty}px`,
+    }}>
+      <path d="M10 1 L11.4 8.6 L19 10 L11.4 11.4 L10 19 L8.6 11.4 L1 10 L8.6 8.6 Z" fill={color} />
     </svg>
-  );
-}
-
-function Dot({ size = 6, color, style }: DecoProps) {
-  return (
-    <span style={{
-      display: 'inline-block',
-      width: size, height: size,
-      borderRadius: '50%',
-      background: color,
-      ...style,
-    }} />
   );
 }

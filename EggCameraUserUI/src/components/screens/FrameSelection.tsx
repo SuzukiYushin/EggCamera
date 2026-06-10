@@ -5,9 +5,10 @@ import flameImg from '../../assets/flame.png';
 
 interface FrameSelectionProps {
   onNext: () => void;
+  onBack?: () => void;
 }
 
-export function FrameSelection({ onNext }: FrameSelectionProps) {
+export function FrameSelection({ onNext, onBack }: FrameSelectionProps) {
   const [selectedId, setSelectedId] = useState(FRAMES[0].id);
   const sel = FRAMES.find(f => f.id === selectedId)!;
 
@@ -16,9 +17,9 @@ export function FrameSelection({ onNext }: FrameSelectionProps) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
         {/* Header */}
-        <div style={{ padding: '20px 48px 0', flexShrink: 0 }}>
-          <div className="t-eyebrow" style={{ marginBottom: 8 }}>ステップ 3 / 9</div>
-          <div className="t-heading" style={{ fontSize: 22 }}>フレームを選んでください</div>
+        <div style={{ padding: '50px 48px 0', flexShrink: 0 }}>
+          <div className="t-eyebrow" style={{ marginBottom: 50 }}>ステップ 3 / 9</div>
+          <div className="t-heading" style={{ fontSize: 22, marginBottom: 30 }}>フレームを選んでください</div>
         </div>
 
         {/* Main content: preview + grid */}
@@ -66,7 +67,7 @@ export function FrameSelection({ onNext }: FrameSelectionProps) {
               color: '#fff',
               borderRadius: 4,
               padding: '7px 24px',
-              fontFamily: 'Noto Sans JP',
+              fontFamily: "var(--font-ui)",
               fontSize: 13,
               fontWeight: 500,
               letterSpacing: '0.06em',
@@ -137,7 +138,7 @@ export function FrameSelection({ onNext }: FrameSelectionProps) {
                   <div style={{
                     padding: '5px 4px',
                     textAlign: 'center',
-                    fontFamily: 'Noto Sans JP',
+                    fontFamily: "var(--font-ui)",
                     fontSize: 12,
                     color: isSelected ? 'var(--color-brand-700)' : 'var(--color-ink-500)',
                     fontWeight: isSelected ? 600 : 400,
@@ -164,9 +165,12 @@ export function FrameSelection({ onNext }: FrameSelectionProps) {
         </div>
 
         {/* CTA */}
-        <div style={{ padding: '14px 48px 32px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 48px 32px', flexShrink: 0 }}>
           <button className="btn-primary" onClick={onNext}>
             このフレームで撮影する
+          </button>
+          <button className="btn-ghost" onClick={onBack}>
+            戻る
           </button>
         </div>
       </div>

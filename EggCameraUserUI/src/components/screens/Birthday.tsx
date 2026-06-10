@@ -1,16 +1,15 @@
-import type { CSSProperties } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { IPad } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
+import butterflyPink from '../../assets/butterfly_pink.png';
+import butterflyBlue from '../../assets/butterfly_blue.png';
 
 interface BirthdayProps {
+  nickname?: string;
   onNext: (days: number) => void;
   onSkip: () => void;
 }
-
-const MOCK_YEAR  = 2024;
-const MOCK_MONTH = 8;
-const MOCK_DAY   = 12;
 
 function calcDays(year: number, month: number, day: number): number {
   const birth = new Date(year, month - 1, day);
@@ -18,127 +17,173 @@ function calcDays(year: number, month: number, day: number): number {
   return Math.max(0, Math.floor((today.getTime() - birth.getTime()) / 86_400_000));
 }
 
-const MOCK_DAYS = calcDays(MOCK_YEAR, MOCK_MONTH, MOCK_DAY);
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
 
-// Sky Blue palette — brand tokens
+const YEARS = Array.from({ length: 7 }, (_, i) => 2020 + i); // 2020–2026
+
 const C = {
-  number:  'var(--color-brand-400)',  // #72A8D9
-  caption: 'var(--color-brand-600)',  // #3A77B5
-  sparkle: 'var(--color-brand-200)',  // #A3C4E6
-  dot:     'var(--color-brand-100)',  // #C3D9EF
+  number: 'var(--color-brand-500)',
+  caption: 'var(--color-brand-600)',
 };
 
-export function Birthday({ onNext, onSkip }: BirthdayProps) {
+export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
   const { lang, T } = useLang();
 
+  const [year, setYear] = useState(2024);
+  const [month, setMonth] = useState(8);
+  const [day, setDay] = useState(12);
+
+  const maxDay = daysInMonth(year, month);
+  const safeDay = Math.min(day, maxDay);
+  const days = calcDays(year, month, safeDay) + 270;
+
+  const handleYearChange = (i: number) => setYear(YEARS[i]);
+  const handleMonthChange = (i: number) => {
+    const m = i + 1;
+    setMonth(m);
+    setDay(d => Math.min(d, daysInMonth(year, m)));
+  };
+  const handleDayChange = (i: number) => setDay(i + 1);
+
   const dateLabel = lang === 'ja'
-    ? `${MOCK_YEAR}年 ${MOCK_MONTH}月 ${MOCK_DAY}日 生まれ`
-    : `Born on ${MOCK_YEAR}.${MOCK_MONTH}.${MOCK_DAY}`;
+    ? `${year}年 ${month}月 ${safeDay}日 生まれ`
+    : `Born on ${year}.${month}.${safeDay}`;
+
+  const yearItems = YEARS.map(y => lang === 'ja' ? `${y}年` : String(y));
+  const monthItems = Array.from({ length: 12 }, (_, i) =>
+    lang === 'ja' ? `${i + 1}月` : String(i + 1)
+  );
+  const dayItems = Array.from({ length: maxDay }, (_, i) =>
+    lang === 'ja' ? `${i + 1}日` : String(i + 1)
+  );
 
   return (
     <IPad step={2} totalSteps={7} animKey="bday">
-      <Page data-section="birthday-screen" style={{ paddingTop: 28 }}>
-        <div className="t-eyebrow" style={{ marginBottom: 12 }}>{T.birthday.step}</div>
-        <div className="t-heading" style={{ marginBottom: 8, whiteSpace: 'pre-line' }}>
+      <Page data-section="birthday-screen" style={{ paddingTop: 50 }}>
+        <div className="t-eyebrow" style={{ marginBottom: 50, marginLeft: 12 }}>{T.birthday.step}</div>
+        <div className="t-heading" style={{ marginBottom: 30, whiteSpace: 'pre-line' }}>
           {T.birthday.heading}
         </div>
-        <div className="t-body" style={{ marginBottom: 28 }}>{T.birthday.body}</div>
 
         {/* Date picker */}
         <div data-ui="date-picker" style={{
-          border: '1.5px solid var(--color-gray-200)',
+          border: '1.5px solid var(--color-brand-500)',
           borderRadius: 4, overflow: 'hidden',
-          marginBottom: 20, background: '#fff',
+          marginBottom: 40, background: 'transparent',
         }}>
           <div style={{ display: 'flex', height: 200 }}>
-            <PickerCol items={['2022年', '2023年', '2024年', '2025年']} selectedIndex={2} />
-            <PickerCol items={['6月', '7月', '8月', '9月', '10月']} selectedIndex={2} />
-            <PickerCol items={['10日', '11日', '12日', '13日', '14日']} selectedIndex={2} isLast />
+            <PickerCol
+              items={yearItems}
+              selectedIndex={YEARS.indexOf(year)}
+              onChange={handleYearChange}
+            />
+            <PickerCol
+              items={monthItems}
+              selectedIndex={month - 1}
+              onChange={handleMonthChange}
+            />
+            <PickerCol
+              items={dayItems}
+              selectedIndex={Math.min(safeDay - 1, maxDay - 1)}
+              onChange={handleDayChange}
+              isLast
+            />
           </div>
         </div>
 
-        {/* Days since birth — center minimal, no card/background */}
+        <div className="t-body" style={{ marginBottom: 10 }}>{T.birthday.body}</div>
+
+        {/* Days since birth */}
         <div data-ui="birthday-result" style={{
           marginBottom: 'auto',
-          marginTop: 100,
+          marginTop: 70,
           position: 'relative',
           textAlign: 'center',
         }}>
-          {/* "生後" eyebrow */}
+
           <div style={{
-            fontFamily: 'var(--font-ui)',
-            fontSize: 12, fontWeight: 500,
+            fontFamily: "'HiraKakuPro-W8', 'Hiragino Kaku Gothic Pro W8', 'ヒラギノ角ゴ Pro W8', 'Noto Sans JP', sans-serif",
+            fontSize: 12, fontWeight: 800,
             letterSpacing: '0.18em',
-            color: C.caption,
-            marginBottom: 4,
+            color: C.number,
+            marginBottom: 20,
+            WebkitTextStroke: '0.3px currentColor',
           }}>
-            {T.birthday.daysSince}
+
+          <span style={{
+            color: C.number,
+            display: 'inline-block',
+            position: 'relative',
+            top: 5,
+          }}>
+
+          {dateLabel}
+
+          <img src={butterflyBlue} alt="" aria-hidden="true" style={{
+            position: 'absolute',
+            left: 'calc(100% + 40px)',
+            top: '30%',
+            transform: 'translateY(-50%)',
+            width: 58, height: 'auto',
+          }} />
+          </span>
           </div>
 
-          {/* Number + unit + decorative scatter */}
           <div style={{
-            display: 'inline-flex',
-            alignItems: 'baseline',
-            gap: 10,
-            position: 'relative',
+            display: 'grid',
+            gridTemplateColumns: '1fr auto 1fr',
+            alignItems: 'center',
+            columnGap: 10,
           }}>
-            {/* Sparkles (4-point stars) */}
-            <Sparkle size={18} color={C.sparkle} style={{ position: 'absolute', top: -22, left: -52 }} />
-            <Sparkle size={11} color={C.dot}     style={{ position: 'absolute', top: 22,  left: -64 }} />
-            <Sparkle size={14} color={C.sparkle} style={{ position: 'absolute', top: 78,  left: -42 }} />
-            <Sparkle size={9}  color={C.dot}     style={{ position: 'absolute', top: -32, left: 28 }} />
-            <Sparkle size={13} color={C.sparkle} style={{ position: 'absolute', top: -18, right: -36 }} />
-            <Sparkle size={16} color={C.dot}     style={{ position: 'absolute', top: 40,  right: -64 }} />
-            <Sparkle size={10} color={C.sparkle} style={{ position: 'absolute', top: 92,  right: -28 }} />
-            <Sparkle size={12} color={C.dot}     style={{ position: 'absolute', top: 116, left: 12 }} />
-            {/* Dots */}
-            <Dot size={7} color={C.number}  style={{ position: 'absolute', top: 8,   left: -82 }} />
-            <Dot size={4} color={C.dot}     style={{ position: 'absolute', top: 56,  left: -78 }} />
-            <Dot size={5} color={C.sparkle} style={{ position: 'absolute', top: -8,  left: 60 }} />
-            <Dot size={6} color={C.dot}     style={{ position: 'absolute', top: 6,   right: -60 }} />
-            <Dot size={4} color={C.number}  style={{ position: 'absolute', top: 78,  right: -82 }} />
-            <Dot size={5} color={C.sparkle} style={{ position: 'absolute', top: 124, right: -8 }} />
-            <Dot size={3} color={C.number}  style={{ position: 'absolute', top: 134, left: -18 }} />
-            <Dot size={4} color={C.sparkle} style={{ position: 'absolute', top: -28, right: 18 }} />
+            {/* Pink butterfly — left of centered number */}
+            <img src={butterflyPink} alt="" aria-hidden="true" style={{
+              justifySelf: 'end',
+              width: 58, height: 'auto',
+              alignSelf: 'end',
+            }} />
 
-            <span style={{
-              fontFamily: "'Playfair Display', Georgia, serif",
-              fontStyle: 'italic',
-              fontWeight: 500,
-              fontSize: 138,
+            <span key={days} style={{
+              fontFamily: "'Futura', 'Century Gothic', sans-serif",
+              fontWeight: 700,
+              fontSize: 120,
               lineHeight: 0.82,
               color: C.number,
               letterSpacing: '-0.03em',
-              position: 'relative', zIndex: 1,
+              display: 'inline-block',
+              animation: 'countPop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
+              alignSelf: 'end',
             }}>
-              {MOCK_DAYS}
+              {days}
             </span>
+
             <span style={{
-              fontFamily: 'var(--font-ui)',
-              fontSize: 28,
-              fontWeight: 400,
+              justifySelf: 'start',
+              alignSelf: 'end',
+              fontFamily: "'Futura', 'Century Gothic', sans-serif",
+              fontSize: 30, fontWeight: 700,
               color: C.number,
-              paddingBottom: 12,
-              position: 'relative', zIndex: 1,
             }}>
-              {T.birthday.days}
+              days
             </span>
           </div>
 
-          {/* Date caption */}
-          <div style={{
-            fontFamily: 'var(--font-ui)',
-            fontSize: 13, fontWeight: 400,
-            color: C.caption,
-            marginTop: 12,
-            letterSpacing: '0.04em',
-          }}>
-            {dateLabel}
-          </div>
+          {nickname && (
+            <div style={{
+              fontFamily: 'var(--font-ui)',
+              fontSize: 13, fontWeight: 400,
+              color: '#C2DEE8',
+              letterSpacing: '0.02em',
+              marginTop: 4,
+            }}>
+              {nickname}
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 36, marginTop: 20 }}>
-          <button className="btn-primary" onClick={() => onNext(MOCK_DAYS)}>{T.birthday.next}</button>
+          <button className="btn-primary" onClick={() => onNext(days)}>{T.birthday.next}</button>
           <button className="btn-ghost" onClick={onSkip}>{T.birthday.skip}</button>
         </div>
       </Page>
@@ -146,66 +191,111 @@ export function Birthday({ onNext, onSkip }: BirthdayProps) {
   );
 }
 
-// ── Decorative components ────────────────────────────────────────
-interface DecoProps {
-  size?: number;
-  color: string;
-  style?: CSSProperties;
-}
+// ── Scroll-snap picker column ─────────────────────────────────────
+const ITEM_H = 40;
 
-function Sparkle({ size = 14, color, style }: DecoProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" style={style}>
-      <path
-        d="M10 1 L11.4 8.6 L19 10 L11.4 11.4 L10 19 L8.6 11.4 L1 10 L8.6 8.6 Z"
-        fill={color}
-      />
-    </svg>
-  );
-}
-
-function Dot({ size = 6, color, style }: DecoProps) {
-  return (
-    <span style={{
-      display: 'inline-block',
-      width: size, height: size,
-      borderRadius: '50%',
-      background: color,
-      ...style,
-    }} />
-  );
-}
-
-// ── Picker column ────────────────────────────────────────────────
 interface PickerColProps {
   items: string[];
   selectedIndex: number;
+  onChange: (index: number) => void;
   isLast?: boolean;
 }
 
-function PickerCol({ items, selectedIndex, isLast }: PickerColProps) {
+function PickerCol({ items, selectedIndex, onChange, isLast }: PickerColProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isProgrammatic = useRef(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const PAD = (200 - ITEM_H) / 2;
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el) el.scrollTop = selectedIndex * ITEM_H;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    isProgrammatic.current = true;
+    el.scrollTo({ top: selectedIndex * ITEM_H, behavior: 'smooth' });
+    setTimeout(() => { isProgrammatic.current = false; }, 350);
+  }, [selectedIndex]);
+
+  const handleScroll = useCallback(() => {
+    if (isProgrammatic.current) return;
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      const el = containerRef.current;
+      if (!el) return;
+      const idx = Math.max(0, Math.min(Math.round(el.scrollTop / ITEM_H), items.length - 1));
+      isProgrammatic.current = true;
+      el.scrollTo({ top: idx * ITEM_H, behavior: 'smooth' });
+      onChange(idx);
+      setTimeout(() => { isProgrammatic.current = false; }, 350);
+    }, 100);
+  }, [items.length, onChange]);
+
   return (
     <div style={{
       flex: 1,
-      borderRight: isLast ? 'none' : '1px solid var(--color-gray-100)',
-      display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center',
+      borderRight: isLast ? 'none' : '1px solid var(--color-brand-500)',
       position: 'relative',
+      overflow: 'hidden',
     }}>
       <div style={{
-        position: 'absolute', inset: 0,
-        background: 'linear-gradient(to bottom, rgba(255,255,255,0.95) 0%, transparent 30%, transparent 70%, rgba(255,255,255,0.95) 100%)',
+        position: 'absolute', left: 0, right: 0,
+        top: '50%', transform: 'translateY(-50%)',
+        height: ITEM_H,
+        background: 'rgba(81,143,204,0.07)',
+        borderTop: '1px solid var(--color-brand-100)',
+        borderBottom: '1px solid var(--color-brand-100)',
         pointerEvents: 'none', zIndex: 1,
       }} />
-      {items.map((item, i) => (
-        <div key={item} style={{
-          padding: '10px 0',
-          fontSize: i === selectedIndex ? 18 : 14,
-          color: i === selectedIndex ? 'var(--color-ink-900)' : 'var(--color-ink-300)',
-          fontWeight: i === selectedIndex ? 500 : 300,
-          fontFamily: 'Noto Sans JP',
-        }}>{item}</div>
-      ))}
+      <div
+        ref={containerRef}
+        className="picker-scroll"
+        onScroll={handleScroll}
+        style={{
+          height: '100%',
+          overflowY: 'scroll',
+          scrollSnapType: 'y mandatory',
+          paddingTop: PAD,
+          paddingBottom: PAD,
+        }}
+      >
+        {items.map((item, i) => {
+          const isSelected = i === selectedIndex;
+          return (
+            <div
+              key={i}
+              onClick={() => {
+                const el = containerRef.current;
+                if (el) {
+                  isProgrammatic.current = true;
+                  el.scrollTo({ top: i * ITEM_H, behavior: 'smooth' });
+                  setTimeout(() => { isProgrammatic.current = false; }, 350);
+                }
+                onChange(i);
+              }}
+              style={{
+                height: ITEM_H,
+                scrollSnapAlign: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: 'var(--font-ui)',
+                fontSize: isSelected ? 17 : 15,
+                fontWeight: isSelected ? 700 : 400,
+                color: isSelected ? 'var(--color-ink-900)' : 'var(--color-gray-300)',
+                cursor: 'pointer',
+                userSelect: 'none',
+                transition: 'color 0.15s, font-weight 0.15s',
+                position: 'relative', zIndex: 3,
+              }}
+            >
+              {item}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

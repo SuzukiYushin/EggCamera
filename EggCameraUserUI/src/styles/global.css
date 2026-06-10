@@ -30,7 +30,7 @@ body {
 .ipad-shell {
   width: 768px;
   height: 1024px;
-  background: #FFFFFF;
+  background: #F2EDE8;
   border-radius: 16px;
   overflow: hidden;
   display: flex;
@@ -64,8 +64,9 @@ body {
   opacity: 0.7;
 }
 .status-bar .brand-name {
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-family: var(--font-futura);
+  font-weight: 700;
+  letter-spacing: 0.02em;
   opacity: 1;
   font-size: 12px;
 }
@@ -79,8 +80,8 @@ body {
 }
 .prog-fill {
   height: 100%;
-  background: var(--color-brand-400);
-  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+  background: var(--color-brand-500);
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Screen body */
@@ -90,80 +91,115 @@ body {
   flex-direction: column;
   overflow: hidden;
   position: relative;
-  animation: slideIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: slideIn 1.8s cubic-bezier(0.16, 1, 0.3, 1) both;
   will-change: opacity, transform, filter;
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateY(20px) scale(0.94); filter: blur(8px); }
-  to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0px); }
+  from { opacity: 0; transform: translateY(18px) scale(0.94); filter: blur(8px) brightness(0.88); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);    filter: blur(0px) brightness(1); }
 }
 
 /* Typography */
 .t-eyebrow {
   font-family: var(--font-ui);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--color-ink-300);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--color-brand-600);
 }
 .t-heading {
   font-family: var(--font-heading);
-  font-size: 28px;
-  font-weight: 300;
-  color: var(--color-ink-900);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--color-brand-600);
   line-height: 1.35;
 }
 .t-body {
   font-family: var(--font-body);
   font-size: 15px;
-  font-weight: 400;
-  color: var(--color-ink-500);
+  font-weight: 600;
+  color: var(--color-brand-600);
   line-height: 1.7;
+  white-space: pre-line;
 }
 .t-caption {
   font-family: var(--font-ui);
   font-size: 12px;
-  color: var(--color-ink-300);
+  color: var(--color-ink-400);
 }
 
 /* Buttons */
 .btn-primary {
   width: 100%;
-  height: 68px;
+  height: 60px;
   background: var(--color-brand-500);
   color: #fff;
   border: none;
-  border-radius: 12px;
+  border-radius: 99px;
   font-family: var(--font-ui);
-  font-size: 18px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  transition: background 0.15s, transform 0.1s;
+  transition: background 0.25s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
   -webkit-tap-highlight-color: transparent;
 }
 .btn-primary:active {
-  background: var(--color-brand-700);
-  transform: scale(0.99);
+  background: var(--color-brand-600);
+  transform: scale(0.97);
+  box-shadow: 0 1px 6px rgba(81,143,204,0.15);
+  transition: background 0.1s ease, transform 0.12s ease, box-shadow 0.1s ease;
+}
+.btn-primary:not(:disabled):hover {
+  background: var(--color-brand-500);
+  box-shadow: 0 4px 16px rgba(81,143,204,0.25);
 }
 .btn-primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
+/* Cream pill — used on blue-background screens (Start, End) */
+.btn-cream {
+  width: 100%;
+  height: 60px;
+  background: #F2EDE7;
+  color: var(--color-brand-600);
+  border: none;
+  border-radius: 99px;
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.25s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-cream:active {
+  transform: scale(0.97);
+  background: #E8E3DD;
+  transition: background 0.1s ease, transform 0.12s ease;
+}
+.btn-cream:hover {
+  background: #EAE5DF;
+}
+
 .btn-ghost {
   width: 100%;
   height: 60px;
   background: transparent;
-  color: var(--color-ink-400);
-  border: 1.5px solid var(--color-gray-200);
-  border-radius: 12px;
+  color: var(--color-brand-500);
+  border: 1.5px solid var(--color-brand-200);
+  border-radius: 99px;
   font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 400;
@@ -171,27 +207,31 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.15s, color 0.15s;
+  transition: border-color 0.25s ease, color 0.25s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .btn-ghost:hover {
-  border-color: var(--color-gray-300);
-  color: var(--color-ink-700);
+  border-color: var(--color-brand-500);
+  color: var(--color-brand-700);
+}
+.btn-ghost:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease, border-color 0.1s, color 0.1s;
 }
 
 /* Input */
 .input-wrap {
-  border: 1.5px solid var(--color-gray-200);
-  border-radius: 10px;
-  height: 64px;
-  padding: 0 20px;
+  border: 1.5px solid var(--color-brand-500);
+  border-radius: 99px;
+  height: 62px;
+  padding: 0 24px;
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
+  background: transparent;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 .input-wrap.focused {
-  border-color: var(--color-brand-400);
+  border-color: var(--color-brand-500);
   box-shadow: 0 0 0 3px rgba(81,143,204,0.12);
 }
 .input-wrap input {
@@ -305,6 +345,45 @@ body {
   font-weight: 500;
 }
 
+@keyframes breathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(76,155,240,0.2); }
+  50%       { box-shadow: 0 0 0 12px rgba(76,155,240,0); }
+}
+
+@keyframes cameraGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0   rgba(255, 140, 60, 0.6),
+      0 0 10px  rgba(255, 120, 40, 0.28),
+      0 4px 20px rgba(0,0,0,0.18);
+  }
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(255, 140, 60, 0),
+      0 0 22px  rgba(255, 120, 40, 0.45),
+      0 4px 20px rgba(0,0,0,0.18);
+  }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes particleFly {
+  0%   { opacity: 1;   transform: translate(0, 0) scale(1); }
+  80%  { opacity: 0.6; }
+  100% { opacity: 0;   transform: translate(var(--tx), var(--ty)) scale(0.2); }
+}
+
+/* Picker column scrollbar */
+.picker-scroll {
+  scrollbar-width: none;
+}
+.picker-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes shutterFlash {
   0%  { background: rgba(255,255,255,0.7); }
   100%{ background: rgba(255,255,255,0); }
@@ -333,7 +412,7 @@ body {
   transition: background 0.2s;
 }
 .frame-grid::-webkit-scrollbar-thumb:hover {
-  background: var(--color-brand-400);
+  background: var(--color-brand-500);
 }
 .frame-grid {
   scrollbar-width: thin;
@@ -343,8 +422,8 @@ body {
 /* ── Reduced-motion: replace translate/scale with simple fades ── */
 @media (prefers-reduced-motion: reduce) {
   @keyframes slideIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
   @keyframes shutterFlash {
     from { opacity: 0; }
@@ -359,12 +438,20 @@ body {
     to   { opacity: 1; }
   }
   .screen {
-    animation-duration: 0.15s;
+    animation-duration: 0.3s;
+  }
+  .btn-primary {
+    transition: background 0.15s ease;
   }
   .btn-primary:active {
     transform: none;
+    transition: background 0.15s ease;
+  }
+  .btn-ghost {
+    transition: border-color 0.15s ease, color 0.15s ease;
   }
   .btn-ghost:active {
     transform: none;
+    transition: border-color 0.15s ease, color 0.15s ease;
   }
 }
