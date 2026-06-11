@@ -11,7 +11,7 @@ import { Uploading }    from './components/screens/Uploading';
 import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
 import { FRAMES }       from './data/frames';
-import { createSession, selectPhoto } from './api';
+import { createSession, selectPhoto, uploadComposite } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 
 type Screen = 'start' | 'nick' | 'bday' | 'capture' | 'photosel' | 'preview' | 'upload' | 'qr' | 'end';
@@ -26,6 +26,7 @@ export default function App() {
   const [photos, setPhotos]         = useState<SessionPhoto[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [result, setResult]         = useState<SessionResult | null>(null);
+  const [compositeBlob, setCompositeBlob] = useState<Blob | null>(null);
 
   useEffect(() => {
     createSession()
@@ -52,18 +53,21 @@ export default function App() {
     go('capture');
   };
 
-  const goUpload = () => {
+  const goUpload = (blob: Blob) => {
+    setCompositeBlob(blob);
     if (sessionId && selectedPhotoId) {
       selectPhoto(sessionId, { photoId: selectedPhotoId, frameId, nickname, days })
         .catch(err => console.error('selectPhoto failed', err));
     }
+    if (sessionId) {
+      uploadComposite(sessionId, blob).catch(err => console.error('uploadComposite failed', err));
+    }
     go('upload');
   };
 
-  const retrySelect = () => {
-    if (sessionId && selectedPhotoId) {
-      selectPhoto(sessionId, { photoId: selectedPhotoId, frameId, nickname, days })
-        .catch(err => console.error('selectPhoto failed', err));
+  const retryUpload = () => {
+    if (sessionId && compositeBlob) {
+      uploadComposite(sessionId, compositeBlob).catch(err => console.error('uploadComposite failed', err));
     }
   };
 
@@ -75,6 +79,7 @@ export default function App() {
     setPhotos([]);
     setSelectedPhotoId(null);
     setResult(null);
+    setCompositeBlob(null);
     createSession()
       .then(({ sessionId }) => setSessionId(sessionId))
       .catch(err => console.error('createSession failed', err));
@@ -91,7 +96,7 @@ export default function App() {
       {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} />}
       {screen === 'photosel' && <PhotoSelect photos={photos} onNext={photoId => { setSelectedPhotoId(photoId); go('preview'); }} onBack={retake} />}
       {screen === 'preview'  && <FinalPreview nickname={nickname} days={days} frameLabel={frameLabel} photoUrl={selectedPhoto?.url ?? ''} onNext={goUpload} />}
-      {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onRetry={retrySelect} />}
+      {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onRetry={retryUpload} />}
       {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={restart} />}
       {screen === 'end'      && <End         onRestart={restart} />}
     </LangProvider>

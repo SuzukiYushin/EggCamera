@@ -69,6 +69,19 @@ async function compositeForSession(rawPath, frameId, sessionId) {
     }
 }
 
+// ── Save a client-composited PNG (photo + frame + text, baked in the browser) ──
+async function saveComposite(buffer, sessionId) {
+    const fileName = `${sessionId}.jpg`;
+    const destPath = path.join(COMPOSITED_DIR, fileName);
+
+    await sharp(buffer).jpeg({ quality: 95 }).toFile(destPath);
+
+    console.log(`[${ts()}] composite saved → ${fileName}`);
+    trimLocalDir(COMPOSITED_DIR, MAX_COMPOSITED);
+
+    return { fileName, destPath };
+}
+
 // ── QR code as a data URL pointing at the download page / R2 object ──────
 async function generateQRDataUrl(fileName) {
     // download/index.html appends ".jpg" to `id` itself, so strip it here
@@ -161,6 +174,7 @@ async function listAllR2Objects() {
 module.exports = {
     resolveFramePath,
     compositeForSession,
+    saveComposite,
     generateQRDataUrl,
     uploadToR2,
     cleanupOldR2Objects,

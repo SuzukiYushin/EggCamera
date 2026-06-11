@@ -3,8 +3,8 @@ const path    = require('node:path');
 
 const { CAPTURE_TIMEOUT_MS, COMPOSITED_DIR, R2_RETENTION_MS, ts } = require('../config');
 const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
-const { compositeForSession, uploadToR2, generateQRDataUrl } = require('../composite');
-const { createSession, getSession, touch, registerPhoto, getPhoto } = require('../sessions');
+const { saveComposite, uploadToR2, generateQRDataUrl } = require('../composite');
+const { createSession, getSession, touch, registerPhoto } = require('../sessions');
 
 const router = express.Router();
 
@@ -56,6 +56,8 @@ router.post('/:id/capture', async (req, res) => {
 });
 
 // ── POST /api/sessions/:id/select ───────────────────────────────────────
+// Records the user's choices; the actual final image is composited client-side
+// and uploaded separately via POST /:id/composite.
 router.post('/:id/select', (req, res) => {
     const session = getSession(req.params.id);
     if (!session) return res.status(404).json({ error: 'session_not_found' });
@@ -69,16 +71,31 @@ router.post('/:id/select', (req, res) => {
     session.frameId  = frameId;
     session.nickname = nickname;
     session.days     = days;
-    session.status   = 'compositing';
-    session.error    = undefined;
-    session.result   = undefined;
+
+    res.json({ status: 'ok' });
+});
+
+// ── POST /api/sessions/:id/composite ────────────────────────────────────
+// Receives the final composited image (photo + frame + name/days, baked in
+// the browser via canvas) as a raw PNG body, uploads it to R2, and generates
+// the download QR.
+router.post('/:id/composite', express.raw({ type: 'image/png', limit: '20mb' }), async (req, res) => {
+    const session = getSession(req.params.id);
+    if (!session) return res.status(404).json({ error: 'session_not_found' });
+    if (!Buffer.isBuffer(req.body) || !req.body.length) {
+        return res.status(400).json({ error: 'invalid_image' });
+    }
+
+    touch(session);
+    session.status = 'compositing';
+    session.error  = undefined;
+    session.result = undefined;
 
     res.status(202).json({ status: 'compositing' });
 
     (async () => {
         try {
-            const photoEntry = getPhoto(photoId);
-            const { fileName } = await compositeForSession(photoEntry.rawPath, frameId, session.id);
+            const { fileName } = await saveComposite(req.body, session.id);
             await uploadToR2(path.join(COMPOSITED_DIR, fileName), fileName);
             const { dataUrl, targetUrl } = await generateQRDataUrl(fileName);
 
@@ -89,7 +106,7 @@ router.post('/:id/select', (req, res) => {
             };
             session.status = 'done';
         } catch (err) {
-            console.error(`[${ts()}] select/composite failed: ${err.message}`);
+            console.error(`[${ts()}] composite upload failed: ${err.message}`);
             session.status = 'error';
             session.error  = 'composite_failed';
         }

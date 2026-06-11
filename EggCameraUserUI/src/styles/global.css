@@ -48,6 +48,13 @@ body {
   transform-origin: center;
 }
 
+/* Start screen: extend its background to the canvas + letterbox so the
+   slide-in animation and any device-aspect letterbox don't reveal a seam */
+body:has([data-section="start-screen"]),
+.ipad-shell:has([data-section="start-screen"]) {
+  background: var(--color-brand-500);
+}
+
 /* Progress bar */
 .prog-bar {
   height: 2px;

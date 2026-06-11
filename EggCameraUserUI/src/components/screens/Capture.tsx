@@ -39,7 +39,7 @@ function makeBurst(): Burst {
     id: ++burstCounter,
     particles: BASE_ANGLES.map((base, i) => {
       const angle = (base + (Math.random() - 0.5) * 18) * (Math.PI / 180);
-      const dist  = 75 + Math.random() * 90;
+      const dist = 75 + Math.random() * 90;
       return {
         tx: Math.cos(angle) * dist,
         ty: Math.sin(angle) * dist,
@@ -57,11 +57,11 @@ type CaptureError = 'mac_unreachable' | 'capture_timeout' | 'capture_failed';
 
 export function Capture({ sessionId, onComplete }: CaptureProps) {
   const { T } = useLang();
-  const [photos,   setPhotos]   = useState<SessionPhoto[]>([]);
+  const [photos, setPhotos] = useState<SessionPhoto[]>([]);
   const [flashKey, setFlashKey] = useState(0);
-  const [bursts,   setBursts]   = useState<Burst[]>([]);
-  const [started,  setStarted]  = useState(false);
-  const [error,    setError]    = useState<CaptureError | null>(null);
+  const [bursts, setBursts] = useState<Burst[]>([]);
+  const [started, setStarted] = useState(false);
+  const [error, setError] = useState<CaptureError | null>(null);
 
   const canShoot = !!sessionId && !started && photos.length < MAX_SHOTS;
 
@@ -96,12 +96,12 @@ export function Capture({ sessionId, onComplete }: CaptureProps) {
 
   const errorText = error === 'mac_unreachable' ? T.capture.errorMacUnreachable
     : error === 'capture_timeout' ? T.capture.errorCaptureTimeout
-    : error === 'capture_failed' ? T.capture.errorGeneric
-    : null;
+      : error === 'capture_failed' ? T.capture.errorGeneric
+        : null;
 
   const shutterLabel = error ? T.capture.retry
     : started ? T.capture.capturing
-    : T.capture.shutter;
+      : T.capture.shutter;
 
   return (
     <IPad animKey="capture">
@@ -167,8 +167,8 @@ export function Capture({ sessionId, onComplete }: CaptureProps) {
           <div style={{
             position: 'absolute', bottom: 116, left: 0, right: 0,
             textAlign: 'center',
-            fontFamily: "var(--font-ui)", fontSize: 13, fontWeight: 400,
-            color: 'rgba(255,255,255,0.85)',
+            fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600,
+            color: '#FF3B30',
           }}>{photos.length} / {MAX_SHOTS}</div>
         )}
 
@@ -181,7 +181,7 @@ export function Capture({ sessionId, onComplete }: CaptureProps) {
             <div style={{
               display: 'inline-block',
               background: 'rgba(0,0,0,0.7)',
-              color: '#fff',
+              color: '#040404',
               borderRadius: 8,
               padding: '10px 18px',
               fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500,
@@ -218,7 +218,7 @@ export function Capture({ sessionId, onComplete }: CaptureProps) {
               transition: 'background 0.2s',
               fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500,
               color: '#fff', letterSpacing: '0.06em',
-              textAlign: 'center',
+              textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.25,
             }}>
               {shutterLabel}
             </div>

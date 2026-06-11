@@ -1,9 +1,36 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
-import { IPad } from '../IPad';
+import { IPad, useFitScale } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
-import frameImg from '../../assets/photo_frame.png';
+import frameA from '../../assets/photo_frameA.png';
+import frameB from '../../assets/photo_frameB.png';
+import frameC from '../../assets/photo_frameC.png';
+
+const FRAME_VARIANTS = [frameA, frameB, frameC];
+
+// Design-space layout constants for the photo box (matches the CSS that used
+// to position photo/frame/text — kept here so the canvas can replicate it).
+const NAME_TOP_RATIO = 0.58;
+const NAME_LEFT_PX = 50;
+const NICKNAME_FONT_PX = 50;
+const NICKNAME_LINE_HEIGHT = 1.1;
+const DAYS_FONT_PX = 28;
+const DAYS_LINE_HEIGHT = 1.2;
+const TEXT_GAP_PX = 1;
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function cssVar(name: string): string {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 const BURST_COLORS = [
   '#FFD700', '#FF6B35', '#FF9E2C', '#FF5C8D',
@@ -30,7 +57,7 @@ function makeBurst(): Burst {
     id: ++burstId,
     particles: BASE_ANGLES.map((base, i) => {
       const angle = (base + (Math.random() - 0.5) * 20) * (Math.PI / 180);
-      const dist  = 80 + Math.random() * 100;
+      const dist = 80 + Math.random() * 100;
       return {
         tx: Math.cos(angle) * dist,
         ty: Math.sin(angle) * dist,
@@ -45,17 +72,22 @@ function makeBurst(): Burst {
 }
 
 interface FinalPreviewProps {
-  nickname:   string;
-  days:       number;
+  nickname: string;
+  days: number;
   frameLabel: string;
-  photoUrl:   string;
-  onNext: () => void;
+  photoUrl: string;
+  onNext: (blob: Blob) => void;
 }
 
 export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewProps) {
   const { T } = useLang();
   const daysText = days > 0 ? T.preview.daysSinceBirth(days) : '';
   const [bursts, setBursts] = useState<Burst[]>([]);
+  const [frameSrc] = useState(() => FRAME_VARIANTS[Math.floor(Math.random() * FRAME_VARIANTS.length)]);
+  const [ready, setReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scale = useFitScale();
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -65,6 +97,99 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
     }, 900);
     return () => clearTimeout(t);
   }, []);
+
+  // Composite photo + frame + nickname/days onto the canvas — this is the
+  // exact image that gets exported and uploaded on save.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || !photoUrl) return;
+
+    let cancelled = false;
+    setReady(false);
+
+    (async () => {
+      const [photoImg, frameImg] = await Promise.all([loadImage(photoUrl), loadImage(frameSrc)]);
+      if (cancelled) return;
+
+      const targetAspect = 2 / 3;
+      let cw: number, ch: number;
+      if (photoImg.naturalWidth / photoImg.naturalHeight > targetAspect) {
+        ch = photoImg.naturalHeight;
+        cw = ch * targetAspect;
+      } else {
+        cw = photoImg.naturalWidth;
+        ch = cw / targetAspect;
+      }
+      cw = Math.round(cw);
+      ch = Math.round(ch);
+      canvas.width = cw;
+      canvas.height = ch;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Photo, center-cropped to 2:3 (object-fit: cover)
+      const sx = (photoImg.naturalWidth - cw) / 2;
+      const sy = (photoImg.naturalHeight - ch) / 2;
+      ctx.drawImage(photoImg, sx, sy, cw, ch, 0, 0, cw, ch);
+
+      // Frame, stretched to fill (object-fit: fill)
+      ctx.drawImage(frameImg, 0, 0, cw, ch);
+
+      if (nickname || daysText) {
+        const rect = container.getBoundingClientRect();
+        const containerWidthDesign = rect.width / scale;
+        const k = cw / containerWidthDesign;
+        const x = NAME_LEFT_PX * k;
+        let y = ch * NAME_TOP_RATIO;
+
+        ctx.textBaseline = 'top';
+
+        if (nickname) {
+          const fontSize = NICKNAME_FONT_PX * k;
+          const family = cssVar('--font-heading');
+          await document.fonts.load(`900 ${fontSize}px ${family}`).catch(() => {});
+          ctx.font = `900 ${fontSize}px ${family}`;
+          ctx.lineWidth = 2 * k;
+          ctx.strokeStyle = '#000000';
+          ctx.fillStyle = '#000000';
+          try { ctx.letterSpacing = `${-0.01 * fontSize}px`; } catch { /* unsupported */ }
+          ctx.strokeText(nickname, x, y);
+          ctx.fillText(nickname, x, y);
+          y += fontSize * NICKNAME_LINE_HEIGHT + TEXT_GAP_PX * k;
+        }
+
+        if (daysText) {
+          const fontSize = DAYS_FONT_PX * k;
+          const family = cssVar('--font-futura');
+          await document.fonts.load(`600 ${fontSize}px ${family}`).catch(() => {});
+          ctx.font = `600 ${fontSize}px ${family}`;
+          ctx.lineWidth = 0.6 * k;
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.95)';
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+          try { ctx.letterSpacing = `${0.01 * fontSize}px`; } catch { /* unsupported */ }
+          for (const line of daysText.split('\n')) {
+            ctx.strokeText(line, x, y);
+            ctx.fillText(line, x, y);
+            y += fontSize * DAYS_LINE_HEIGHT;
+          }
+        }
+      }
+
+      if (!cancelled) setReady(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [photoUrl, frameSrc, nickname, daysText, scale]);
+
+  const handleSave = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.toBlob(blob => {
+      if (blob) onNext(blob);
+    }, 'image/png');
+  };
 
   return (
     <IPad step={5} totalSteps={7} animKey="preview">
@@ -96,7 +221,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
             </div>
           ))}
 
-          <div style={{
+          <div ref={containerRef} style={{
             position: 'relative',
             aspectRatio: '2/3',
             height: '90%',
@@ -105,51 +230,12 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
             border: 'none',
             animation: 'cameraGlow 4.4s ease-in-out infinite',
           }}>
-            <img src={photoUrl} alt="photo"
-              style={{
-                position: 'absolute', top: '50%', left: '50%',
-                transform: 'translate(-52%, -30%)',
-                width: '200%', height: '200%', objectFit: 'cover', display: 'block',
-              }} />
-            <img src={frameImg} alt="frame overlay"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', display: 'block', pointerEvents: 'none' }} />
-
-            {(nickname || daysText) && (
-              <div data-ui="name-badge" style={{
-                position: 'absolute', top: '58%', left: 50, right: 0,
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1,
-                pointerEvents: 'none',
-              }}>
-                {nickname && (
-                  <div style={{
-                    fontFamily: 'var(--font-heading)',
-                    fontSize: 50, fontWeight: 900,
-                    letterSpacing: '-0.01em',
-                    color: '#000000',
-                    lineHeight: 1.1,
-                    textAlign: 'left',
-                    WebkitTextStroke: '2px currentColor',
-                  }}>{nickname}</div>
-                )}
-                {daysText && (
-                  <div style={{
-                    fontFamily: 'var(--font-futura)',
-                    fontSize: 28, fontWeight: 600,
-                    letterSpacing: '0.01em',
-                    color: 'rgba(0, 0, 0, 0.95)',
-                    lineHeight: 1.2,
-                    textAlign: 'left',
-                    whiteSpace: 'pre-line',
-                    WebkitTextStroke: '0.6px currentColor',
-                  }}>{daysText}</div>
-                )}
-              </div>
-            )}
+            <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
           </div>
         </div>
 
         <div style={{ flexShrink: 0, marginTop: 14 }}>
-          <button className="btn-primary" onClick={onNext}>{T.preview.save}</button>
+          <button className="btn-primary" onClick={handleSave} disabled={!ready}>{T.preview.save}</button>
         </div>
       </Page>
     </IPad>

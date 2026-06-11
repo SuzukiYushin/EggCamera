@@ -16,6 +16,7 @@ export function Start({ onNext }: StartProps) {
         position: 'relative',
         flex: 1,
         overflow: 'hidden',
+        background: 'var(--color-brand-500)',
       }}>
 
         {/* Language toggle — top:59-32=27px from screen area, right:32px */}

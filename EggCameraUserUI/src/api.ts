@@ -76,3 +76,22 @@ export function selectPhoto(sessionId: string, params: SelectPhotoParams): Promi
     body: JSON.stringify(params),
   });
 }
+
+// Uploads the client-composited final image (photo + frame + name/days, baked
+// in via canvas) as a raw PNG body.
+export async function uploadComposite(sessionId: string, blob: Blob): Promise<{ status: string }> {
+  const res = await fetch(`/api/sessions/${sessionId}/composite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/png' },
+    body: blob,
+  });
+  if (!res.ok) {
+    let code = `http_${res.status}`;
+    try {
+      const body = await res.json();
+      if (body?.error) code = body.error;
+    } catch { /* ignore non-JSON error body */ }
+    throw new ApiError(res.status, code);
+  }
+  return res.json() as Promise<{ status: string }>;
+}
