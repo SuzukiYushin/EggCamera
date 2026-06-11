@@ -10,7 +10,7 @@ export function End({ onRestart }: EndProps) {
   const { T } = useLang();
 
   return (
-    <IPad animKey="end" statusBg="#F6F3E9" statusTextColor="var(--color-brand-600)">
+    <IPad animKey="end">
       <div data-section="end-screen" style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center',

@@ -71,8 +71,11 @@ async function compositeForSession(rawPath, frameId, sessionId) {
 
 // ── QR code as a data URL pointing at the download page / R2 object ──────
 async function generateQRDataUrl(fileName) {
+    // download/index.html appends ".jpg" to `id` itself, so strip it here
+    // to avoid a double extension when fetching from /image/[id].js.
+    const id = fileName.replace(/\.jpg$/i, '');
     const targetUrl = PAGES_BASE_URL
-        ? `${PAGES_BASE_URL}/download?id=${fileName}`
+        ? `${PAGES_BASE_URL}/download?id=${id}`
         : `${R2_PUBLIC_BASE_URL}/${fileName}`;
 
     const dataUrl = await QRCode.toDataURL(targetUrl, {

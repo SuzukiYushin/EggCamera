@@ -15,7 +15,6 @@ export function Start({ onNext }: StartProps) {
       <div data-section="start-screen" style={{
         position: 'relative',
         flex: 1,
-        background: 'var(--color-brand-500)',
         overflow: 'hidden',
       }}>
 

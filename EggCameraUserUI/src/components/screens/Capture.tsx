@@ -104,7 +104,7 @@ export function Capture({ sessionId, onComplete }: CaptureProps) {
     : T.capture.shutter;
 
   return (
-    <IPad animKey="capture" lightStatus>
+    <IPad animKey="capture">
       {/* Full-bleed camera view */}
       <div data-section="camera-screen" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
 

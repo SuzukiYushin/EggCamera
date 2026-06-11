@@ -14,61 +14,38 @@
 
 html, body, #root {
   height: 100%;
+  width: 100%;
   -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
 }
 
 body {
-  background: #F0EDE8;
+  background: #F2EDE8;
   font-family: var(--font-body);
+  overflow: hidden;
+}
+
+/* ── Fullscreen viewport — centers the design canvas on the real device ── */
+.app-viewport {
+  width: 100vw;
+  height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 100vh;
+  overflow: hidden;
 }
 
-/* ── iPad shell ── */
+/* ── App canvas — fixed-size design (768×1024), scaled to fit the viewport ── */
 .ipad-shell {
   width: 768px;
   height: 1024px;
   background: #F2EDE8;
-  border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow:
-    0 0 0 1px rgba(0,0,0,0.08),
-    0 2px 4px rgba(0,0,0,0.06),
-    0 12px 40px rgba(0,0,0,0.16),
-    0 32px 80px rgba(0,0,0,0.12);
   position: relative;
   flex-shrink: 0;
-}
-
-/* Status bar */
-.status-bar {
-  height: 32px;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 28px;
-  flex-shrink: 0;
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  z-index: 100;
-}
-.status-bar span {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  opacity: 0.7;
-}
-.status-bar .brand-name {
-  font-family: var(--font-futura);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  opacity: 1;
-  font-size: 12px;
+  transform-origin: center;
 }
 
 /* Progress bar */
@@ -76,7 +53,6 @@ body {
   height: 2px;
   background: rgba(0,0,0,0.06);
   flex-shrink: 0;
-  margin-top: 32px;
 }
 .prog-fill {
   height: 100%;
@@ -285,29 +261,6 @@ body {
   box-shadow: 0 0 0 3px rgba(81,143,204,0.15);
 }
 
-/* Keyboard placeholder */
-.keyboard-ph {
-  height: 300px;
-  background: #D1D5DB;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-}
-.kb-row { display: flex; gap: 6px; justify-content: center; }
-.kb-key {
-  height: 44px; min-width: 38px; padding: 0 6px;
-  background: #fff; border-radius: 4px;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px; color: #222; font-weight: 400;
-  box-shadow: 0 1px 0 rgba(0,0,0,0.3);
-}
-.kb-key.wide { min-width: 72px; }
-.kb-key.space { flex: 1; max-width: 260px; }
-.kb-key.dark { background: #ADB5BD; font-size: 12px; }
-.kb-key.confirm { background: var(--color-brand-500); color: #fff; }
-
 /* QR */
 .qr-frame {
   padding: 16px;
@@ -316,33 +269,6 @@ body {
   border-radius: 8px;
   box-shadow: 0 2px 16px rgba(0,0,0,0.07);
   display: inline-flex;
-}
-
-/* Screen nav tabs */
-.screen-nav {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: center;
-  max-width: 768px;
-}
-.screen-nav-btn {
-  padding: 5px 12px;
-  border-radius: 99px;
-  border: 1.5px solid #ddd;
-  background: #fff;
-  color: #888;
-  font-family: var(--font-ui);
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-weight: 400;
-}
-.screen-nav-btn.active {
-  border-color: var(--color-brand-500);
-  background: var(--color-brand-500);
-  color: #fff;
-  font-weight: 500;
 }
 
 @keyframes breathe {

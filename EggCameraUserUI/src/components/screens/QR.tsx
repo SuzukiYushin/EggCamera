@@ -32,7 +32,7 @@ export function QR({ result, onDone, onRestart }: QRProps) {
   const urgent = secs < 60;
 
   return (
-    <IPad animKey="qr" statusBg="var(--color-brand-500)">
+    <IPad animKey="qr">
       <div data-section="qr-screen" style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         padding: '50px 60px 44px',

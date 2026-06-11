@@ -57,7 +57,7 @@ export function Uploading({ sessionId, onResult, onNext, onRetry }: UploadingPro
   };
 
   return (
-    <IPad animKey="upload" statusBg="var(--color-brand-500)">
+    <IPad animKey="upload">
       <div data-section="uploading-screen" style={{
         flex: 1, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',

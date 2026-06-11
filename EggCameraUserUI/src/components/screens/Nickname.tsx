@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { IPad } from '../IPad';
+import { useEffect, useState } from 'react';
+import { IPad, useFitScale } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
 
@@ -10,15 +10,34 @@ interface NicknameProps {
   onSkip: () => void;
 }
 
-const KB_ROWS = [
-  ['q','w','e','r','t','y','u','i','o','p'],
-  ['a','s','d','f','g','h','j','k','l'],
-  ['z','x','c','v','b','n','m'],
-];
+// Tracks the on-screen keyboard's height (via visualViewport) and converts it
+// from real device pixels to the 768×1024 design canvas's pixel space.
+function useKeyboardLift() {
+  const scale = useFitScale();
+  const [kbHeight, setKbHeight] = useState(0);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      setKbHeight(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
+
+  return scale > 0 ? kbHeight / scale : 0;
+}
 
 export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) {
   const { T } = useLang();
   const [focused, setFocused] = useState(false);
+  const kbLift = useKeyboardLift();
 
   return (
     <IPad step={1} totalSteps={7} animKey="nick">
@@ -47,26 +66,15 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
         </div>
         <div className="t-body" style={{ marginBottom: 'auto' }}>{T.nickname.body}</div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 32, marginTop: 24 }}>
+        <div style={{
+          display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 32, marginTop: 24,
+          transform: `translateY(-${kbLift}px)`,
+          transition: 'transform 0.25s ease',
+        }}>
           <button className="btn-primary" onClick={onNext}>{T.nickname.next}</button>
           <button className="btn-ghost" onClick={onSkip}>{T.nickname.skip}</button>
         </div>
       </Page>
-
-      <div className="keyboard-ph">
-        {KB_ROWS.map((row, ri) => (
-          <div className="kb-row" key={ri}>
-            {ri === 2 && <div className="kb-key dark wide">⇧</div>}
-            {row.map(k => <div className="kb-key" key={k}>{k}</div>)}
-            {ri === 2 && <div className="kb-key dark wide">⌫</div>}
-          </div>
-        ))}
-        <div className="kb-row">
-          <div className="kb-key dark wide">123</div>
-          <div className="kb-key space">スペース</div>
-          <div className="kb-key dark wide confirm">確定</div>
-        </div>
-      </div>
     </IPad>
   );
 }
