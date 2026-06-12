@@ -102,14 +102,25 @@ async function generateQRDataUrl(fileName) {
 }
 
 // ── Trim a local directory to the N most recent files ─────────────────────
+// 更新時刻の新しい順に並べて古いものから削除する。ファイル名はランダムhexなので
+// 名前順で消すと「今保存したばかりのファイル」を消してしまい、直後のR2アップロードが
+// ENOENT で落ちる（長期運用で件数が max を超えた瞬間に発生していた）。
 function trimLocalDir(dir, max) {
     let files;
     try {
-        files = fs.readdirSync(dir).filter(f => /\.(png|jpg)$/i.test(f)).sort();
+        files = fs.readdirSync(dir)
+            .filter(f => /\.(png|jpg)$/i.test(f))
+            .map(f => {
+                const full = path.join(dir, f);
+                let mtime = 0;
+                try { mtime = fs.statSync(full).mtimeMs; } catch { /* 競合で消えていれば0 */ }
+                return { full, mtime };
+            })
+            .sort((a, b) => b.mtime - a.mtime); // 新しい順
     } catch { return; }
     if (files.length <= max) return;
-    for (const f of files.slice(0, files.length - max)) {
-        try { fs.rmSync(path.join(dir, f)); } catch { /* ignore */ }
+    for (const { full } of files.slice(max)) {
+        try { fs.rmSync(full); } catch { /* ignore */ }
     }
 }
 
