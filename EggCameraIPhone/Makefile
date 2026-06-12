@@ -3,16 +3,19 @@ PROJECT   := EggCameraIPhone.xcodeproj
 BUILD_DIR := .build
 APP       := $(BUILD_DIR)/Build/Products/Debug-iphoneos/$(SCHEME).app
 
-# Apple Developer Team ID を引数で渡す
-#   make install DEVELOPMENT_TEAM=XXXXXXXXXX
+# 簡単な再起動/インストールは ./iphone.sh を使う（デバイス自動検出 + devicectl）。
+# この Makefile は ios-deploy ベースの従来手段。
 #
-# Team ID の確認方法:
-#   Xcode → Settings → Accounts → 自分のアカウントを選択 → Team ID 列
-DEVELOPMENT_TEAM ?= 4U78CNU7WN
-DEVICE_ID ?= 00008130-001A604202A0001C
+# Apple Development: siggaze.0000@gmail.com の Team ID
+DEVELOPMENT_TEAM ?= 6FKKW68VQ4
+# YUSHINのiPhone (iPhone 17) の UDID。`make devices` で確認
+DEVICE_ID ?= 00008150-00184D192299401C
+# devicectl 用の CoreDevice 識別子（launch/restart）
+DEVICE_CORE_ID ?= EE28FFF6-9D8C-5321-A6F5-CDF5467D3B02
+BUNDLE_ID ?= com.siggaze.eggcamera
 
 # ─────────────────────────────────────────────
-.PHONY: generate build install deploy clean setup
+.PHONY: generate build install deploy launch restart clean setup
 
 ## ① XcodeGen で .xcodeproj を生成
 generate:
@@ -44,6 +47,10 @@ install: build
 ## ③' ビルド済みの .app だけ再インストール
 deploy:
 	ios-deploy --bundle "$(APP)" --no-wifi
+
+## アプリを起動（既存プロセスは終了して入れ替え）— ビルド不要
+launch restart:
+	xcrun devicectl device process launch --terminate-existing --device $(DEVICE_CORE_ID) $(BUNDLE_ID)
 
 ## 接続中の iPhone を確認
 devices:
