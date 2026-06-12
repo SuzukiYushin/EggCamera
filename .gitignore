@@ -44,3 +44,4 @@ data/deferred/*
 !data/deferred/.gitkeep
 data/failed/*
 !data/failed/.gitkeep
+.env.slack

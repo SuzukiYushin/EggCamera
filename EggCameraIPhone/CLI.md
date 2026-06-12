@@ -55,3 +55,24 @@ make restart                 # = ./iphone.sh restart
 make install                 # ビルド → ios-deploy でインストール
 make devices                 # 接続確認
 ```
+
+## プロビジョニング失効時の Slack 通知
+
+自動更新（launchd）が失敗 or プロファイル失効を検知すると Slack に警告を送る。
+
+設定（一度だけ）:
+
+1. Slack で **Incoming Webhook** を作成し URL を取得
+   （Slackアプリ → App管理 → Incoming Webhooks → チャンネル選択 → Webhook URL）
+2. URL を `~/EggCamera/.env.slack` に保存（git管理外）:
+   ```bash
+   echo 'SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ' > ~/EggCamera/.env.slack
+   ```
+3. テスト送信:
+   ```bash
+   source ~/EggCamera/.env.slack
+   curl -sS -X POST -H 'Content-type: application/json' \
+     --data '{"text":":white_check_mark: EggCamera 通知テスト"}' "$SLACK_WEBHOOK_URL"
+   ```
+
+未設定の場合は通知をスキップする（ログに「Slack未設定のため通知スキップ」と出るだけ）。
