@@ -21,25 +21,30 @@ cd ~/EggCamera/EggCameraIPhone
 | ビルド用 UDID | 自動検出（`xctrace list devices`） |
 | devicectl 識別子 | 自動検出（`devicectl list devices`） |
 | Bundle ID | `com.siggaze.eggcamera` |
-| 署名チーム | `6FKKW68VQ4`（Apple Development: siggaze.0000@gmail.com） |
+| 署名チーム | `4U78CNU7WN`（プロファイルのチーム。証明書は siggaze.0000@gmail.com を使用） |
+| プロファイル | iOS Team Provisioning Profile: com.siggaze.eggcamera（Xcode生成・管理） |
 
-`restart` / `launch` は devicectl のみで動くため**署名・ビルド不要**。
-普段の「アプリを入れ直さず再起動したい」はこれで完結する。
+`run`（ビルド込み）も `restart`（起動だけ）も **CLIのみで完結**（実機検証済み）。
+`restart` / `launch` は devicectl のみで動くため署名・ビルドも不要。
 
-## 新規ビルド（run / build）の前提 — 一度だけ手動設定が必要
+## 仕組みのポイント
 
-このMac miniには証明書はあるが **Xcode にApple IDアカウントが未登録**のため、
-`xcodebuild` の自動署名がプロビジョニングプロファイルを作れず `run`/`build` は失敗する
-（`No Accounts` / `No profiles for com.siggaze.eggcamera`）。
+- `-allowProvisioningUpdates` は**付けない**。CLIからはXcodeのApple IDアカウントが
+  見えず `No Accounts` で失敗するため。代わりに **Xcodeが生成済みの管理プロファイルを
+  そのまま使う**（自動署名 + 正しいチームID `4U78CNU7WN`）。
+- このため `run`/`build` は「有効な管理プロファイルが存在する間」だけCLIで通る。
 
-一度だけ以下を実施すれば、以後 `./iphone.sh run` がCLIだけで通る:
+## プロファイル失効・端末追加時（Personal Team は約7日で失効）
 
-1. Xcode を起動 → **Settings → Accounts → +** → Apple ID `siggaze.0000@gmail.com` でサインイン
-2. 同画面でチーム（Personal Team）が出ることを確認
-3. 一度 `./iphone.sh run` を実行（初回は `-allowProvisioningUpdates` がプロファイルを自動生成）
+ビルドが `No profiles ...` で失敗したら、一度だけ **Xcodeでプロファイルを更新**する:
 
-> Personal Team のプロファイルは7日で失効し、デバイス紐付けも端末ごと。
-> 端末を変えた・1週間以上空いた場合は `run` で作り直す（アカウント登録済みなら自動）。
+1. Xcode で `EggCameraIPhone.xcodeproj` を開く（または `xcodegen generate` 後に開く）
+2. ターゲット → Signing & Capabilities でチームが選択され、エラーが消えるのを待つ
+   （Xcodeが自動でプロファイルを再生成。Apple IDサインイン済みのGUIならワンクリック）
+3. 以後また `./iphone.sh run` がCLIで通る
+
+> 普段使い（アプリ再起動・コード変更の反映）はCLIで完結。Xcodeを開くのは
+> プロファイル失効時の数日〜1週間に一度だけ。
 
 ## 従来手段（Makefile / ios-deploy）
 

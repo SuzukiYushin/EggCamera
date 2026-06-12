@@ -20,7 +20,9 @@ PROJECT='EggCameraIPhone.xcodeproj'
 BUILD_DIR='.build'
 APP="$BUILD_DIR/Build/Products/Debug-iphoneos/$SCHEME.app"
 BUNDLE_ID='com.siggaze.eggcamera'
-DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-6FKKW68VQ4}"   # Apple Development: siggaze.0000@gmail.com
+# プロファイル「iOS Team Provisioning Profile: com.siggaze.eggcamera」のチーム。
+# 署名証明書は siggaze.0000@gmail.com (6FKKW68VQ4) が使われるが、チーム指定はこちら。
+DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-4U78CNU7WN}"
 
 # ── 接続デバイスを自動検出 ───────────────────────────────
 # devicectl 用の識別子（install/launch）と xcodebuild 用の UDID（build）を取る
@@ -41,11 +43,14 @@ cmd_build() {
   xcodegen generate >/dev/null
   local dest
   if [[ -n "${BUILD_UDID:-}" ]]; then dest="platform=iOS,id=$BUILD_UDID"; else dest="generic/platform=iOS"; fi
+  # -allowProvisioningUpdates は付けない。CLIからはXcodeのApple IDアカウントが
+  # 見えず "No Accounts" で失敗するため。代わりにXcodeが生成済みの管理プロファイルを
+  # そのまま使う（失効・端末追加時はXcodeを一度開いて更新すること）。
   xcodebuild \
     -project "$PROJECT" -scheme "$SCHEME" -configuration Debug \
     -destination "$dest" -derivedDataPath "$BUILD_DIR" \
     DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" CODE_SIGN_STYLE=Automatic \
-    -allowProvisioningUpdates build
+    build
 }
 
 cmd_install() {

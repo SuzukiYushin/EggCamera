@@ -6,8 +6,8 @@ APP       := $(BUILD_DIR)/Build/Products/Debug-iphoneos/$(SCHEME).app
 # 簡単な再起動/インストールは ./iphone.sh を使う（デバイス自動検出 + devicectl）。
 # この Makefile は ios-deploy ベースの従来手段。
 #
-# Apple Development: siggaze.0000@gmail.com の Team ID
-DEVELOPMENT_TEAM ?= 6FKKW68VQ4
+# プロファイル「iOS Team Provisioning Profile: com.siggaze.eggcamera」のチーム
+DEVELOPMENT_TEAM ?= 4U78CNU7WN
 # YUSHINのiPhone (iPhone 17) の UDID。`make devices` で確認
 DEVICE_ID ?= 00008150-00184D192299401C
 # devicectl 用の CoreDevice 識別子（launch/restart）
@@ -37,7 +37,6 @@ endif
 		-derivedDataPath $(BUILD_DIR) \
 		DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM) \
 		CODE_SIGN_STYLE=Automatic \
-		-allowProvisioningUpdates \
 		build
 
 ## ③ ビルド → iPhone にインストール（USB接続必須）
