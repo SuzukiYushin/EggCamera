@@ -65,6 +65,24 @@ cmd_launch() {
   xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID"
 }
 
+# プロファイル更新を伴う再ビルド（週次の自動更新用）。
+# -allowProvisioningUpdates で失効前のプロファイルを焼き直し、入れ直して起動する。
+# Apple IDアカウントに接続するため、GUIログイン中のセッションで実行すること。
+cmd_refresh() {
+  detect_device
+  echo "▶ プロファイル更新つき再ビルド (team=$DEVELOPMENT_TEAM)"
+  xcodegen generate >/dev/null
+  local dest
+  if [[ -n "${BUILD_UDID:-}" ]]; then dest="platform=iOS,id=$BUILD_UDID"; else dest="generic/platform=iOS"; fi
+  xcodebuild \
+    -project "$PROJECT" -scheme "$SCHEME" -configuration Debug \
+    -destination "$dest" -derivedDataPath "$BUILD_DIR" \
+    DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" CODE_SIGN_STYLE=Automatic \
+    -allowProvisioningUpdates build
+  cmd_install
+  cmd_launch
+}
+
 cmd_status() {
   echo "=== 接続デバイス ==="; xcrun devicectl list devices 2>/dev/null | grep -i connected || echo "なし"
   detect_device
@@ -77,6 +95,7 @@ case "${1:-run}" in
   launch)  cmd_launch ;;
   restart) cmd_launch ;;                       # ビルドせず再起動だけ
   run)     cmd_build && cmd_install && cmd_launch ;;
+  refresh) cmd_refresh ;;                      # 週次の自動更新用（プロファイル焼き直し）
   status)  cmd_status ;;
-  *) echo "usage: ./iphone.sh {run|build|install|launch|restart|status}" >&2; exit 1 ;;
+  *) echo "usage: ./iphone.sh {run|build|install|launch|restart|refresh|status}" >&2; exit 1 ;;
 esac
