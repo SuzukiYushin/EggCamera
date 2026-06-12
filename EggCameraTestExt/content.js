@@ -15,6 +15,13 @@
 //   ・ブラウザのイベントループ停滞（フリーズの予兆）
 
 (() => {
+  // fetchフック(hook.js)をページ本体のコンテキストへ注入する。
+  // manifest の world:"MAIN" は古いChromeで使えないため、この方式にしている。
+  const hookScript = document.createElement('script');
+  hookScript.src = chrome.runtime.getURL('hook.js');
+  hookScript.onload = () => hookScript.remove();
+  (document.head || document.documentElement).appendChild(hookScript);
+
   const TICK_MS = 700;
   const STUCK_LIMIT_MS = 150_000;
 
@@ -44,8 +51,9 @@
   // リトライストーム検知の閾値（1サイクル内の実リクエスト数）
   const COST_LIMITS = { composite: 4, capture: 8, session: 5 };
 
-  const NAMES = ['ゆうしん', 'さくら', 'はると', 'ひなた', 'りく', 'あおい',
-    'みお', 'こはる', 'そうた', 'いちか', 'つむぎ', 'Egg'];
+  // アプリ側がアルファベット入力限定のため、名前は英字のみ
+  const NAMES = ['Yushin', 'Sakura', 'Haruto', 'Hinata', 'Riku', 'Aoi',
+    'Mio', 'Koharu', 'Sota', 'Ichika', 'Tsumugi', 'Egg'];
 
   let running = false;
   let injectFaults = true;
@@ -111,6 +119,23 @@
     chrome.runtime.sendMessage({ type: 'screenshot', label }).then(res => {
       if (res?.ok) log(`スクリーンショット保存: ${label}`);
     }).catch(() => {});
+  }
+
+  // 拡張が注入・稼働しているか一目で分かるステータスバッジ（画面左下）
+  const badge = document.createElement('div');
+  badge.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:2147483647;' +
+    'font:11px/1.6 monospace;padding:2px 10px;border-radius:99px;pointer-events:none;' +
+    'background:rgba(0,0,0,0.55);color:#9ef01a;';
+  badge.textContent = 'TEST: 待機中';
+  const attachBadge = () => { if (document.body && !badge.isConnected) document.body.appendChild(badge); };
+  attachBadge();
+
+  function updateBadge(screen) {
+    attachBadge();
+    badge.style.color = running ? '#9ef01a' : '#ffb703';
+    badge.textContent = running
+      ? `TEST: 稼働中 [${screen || '-'}]`
+      : 'TEST: 停止中（ポップアップから開始）';
   }
 
   /* ── エラー注入 ──────────────────────────── */
@@ -202,8 +227,8 @@
     },
 
     'nickname-screen': () => {
-      if (!plan) return;
-      if (plan.skipName) {
+      // プラン未生成（フロー途中で開始した場合など）はスキップで先へ進む
+      if (!plan || plan.skipName) {
         click(document.querySelector('.btn-ghost'));
         return;
       }
@@ -214,8 +239,7 @@
     },
 
     'birthday-screen': async () => {
-      if (!plan) return;
-      if (plan.skipBday) {
+      if (!plan || plan.skipBday) {
         click(document.querySelector('.btn-ghost'));
         return;
       }
@@ -415,6 +439,7 @@
     }
     lastTickAt = now;
 
+    updateBadge(lastScreen);
     if (!running || busy) return;
     if (checkOverlay()) return;
 
