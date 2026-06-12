@@ -31,3 +31,5 @@ data/qrcodes/*
 !data/qrcodes/.gitkeep
 data/logs/*
 !data/logs/.gitkeep
+.env.cloudflare
+dist-proto/

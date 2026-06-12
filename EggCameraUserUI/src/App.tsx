@@ -12,11 +12,36 @@ import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
 import { ErrorOverlay } from './components/ErrorOverlay';
 import { FRAMES }       from './data/frames';
-import { createSession, selectPhoto, uploadComposite } from './api';
+import { createSession, selectPhoto, uploadComposite, PROTO } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 import { reportClientError } from './clientLog';
 
-type Screen = 'start' | 'nick' | 'bday' | 'capture' | 'photosel' | 'preview' | 'upload' | 'qr' | 'end';
+type Screen = 'start' | 'nick' | 'bday' | 'capture' | 'photosel' | 'preview' | 'upload' | 'qr' | 'end' | 'dl';
+
+// クライアント確認用プロトタイプの画面選択ナビ
+const NAV_TABS: [Screen, string][] = [
+  ['start',    '① スタート'],
+  ['nick',     '② ニックネーム'],
+  ['bday',     '③ 生年月日'],
+  ['capture',  '④ 撮影'],
+  ['photosel', '⑤ 写真選択'],
+  ['preview',  '⑥ プレビュー'],
+  ['upload',   '⑦ 保存中'],
+  ['qr',       '⑧ QR'],
+  ['end',      '⑨ 終了'],
+  ['dl',       '⑩ ダウンロード'],
+];
+
+// プロト専用: スマホで開くダウンロードページを iPhone 縦サイズの枠で表示
+function ProtoDownload() {
+  return (
+    <div className="app-viewport proto-viewport">
+      <div className="iphone-shell">
+        <iframe src="/proto-download.html" title="ダウンロードページ" />
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const [screen, setScreen]         = useState<Screen>('start');
@@ -106,6 +131,17 @@ export default function App() {
 
   return (
     <LangProvider>
+      {PROTO && (
+        <nav className="screen-nav">
+          {NAV_TABS.map(([id, label]) => (
+            <button
+              key={id}
+              className={`screen-nav-btn${screen === id ? ' active' : ''}`}
+              onClick={() => go(id)}
+            >{label}</button>
+          ))}
+        </nav>
+      )}
       {screen === 'start'    && <Start       onNext={() => go('nick')} />}
       {screen === 'nick'     && <Nickname    nickname={nickname} onChange={setNickname} onNext={() => go('bday')} onSkip={() => go('bday')} />}
       {screen === 'bday'     && <Birthday    nickname={nickname} onNext={goCapture} onSkip={() => goCapture(0)} />}
@@ -115,6 +151,7 @@ export default function App() {
       {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onError={() => setFatal(true)} />}
       {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={restart} />}
       {screen === 'end'      && <End         onRestart={restart} />}
+      {screen === 'dl'       && <ProtoDownload />}
       {fatal && <ErrorOverlay />}
     </LangProvider>
   );

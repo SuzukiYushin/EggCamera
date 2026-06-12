@@ -175,6 +175,21 @@ node server.js
 
 Safari で `http://<Mac miniのIP>:3000` を開く（フルスクリーン/ガイドアクセス推奨）。UIとAPIは同一オリジンなので追加設定は不要。
 
+### URLの使い分け（開発時）
+
+| URL | 用途 |
+|---|---|
+| `http://localhost:5173/`（または `http://192.168.10.104:5173/`） | **手直し用**。Vite devサーバ。`src/` を編集すると保存した瞬間に画面へ反映（HMR）。APIは自動で `:3000` へプロキシされるので撮影等もそのまま動く |
+| `http://localhost:3000/` | **本番ビルド配信**。`npm run build` するまで編集は反映されない。長期テスト・iPad実機用 |
+
+```bash
+# Vite devサーバの起動（HMR、LANからアクセス可）
+cd EggCameraUserUI && npm run dev -- --host
+
+# 本番ビルド（:3000 に反映）
+cd EggCameraUserUI && npm run build
+```
+
 ### Environment Variables (optional)
 
 ```bash
@@ -207,3 +222,4 @@ PORT=8000 node server.js                # 待受ポートを変更する場合
 - **iPhone lock prevention**: アプリ起動中は `isIdleTimerDisabled = true` で画面ロックを抑制。
 - **Session interruption**: カメラセッションが中断された場合（ロック等）、解除後に自動復帰。
 - **セッションAPI**: `POST /api/sessions`（セッション作成）、`POST /api/sessions/:id/capture`（1枚撮影トリガー）、`POST /api/sessions/:id/select`（合成・R2アップロード・QR生成を開始）、`GET /api/sessions/:id`（ステータス確認）、`GET /api/photos/:photoId`（プレビュー画像）。セッションはメモリ上で管理され、`SESSION_TTL_MS`（既定30分）で自動失効。
+

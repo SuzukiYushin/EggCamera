@@ -1,3 +1,12 @@
+import * as proto from './protoApi';
+
+// クライアント確認用プロトタイプモード。
+// VITE_PROTO=1 でビルドするか、URLに ?proto を付けると有効になり、
+// バックエンドAPIをすべてモックに差し替え + 画面選択ナビを表示する。
+export const PROTO =
+  import.meta.env.VITE_PROTO === '1' ||
+  new URLSearchParams(window.location.search).has('proto');
+
 export type SessionStatus = 'idle' | 'capturing' | 'ready' | 'compositing' | 'done' | 'error';
 
 export interface SessionPhoto {
@@ -52,14 +61,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export function createSession(): Promise<{ sessionId: string }> {
+  if (PROTO) return proto.createSession();
   return request('/sessions', { method: 'POST' });
 }
 
 export function getSession(sessionId: string): Promise<SessionState> {
+  if (PROTO) return proto.getSession(sessionId);
   return request(`/sessions/${sessionId}`);
 }
 
 export function capturePhoto(sessionId: string): Promise<SessionPhoto> {
+  if (PROTO) return proto.capturePhoto();
   return request(`/sessions/${sessionId}/capture`, { method: 'POST' });
 }
 
@@ -71,6 +83,7 @@ export interface SelectPhotoParams {
 }
 
 export function selectPhoto(sessionId: string, params: SelectPhotoParams): Promise<{ status: string }> {
+  if (PROTO) return proto.selectPhoto();
   return request(`/sessions/${sessionId}/select`, {
     method: 'POST',
     body: JSON.stringify(params),
@@ -86,6 +99,7 @@ export interface FrameInfo {
 }
 
 export function getFrames(): Promise<FrameInfo[]> {
+  if (PROTO) return proto.getFrames();
   return request('/frames');
 }
 
@@ -97,15 +111,17 @@ export interface CropSettings {
 }
 
 export function getCropSettings(): Promise<{ crop: CropSettings }> {
+  if (PROTO) return proto.getCropSettings();
   return request('/settings');
 }
 
 // Uploads the client-composited final image (photo + frame + name/days, baked
 // in via canvas) as a raw PNG body.
 export async function uploadComposite(sessionId: string, blob: Blob): Promise<{ status: string }> {
+  if (PROTO) return proto.uploadComposite();
   const res = await fetch(`/api/sessions/${sessionId}/composite`, {
     method: 'POST',
-    headers: { 'Content-Type': 'image/png' },
+    headers: { 'Content-Type': blob.type || 'image/jpeg' },
     body: blob,
   });
   if (!res.ok) {

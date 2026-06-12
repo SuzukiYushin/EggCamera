@@ -223,9 +223,11 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // PNGだと写真によっては20MB超になりアップロードが413で失敗するためJPEGで書き出す
+    // （サーバ側でも最終的にJPEG q95 に変換しているので品質影響なし）
     canvas.toBlob(blob => {
       if (blob) onNext(blob);
-    }, 'image/png');
+    }, 'image/jpeg', 0.95);
   };
 
   return (

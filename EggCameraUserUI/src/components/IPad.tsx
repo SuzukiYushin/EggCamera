@@ -1,7 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { PROTO } from '../api';
 
 const DESIGN_WIDTH = 768;
 const DESIGN_HEIGHT = 1024;
+
+// プロトタイプでは上部の画面選択ナビのぶんだけキャンバスを小さくする
+const NAV_OFFSET = PROTO ? 64 : 0;
 
 // Scales the fixed-size (768×1024) design canvas to fit the real device
 // viewport, preserving aspect ratio (letterboxed via .app-viewport).
@@ -10,7 +14,7 @@ export function useFitScale() {
 
   useEffect(() => {
     const update = () => {
-      setScale(Math.min(window.innerWidth / DESIGN_WIDTH, window.innerHeight / DESIGN_HEIGHT));
+      setScale(Math.min(window.innerWidth / DESIGN_WIDTH, (window.innerHeight - NAV_OFFSET) / DESIGN_HEIGHT));
     };
     update();
     window.addEventListener('resize', update);
@@ -32,7 +36,7 @@ export function IPad({ step, totalSteps = 7, children, animKey }: IPadProps) {
   const pct = step != null ? ((step - 1) / (totalSteps - 1)) * 100 : 0;
 
   return (
-    <div className="app-viewport">
+    <div className={`app-viewport${PROTO ? ' proto-viewport' : ''}`}>
       <div className="ipad-shell" style={{ transform: `scale(${scale})` }}>
         {step != null && (
           <div className="prog-bar">

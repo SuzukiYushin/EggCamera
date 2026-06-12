@@ -193,15 +193,11 @@
   </div>
 
   <script>
-    const params = new URLSearchParams(location.search);
-    const id     = params.get('id');
-
-    if (!id) {
-      show('error');
-    } else {
-      const imgUrl = `/image/${id}.jpg`;
-      const img    = document.getElementById('photo');
-
+    // プロトタイプ用: 常にサンプル合成写真を表示する
+    const id     = 'sample';
+    const imgUrl = '/proto-sample.jpg';
+    {
+      const img = document.getElementById('photo');
       img.onload = () => {
         show('photo-wrap');
         show('notice');

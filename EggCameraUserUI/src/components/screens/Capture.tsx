@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
-import { capturePhoto, ApiError } from '../../api';
+import { capturePhoto, ApiError, PROTO } from '../../api';
 import type { SessionPhoto } from '../../api';
 import { reportClientError } from '../../clientLog';
 import babyImg from '../../assets/baby_illustrator.png';
@@ -64,6 +64,7 @@ function LiveCameraView() {
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    if (PROTO) return; // プロトタイプはイラストの仮画像のみ（ポーリングしない）
     let cancelled = false;
     let prevUrl: string | null = null;
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -74,6 +75,9 @@ function LiveCameraView() {
         try {
           const res = await fetch('/api/preview/frame', { cache: 'no-store' });
           if (!res.ok) throw new Error(`status ${res.status}`);
+          if (!res.headers.get('content-type')?.startsWith('image/')) {
+            throw new Error('not an image'); // SPAフォールバック等のHTML応答を弾く
+          }
           const blob = await res.blob();
           if (cancelled) break;
           const url = URL.createObjectURL(blob);
@@ -115,7 +119,7 @@ function LiveCameraView() {
       src={babyImg}
       alt="camera preview"
       style={{
-        position: 'absolute', top: '45%', left: '47%',
+        position: 'absolute', top: '50%', left: '47%',
         transform: 'translate(-49%, -48%)',
         width: '105%', height: '105%', objectFit: 'cover', display: 'block',
       }}

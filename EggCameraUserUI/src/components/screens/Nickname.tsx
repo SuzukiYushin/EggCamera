@@ -58,10 +58,18 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
             aria-required="false"
             maxLength={10}
             value={nickname}
-            onChange={e => onChange(e.target.value)}
+            onChange={e => onChange(e.target.value.replace(/[^A-Za-z]/g, ''))}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={T.nickname.placeholder}
+            // アルファベットのみ + iPadでASCII(英語配列)キーボードを出すための属性
+            inputMode="email"
+            lang="en"
+            pattern="[A-Za-z]*"
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="off"
+            spellCheck={false}
           />
         </div>
         <div className="t-body" style={{ marginBottom: 'auto' }}>{T.nickname.body}</div>

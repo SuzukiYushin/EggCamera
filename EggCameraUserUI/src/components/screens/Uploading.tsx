@@ -51,7 +51,7 @@ export function Uploading({ sessionId, onResult, onNext, onError }: UploadingPro
           return;
         }
         setProg(p => Math.min(p + 6, 90));
-        timer = setTimeout(poll, 1000);
+        timer = setTimeout(poll, 10000);
       } catch {
         if (cancelled) return;
         failures += 1;

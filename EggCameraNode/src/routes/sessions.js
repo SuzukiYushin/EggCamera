@@ -81,7 +81,7 @@ router.post('/:id/select', (req, res) => {
 // Receives the final composited image (photo + frame + name/days, baked in
 // the browser via canvas) as a raw PNG body, uploads it to R2, and generates
 // the download QR.
-router.post('/:id/composite', express.raw({ type: 'image/png', limit: '20mb' }), async (req, res) => {
+router.post('/:id/composite', express.raw({ type: ['image/jpeg', 'image/png'], limit: '40mb' }), async (req, res) => {
     const session = getSession(req.params.id);
     if (!session) return res.status(404).json({ error: 'session_not_found' });
     if (!Buffer.isBuffer(req.body) || !req.body.length) {

@@ -27,9 +27,9 @@ export const translations = {
     },
     capture: {
       step: 'ステップ 3 / 7',
-      instruction: '３枚撮影します。お顔の位置を合わせて撮影してね',
+      instruction: '３枚撮影します\nお顔の位置を合わせて撮影してね',
       shutter: '撮影',
-      capturing: '撮影中\n…',
+      capturing: '撮影中\n',
       retry: 'もう一度試す',
       retake: '撮りなおす',
       decide: 'この写真にする',

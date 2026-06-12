@@ -55,6 +55,66 @@ body:has([data-section="start-screen"]),
   background: var(--color-brand-500);
 }
 
+/* ── クライアント確認用プロトタイプ: 画面選択ナビ ── */
+.screen-nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 1000;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
+}
+.screen-nav-btn {
+  padding: 5px 12px;
+  border-radius: 99px;
+  border: 1.5px solid #ddd;
+  background: #fff;
+  color: #888;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 400;
+}
+.screen-nav-btn.active {
+  border-color: var(--color-brand-500);
+  background: var(--color-brand-500);
+  color: #fff;
+  font-weight: 500;
+}
+/* ナビのぶん下げてキャンバスと重ならないようにする */
+.app-viewport.proto-viewport {
+  height: calc(100dvh - 64px);
+  margin-top: 64px;
+}
+/* iPad縦向き(768×1024)の画面範囲が分かるように枠線を表示 */
+.proto-viewport .ipad-shell {
+  outline: 2px solid rgba(30, 48, 84, 0.45);
+  box-shadow: 0 10px 48px rgba(0, 0, 0, 0.22);
+}
+/* ダウンロードページ確認用: iPhone縦(390×844)の枠 */
+.iphone-shell {
+  height: min(844px, 96%);
+  aspect-ratio: 390 / 844;
+  outline: 2px solid rgba(30, 48, 84, 0.45);
+  box-shadow: 0 10px 48px rgba(0, 0, 0, 0.22);
+  background: #fff;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.iphone-shell iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
 /* Progress bar */
 .prog-bar {
   height: 2px;
