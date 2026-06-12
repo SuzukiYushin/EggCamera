@@ -69,9 +69,26 @@ async function compositeForSession(rawPath, frameId, sessionId) {
     }
 }
 
+// ローカル時刻で YYYY.MM.DD.HH.mm.ss のベース名を作る
+function timestampBaseName() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}.`
+        + `${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}`;
+}
+
+// ダウンロード写真のファイル名プレフィックス
+const PHOTO_PREFIX = 'familia_EggCamera';
+
 // ── Save a client-composited PNG (photo + frame + text, baked in the browser) ──
-async function saveComposite(buffer, sessionId) {
-    const fileName = `${sessionId}.jpg`;
+// ファイル名（=QRのダウンロードID）は familia_EggCamera_YYYY.MM.DD.HH.mm.ss。
+// 同じ秒に複数枚保存された場合のみ _2, _3… を付けて衝突を避ける。
+async function saveComposite(buffer) {
+    const base = `${PHOTO_PREFIX}_${timestampBaseName()}`;
+    let fileName = `${base}.jpg`;
+    for (let i = 2; fs.existsSync(path.join(COMPOSITED_DIR, fileName)); i++) {
+        fileName = `${base}_${i}.jpg`;
+    }
     const destPath = path.join(COMPOSITED_DIR, fileName);
 
     await sharp(buffer).jpeg({ quality: 95 }).toFile(destPath);

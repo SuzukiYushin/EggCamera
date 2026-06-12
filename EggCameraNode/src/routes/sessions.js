@@ -96,7 +96,7 @@ router.post('/:id/composite', express.raw({ type: ['image/jpeg', 'image/png'], l
 
     (async () => {
         try {
-            const { fileName } = await saveComposite(req.body, session.id);
+            const { fileName } = await saveComposite(req.body);
             if (chaos.consume('r2')) throw new Error('injected_r2_failure');
             await uploadToR2(path.join(COMPOSITED_DIR, fileName), fileName);
             if (chaos.consume('qr')) throw new Error('injected_qr_failure');
