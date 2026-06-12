@@ -37,6 +37,17 @@ app.post('/api/client-log', (req, res) => {
     res.json({ ok: true });
 });
 
+// ── 長期運用テスト拡張からの判定・サマリをサーバログへ集約 ──
+// 拡張の検知結果(想定外/コスト警告/停滞/DL失敗など)は本来ブラウザ内にしか
+// 残らないため、ここへ送ってもらい data/logs/ に記録する（Claudeの監視用）。
+app.post('/api/test-report', (req, res) => {
+    const { level = 'info', text = '' } = req.body || {};
+    const line = `[${ts()}] [TEST] ${String(text).slice(0, 2000)}`;
+    if (level === 'alert') console.error(line);
+    else console.log(line);
+    res.json({ ok: true });
+});
+
 // フレーム画像本体（.trash はドットディレクトリなので配信されない）
 app.use('/frames', express.static(FRAMES_DIR));
 

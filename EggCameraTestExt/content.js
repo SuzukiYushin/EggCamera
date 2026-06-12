@@ -76,6 +76,18 @@
   const rand = arr => arr[Math.floor(Math.random() * arr.length)];
   const chance = p => Math.random() < p;
 
+  // サーバ(data/logs/)へ転送して Claude が監視できるようにする。fire-and-forget。
+  function report(text, level = 'info') {
+    try {
+      fetch('/api/test-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level, text }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch { /* 送信失敗はテスト継続に影響させない */ }
+  }
+
   function log(text) {
     const line = `${new Date().toLocaleTimeString('ja-JP')} ${text}`;
     console.log(`[EggTest] ${line}`);
@@ -84,6 +96,8 @@
       if (l.length > 400) l.splice(0, l.length - 400);
       chrome.storage.local.set({ log: l });
     });
+    // ▲で始まる行＝要注意。それ以外は info としてサーバへも残す
+    report(text, /^[▲△]/.test(text) ? 'alert' : 'info');
   }
 
   function bumpStat(key, n = 1) {
@@ -488,6 +502,20 @@
     }
   });
 
+  // 5分ごとに統計スナップショットをサーバへ（Claudeが合否を一目で追える）
+  function reportSnapshot() {
+    if (!running) return;
+    chrome.storage.local.get({ stats: {} }, ({ stats: s }) => {
+      const alerts = (s.unexpected || 0) + (s.costAlerts || 0) + (s.serverDown || 0) + (s.freezes || 0);
+      report(`統計: サイクル${s.cycles || 0} DL成功${s.dlOk || 0}/失敗${s.dlFail || 0} ` +
+        `注入${s.faultsInjected || 0} オーバーレイ${s.overlays || 0} ` +
+        `想定外${s.unexpected || 0} コスト警告${s.costAlerts || 0} ` +
+        `サーバ無応答${s.serverDown || 0} 停滞${s.freezes || 0}`,
+        alerts > 0 ? 'alert' : 'info');
+    });
+  }
+
   setInterval(tick, TICK_MS);
   setInterval(healthCheck, 30_000);
+  setInterval(reportSnapshot, 5 * 60_000);
 })();
