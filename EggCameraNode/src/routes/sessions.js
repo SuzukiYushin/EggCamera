@@ -64,13 +64,12 @@ router.post('/:id/select', (req, res) => {
     const session = getSession(req.params.id);
     if (!session) return res.status(404).json({ error: 'session_not_found' });
 
-    const { photoId, frameId, nickname, days } = req.body || {};
+    const { photoId, nickname, days } = req.body || {};
     const photo = session.photos.find(p => p.photoId === photoId);
     if (!photo) return res.status(400).json({ error: 'invalid_photo' });
 
     touch(session);
     session.selectedPhotoId = photoId;
-    session.frameId  = frameId;
     session.nickname = nickname;
     session.days     = days;
 

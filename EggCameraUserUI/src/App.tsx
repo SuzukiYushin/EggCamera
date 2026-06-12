@@ -11,7 +11,6 @@ import { Uploading }    from './components/screens/Uploading';
 import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
 import { ErrorOverlay } from './components/ErrorOverlay';
-import { FRAMES }       from './data/frames';
 import { createSession, selectPhoto, uploadComposite, PROTO } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 import { reportClientError } from './clientLog';
@@ -48,8 +47,6 @@ export default function App() {
   const [sessionId, setSessionId]   = useState<string | null>(null);
   const [nickname, setNickname]     = useState('');
   const [days, setDays]             = useState(0);
-  const [frameId, setFrameId]       = useState('');
-  const [frameLabel, setFrameLabel] = useState('');
   const [photos, setPhotos]         = useState<SessionPhoto[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [result, setResult]         = useState<SessionResult | null>(null);
@@ -84,10 +81,8 @@ export default function App() {
   const go = (s: Screen) => setScreen(s);
 
   const goCapture = (d: number) => {
-    const frame = FRAMES[Math.floor(Math.random() * FRAMES.length)];
+    // フレームは FinalPreview が /api/frames から都度ランダム選択する
     setDays(d);
-    setFrameId(frame.id);
-    setFrameLabel(frame.label);
     go('capture');
   };
 
@@ -103,7 +98,7 @@ export default function App() {
   const goUpload = (blob: Blob) => {
     if (sessionId && selectedPhotoId) {
       // メタデータ記録のみ。失敗しても合成画像のアップロードには影響しない
-      selectPhoto(sessionId, { photoId: selectedPhotoId, frameId, nickname, days })
+      selectPhoto(sessionId, { photoId: selectedPhotoId, nickname, days })
         .catch(err => console.error('selectPhoto failed', err));
     }
     if (sessionId) {
@@ -116,8 +111,6 @@ export default function App() {
   const restart = () => {
     setNickname('');
     setDays(0);
-    setFrameId('');
-    setFrameLabel('');
     setPhotos([]);
     setSelectedPhotoId(null);
     setResult(null);
@@ -147,7 +140,7 @@ export default function App() {
       {screen === 'bday'     && <Birthday    nickname={nickname} onNext={goCapture} onSkip={() => goCapture(0)} />}
       {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={() => setFatal(true)} />}
       {screen === 'photosel' && <PhotoSelect photos={photos} onNext={photoId => { setSelectedPhotoId(photoId); go('preview'); }} onBack={retake} />}
-      {screen === 'preview'  && <FinalPreview nickname={nickname} days={days} frameLabel={frameLabel} photoUrl={selectedPhoto?.url ?? ''} onNext={goUpload} />}
+      {screen === 'preview'  && <FinalPreview nickname={nickname} days={days} photoUrl={selectedPhoto?.url ?? ''} onNext={goUpload} />}
       {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onError={() => setFatal(true)} />}
       {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={restart} />}
       {screen === 'end'      && <End         onRestart={restart} />}

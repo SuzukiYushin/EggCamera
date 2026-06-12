@@ -33,3 +33,10 @@ data/logs/*
 !data/logs/.gitkeep
 .env.cloudflare
 dist-proto/
+EggCameraIPhone/.build/
+EggCameraUserUI/src/assets/NEW/
+
+# 管理画面で追加されるランタイムのフレーム（flame_sample.png のみ追跡）
+data/assets/frames/*
+!data/assets/frames/.gitkeep
+!data/assets/frames/flame_sample.png

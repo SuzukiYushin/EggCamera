@@ -48,7 +48,7 @@ final class UploadReceiverServer {
             var buffer = accumulated
             if let data { buffer.append(data) }
 
-            if self.isCompleteRequest(buffer) || isComplete {
+            if HTTPMessage.isComplete(buffer) || isComplete {
                 self.route(buffer, on: connection)
             } else {
                 self.receive(on: connection, accumulated: buffer)
@@ -59,20 +59,20 @@ final class UploadReceiverServer {
     private func route(_ data: Data, on connection: NWConnection) {
         let separator = Data([0x0D, 0x0A, 0x0D, 0x0A])
         guard let range = data.range(of: separator) else {
-            send(status: 400, message: "Bad Request", on: connection)
+            HTTPMessage.sendStatus(400, "Bad Request", on: connection)
             return
         }
 
         let requestLine = String(data: data[..<range.lowerBound], encoding: .utf8)?
             .components(separatedBy: "\r\n").first ?? ""
         guard requestLine.hasPrefix("POST /upload") else {
-            send(status: 404, message: "Not Found", on: connection)
+            HTTPMessage.sendStatus(404, "Not Found", on: connection)
             return
         }
 
         let body = Data(data[range.upperBound...])
-        guard let envelope = try? JSONDecoder.shared.decode(UploadEnvelope.self, from: body) else {
-            send(status: 400, message: "Invalid JSON", on: connection)
+        guard let envelope = try? JSONDecoder.iso8601.decode(UploadEnvelope.self, from: body) else {
+            HTTPMessage.sendStatus(400, "Invalid JSON", on: connection)
             return
         }
 
@@ -90,43 +90,6 @@ final class UploadReceiverServer {
             }
         }
 
-        send(status: 200, message: "OK", on: connection)
+        HTTPMessage.sendStatus(200, "OK", on: connection)
     }
-
-    private func isCompleteRequest(_ data: Data) -> Bool {
-        let separator = Data([0x0D, 0x0A, 0x0D, 0x0A])
-        guard let range = data.range(of: separator) else { return false }
-
-        let header = String(data: data[..<range.lowerBound], encoding: .utf8) ?? ""
-        let contentLength = header
-            .components(separatedBy: "\r\n")
-            .first(where: { $0.lowercased().hasPrefix("content-length:") })
-            .flatMap { line -> Int? in
-                let value = line.split(separator: ":", maxSplits: 1).last?.trimmingCharacters(in: .whitespaces)
-                return value.flatMap(Int.init)
-            } ?? 0
-
-        let bodyCount = data.count - range.upperBound
-        return bodyCount >= contentLength
-    }
-
-    private func send(status: Int, message: String, on connection: NWConnection) {
-        let response = [
-            "HTTP/1.1 \(status) \(message)",
-            "Content-Length: 0",
-            "Connection: close",
-            "", ""
-        ].joined(separator: "\r\n")
-        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
-            connection.cancel()
-        })
-    }
-}
-
-private extension JSONDecoder {
-    static let shared: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
-    }()
 }

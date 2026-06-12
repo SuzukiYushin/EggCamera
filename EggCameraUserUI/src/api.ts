@@ -25,7 +25,6 @@ export interface SessionState {
   status: SessionStatus;
   photos: SessionPhoto[];
   selectedPhotoId?: string;
-  frameId?: string;
   nickname?: string;
   days?: number;
   result?: SessionResult;
@@ -77,7 +76,6 @@ export function capturePhoto(sessionId: string): Promise<SessionPhoto> {
 
 export interface SelectPhotoParams {
   photoId: string;
-  frameId: string;
   nickname: string;
   days: number;
 }

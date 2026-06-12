@@ -29,7 +29,7 @@ final class CaptureCommandClient {
                                      preferredWidth: preferredWidth,
                                      preferredHeight: preferredHeight)
 
-        let body = try JSONEncoder.shared.encode(command)
+        let body = try JSONEncoder.iso8601.encode(command)
         let requestHeader = [
             "POST /capture HTTP/1.1",
             "Host: eggcamera",
@@ -165,12 +165,4 @@ enum CommandClientError: Error, LocalizedError {
         case .invalidResponse: return "The iPhone returned an invalid HTTP response."
         }
     }
-}
-
-private extension JSONEncoder {
-    static let shared: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        return encoder
-    }()
 }

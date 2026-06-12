@@ -29,6 +29,7 @@ let package = Package(
                 "AppRuntime.swift",
                 "CaptureCommandClient.swift",
                 "CaptureModels.swift",
+                "Networking.swift",
                 "ReceivedPhotoStore.swift",
                 "RuntimeConfiguration.swift",
                 "TriggerReceiverServer.swift",

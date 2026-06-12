@@ -19,7 +19,6 @@ function createSession() {
         status: 'idle',
         photos: [],
         selectedPhotoId: undefined,
-        frameId: undefined,
         nickname: undefined,
         days: undefined,
         result: undefined,

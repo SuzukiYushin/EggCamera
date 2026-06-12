@@ -1,1 +1,0 @@
-@rpath/EggCameraIPhone.debug.dylib

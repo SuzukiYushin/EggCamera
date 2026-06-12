@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import type { CSSProperties } from 'react';
 import { IPad, useFitScale } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
 import { getFrames, getCropSettings } from '../../api';
 import type { CropSettings } from '../../api';
+import { ParticleEl, makeBurst, type Burst } from '../ParticleBurst';
 import frameA from '../../assets/photo_frameA.png';
 import frameB from '../../assets/photo_frameB.png';
 import frameC from '../../assets/photo_frameC.png';
@@ -43,43 +43,14 @@ const BURST_COLORS = [
   '#FF8C42', '#FF3E7F', '#FFB300', '#FF6F61',
 ];
 
-const BASE_ANGLES = Array.from({ length: 16 }, (_, i) => (360 / 16) * i);
-
-interface Burst {
-  id: number;
-  particles: {
-    tx: number; ty: number;
-    color: string; size: number;
-    shape: 'circle' | 'square' | 'star';
-    duration: number; delay: number;
-  }[];
-}
-
-let burstId = 0;
-
-function makeBurst(): Burst {
-  return {
-    id: ++burstId,
-    particles: BASE_ANGLES.map((base, i) => {
-      const angle = (base + (Math.random() - 0.5) * 20) * (Math.PI / 180);
-      const dist = 80 + Math.random() * 100;
-      return {
-        tx: Math.cos(angle) * dist,
-        ty: Math.sin(angle) * dist,
-        color: BURST_COLORS[i % BURST_COLORS.length],
-        size: 10 + Math.random() * 12,
-        shape: (['circle', 'square', 'star'] as const)[i % 3],
-        duration: 650 + Math.random() * 300,
-        delay: Math.random() * 80,
-      };
-    }),
-  };
-}
+const previewBurst = () => makeBurst({
+  colors: BURST_COLORS,
+  dist: [80, 100], size: [10, 12], duration: [650, 300], delayMax: 80, jitterDeg: 20,
+});
 
 interface FinalPreviewProps {
   nickname: string;
   days: number;
-  frameLabel: string;
   photoUrl: string;
   onNext: (blob: Blob) => void;
 }
@@ -97,7 +68,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
 
   useEffect(() => {
     const t = setTimeout(() => {
-      const b = makeBurst();
+      const b = previewBurst();
       setBursts([b]);
       setTimeout(() => setBursts([]), 1100);
     }, 900);
@@ -278,41 +249,5 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
         </div>
       </Page>
     </IPad>
-  );
-}
-
-// ── Particle element ──────────────────────────────────────────────
-interface ParticleProps {
-  tx: number; ty: number;
-  color: string; size: number;
-  shape: 'circle' | 'square' | 'star';
-  duration: number; delay: number;
-}
-
-function ParticleEl({ tx, ty, color, size, shape, duration, delay }: ParticleProps) {
-  const base: CSSProperties = {
-    position: 'absolute',
-    width: size, height: size,
-    background: color,
-    animation: `particleFly ${duration}ms ease-out forwards`,
-    animationDelay: `${delay}ms`,
-    opacity: 0,
-    ['--tx' as string]: `${tx}px`,
-    ['--ty' as string]: `${ty}px`,
-  };
-
-  if (shape === 'circle') return <span style={{ ...base, borderRadius: '50%' }} />;
-  if (shape === 'square') return <span style={{ ...base, borderRadius: 3, transform: 'rotate(45deg)' }} />;
-  return (
-    <svg width={size} height={size} viewBox="0 0 20 20" style={{
-      position: 'absolute',
-      animation: `particleFly ${duration}ms ease-out forwards`,
-      animationDelay: `${delay}ms`,
-      opacity: 0,
-      ['--tx' as string]: `${tx}px`,
-      ['--ty' as string]: `${ty}px`,
-    }}>
-      <path d="M10 1 L11.4 8.6 L19 10 L11.4 11.4 L10 19 L8.6 11.4 L1 10 L8.6 8.6 Z" fill={color} />
-    </svg>
   );
 }
