@@ -3,7 +3,7 @@ const path    = require('node:path');
 
 const { CAPTURE_TIMEOUT_MS, COMPOSITED_DIR, R2_RETENTION_MS, ts } = require('../config');
 const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
-const { saveComposite, uploadToR2, generateQRDataUrl } = require('../composite');
+const { saveComposite, uploadToR2, deferredUploadToR2, generateQRDataUrl } = require('../composite');
 const { createSession, getSession, touch, registerPhoto } = require('../sessions');
 const chaos = require('../chaos');
 
@@ -95,23 +95,54 @@ router.post('/:id/composite', express.raw({ type: ['image/jpeg', 'image/png'], l
     res.status(202).json({ status: 'compositing' });
 
     (async () => {
+        // ローカル保存は必須（失敗＝復旧不能なので従来どおりエラー）
+        let fileName;
         try {
-            const { fileName } = await saveComposite(req.body);
-            if (chaos.consume('r2')) throw new Error('injected_r2_failure');
-            await uploadToR2(path.join(COMPOSITED_DIR, fileName), fileName);
-            if (chaos.consume('qr')) throw new Error('injected_qr_failure');
-            const { dataUrl, targetUrl } = await generateQRDataUrl(fileName);
-
-            session.result = {
-                downloadUrl: targetUrl,
-                qrDataUrl:   dataUrl,
-                expiresAt:   Date.now() + R2_RETENTION_MS,
-            };
-            session.status = 'done';
+            ({ fileName } = await saveComposite(req.body));
         } catch (err) {
-            console.error(`[${ts()}] composite upload failed: ${err.message}`);
+            console.error(`[${ts()}] composite save failed: ${err.message}`);
             session.status = 'error';
             session.error  = 'composite_failed';
+            return;
+        }
+        const localPath = path.join(COMPOSITED_DIR, fileName);
+
+        // 通常経路: R2へ即アップロード。成功すればそのままDL可能。
+        let uploaded = false;
+        try {
+            if (chaos.consume('r2')) throw new Error('injected_r2_failure');
+            await uploadToR2(localPath, fileName);
+            uploaded = true;
+        } catch (err) {
+            // ★ 代替経路（不安定時のみ）: アップロードは諦めず後追いリトライに回す。
+            console.warn(`[${ts()}] R2 upload failed (${err.message}); switching to deferred upload`);
+        }
+
+        // QRは想定URLで作れる（アップロード成否に依存しない）。
+        // QR生成自体の失敗は通信と無関係なので、これは従来どおりエラー扱い。
+        let dataUrl, targetUrl;
+        try {
+            if (chaos.consume('qr')) throw new Error('injected_qr_failure');
+            ({ dataUrl, targetUrl } = await generateQRDataUrl(fileName));
+        } catch (err) {
+            console.error(`[${ts()}] QR generation failed: ${err.message}`);
+            session.status = 'error';
+            session.error  = 'composite_failed';
+            return;
+        }
+
+        session.result = {
+            downloadUrl: targetUrl,
+            qrDataUrl:   dataUrl,
+            expiresAt:   Date.now() + R2_RETENTION_MS,
+            deferred:    !uploaded, // アップロードが後追いなら true（DLに時間差が出る）
+        };
+        session.status = 'done';
+
+        // 後追いアップロードをバックグラウンドで開始。ユーザーは時間をおいてDLできる。
+        if (!uploaded) {
+            console.warn(`[${ts()}] deferred-upload mode → ${fileName} (QR shown immediately)`);
+            deferredUploadToR2(localPath, fileName).catch(() => {});
         }
     })();
 });

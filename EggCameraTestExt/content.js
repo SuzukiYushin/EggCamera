@@ -33,17 +33,35 @@
     { n: 2, p: 0.15 },
   ];                               // 残り(75%)は1つ
 
+  // ── 人間の「意外な行動」の注入（quirks） ─────────
+  // 実運用は子供や家族が操作するため、整然としたフロー以外の操作にも耐えるかを検証する。
+  // フォルト注入と重ねると検証が曖昧になるため、注入なしサイクルでのみ実行。ログは「◇」（alertではない）
+  const P_QUIRK = 0.15;
+  // 連打系は実運用で最もありがちなため、重複エントリで選ばれやすくしてある
+  const QUIRKS = [
+    'shutter-mash',   'shutter-mash',   // シャッター連打（多重撮影トリガ）
+    'next-mash',      'next-mash',      // 「次へ」連打（二重遷移）
+    'double-click',   'double-click',   // 保存ボタンの二度押し（二重送信）
+    'impatient-tap',  'impatient-tap',  // アップロード中にせっかちに連打
+    'reload-midflow',                   // フロー途中でブラウザリロード
+    'idle-pause',                       // 入力画面で75秒放置（アイドル時の挙動）
+    'rapid-reselect',                   // 写真を素早く選び直し連打
+  ];
+
   // ── エラーカタログ（順番に注入される） ─────────
   // expectOverlay: お詫びオーバーレイが出るのが正しい挙動か
+  // group: 同じリクエスト系統を妨害するフォルト。同時注入すると先に発火した方が後続を影にして
+  //        未消費のまま残留する（→次サイクルで「注入なしでオーバーレイ」誤報）ため、
+  //        1サイクルにつき同groupから1つだけ選ぶ。
   const FAULTS = [
     { id: 'session-create',   label: 'セッション作成API失敗',        kind: 'client', urlPattern: '/api/sessions$',           method: 'POST', mode: 'http500', count: 1,  expectOverlay: true },
-    { id: 'capture-502',      label: '撮影API失敗(到達不能シミュレート)', kind: 'client', urlPattern: '/capture$',             method: 'POST', mode: 'http502', count: 1,  expectOverlay: true },
-    { id: 'capture-server',   label: '撮影失敗(サーバ側で注入)',      kind: 'server', target: 'capture',                                                       expectOverlay: true },
+    { id: 'capture-502',      label: '撮影API失敗(到達不能シミュレート)', kind: 'client', urlPattern: '/capture$',             method: 'POST', mode: 'http502', count: 1,  expectOverlay: true,  group: 'capture' },
+    { id: 'capture-server',   label: '撮影失敗(サーバ側で注入)',      kind: 'server', target: 'capture',                                                       expectOverlay: true,  group: 'capture' },
     { id: 'frames-api',       label: 'フレーム一覧取得失敗',          kind: 'client', urlPattern: '/api/frames$',             method: 'GET',  mode: 'network', count: 1,  expectOverlay: false }, // 同梱フレームにフォールバック
     { id: 'settings-api',     label: 'クロップ設定取得失敗',          kind: 'client', urlPattern: '/api/settings$',           method: 'GET',  mode: 'network', count: 1,  expectOverlay: false }, // デフォルト値で続行
-    { id: 'composite-upload', label: '合成画像アップロード失敗',      kind: 'client', urlPattern: '/composite$',              method: 'POST', mode: 'http500', count: 1,  expectOverlay: true },
-    { id: 'r2-server',        label: 'R2アップロード失敗(サーバ側)',   kind: 'server', target: 'r2',                                                            expectOverlay: true },
-    { id: 'qr-server',        label: 'QR生成失敗(サーバ側)',          kind: 'server', target: 'qr',                                                            expectOverlay: true },
+    { id: 'composite-upload', label: '合成画像アップロード失敗',      kind: 'client', urlPattern: '/composite$',              method: 'POST', mode: 'http500', count: 1,  expectOverlay: true,  group: 'composite' },
+    { id: 'r2-server',        label: 'R2アップロード失敗→後追いに切替',   kind: 'server', target: 'r2',                                                          expectOverlay: false, group: 'composite' }, // 不安定時の代替経路: QRは即出る。後追いでアップロード
+    { id: 'qr-server',        label: 'QR生成失敗(サーバ側)',          kind: 'server', target: 'qr',                                                            expectOverlay: true,  group: 'composite' },
     { id: 'session-poll',     label: 'セッションポーリング持続失敗',   kind: 'client', urlPattern: '/api/sessions/[0-9a-f]+$', method: 'GET',  mode: 'network', count: 25, expectOverlay: true },
     { id: 'js-error',         label: 'フロントJS実行時エラー',        kind: 'js',                                                                              expectOverlay: true },
   ];
@@ -70,6 +88,7 @@
   let serverWasDown = false;
   let memAlerted = false;
   let cycleStartedAt = 0;
+  let firedFaultIds = new Set(); // このサイクルで実際に発火した注入のid
 
   /* ── ユーティリティ ─────────────────────── */
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -100,11 +119,15 @@
     report(text, /^[▲△]/.test(text) ? 'alert' : 'info');
   }
 
+  // get→set の read-modify-write が並行すると後勝ちで加算が消える（注入0のまま等）ため直列化する
+  let statChain = Promise.resolve();
   function bumpStat(key, n = 1) {
-    chrome.storage.local.get({ stats: {} }, ({ stats }) => {
-      stats[key] = (stats[key] || 0) + n;
-      chrome.storage.local.set({ stats });
-    });
+    statChain = statChain.then(() => new Promise(resolve => {
+      chrome.storage.local.get({ stats: {} }, ({ stats }) => {
+        stats[key] = (stats[key] || 0) + n;
+        chrome.storage.local.set({ stats }, () => resolve());
+      });
+    }));
   }
 
   function screenOf() {
@@ -168,9 +191,16 @@
     const { faultIndex = 0 } = await chrome.storage.local.get('faultIndex');
     const n = pickFaultCount();
     const picked = [];
-    for (let i = 0; i < n; i++) picked.push(FAULTS[(faultIndex + i) % FAULTS.length]);
+    const usedGroups = new Set();
+    for (let i = 0; i < n; i++) {
+      const f = FAULTS[(faultIndex + i) % FAULTS.length];
+      // 同groupは影になり残留するため打ち切り（打ち切った分は次回ローテーションの先頭になる）
+      if (f.group && usedGroups.has(f.group)) break;
+      if (f.group) usedGroups.add(f.group);
+      picked.push(f);
+    }
     await chrome.storage.local.set({
-      faultIndex: (faultIndex + n) % FAULTS.length,
+      faultIndex: (faultIndex + picked.length) % FAULTS.length,
       currentFaults: picked.map(f => f.id),
     });
 
@@ -203,8 +233,23 @@
     return picked;
   }
 
+  // 前サイクルの未発火フォルトを掃除する。残留したまま後のサイクルで発火すると
+  // 「注入なしでオーバーレイ」誤報になる（クライアント側フックはリロードで消えるが、サーバ側CHAOSは残る）
+  async function clearLeftoverFaults() {
+    window.postMessage({ source: 'eggtest-ctl', cmd: 'clear' }, '*');
+    firedFaultIds.clear();
+    try {
+      const st = await (await fetch('/api/admin/chaos')).json();
+      if (st.capture > 0 || st.r2 > 0 || st.qr > 0) {
+        await fetch('/api/admin/chaos', { method: 'DELETE' });
+        log(`残留サーバフォルトを掃除 (capture:${st.capture} r2:${st.r2} qr:${st.qr})`);
+      }
+    } catch { /* サーバ無応答は healthCheck 側で検知される */ }
+  }
+
   /* ── サイクル計画 ─────────────────────────── */
   async function newPlan() {
+    await clearLeftoverFaults();
     const p = {
       name: rand(NAMES),
       skipName: chance(0.3),
@@ -212,11 +257,14 @@
       goBack: chance(0.15),
       backDone: false,
       faults: [],
+      quirk: null,
+      quirkDone: false,
     };
     if (injectFaults && chance(P_FAULT)) {
       p.faults = await armFaults();
     } else {
       chrome.storage.local.set({ currentFaults: [] });
+      if (chance(P_QUIRK)) p.quirk = rand(QUIRKS);
     }
     return p;
   }
@@ -234,13 +282,30 @@
         bumpStat('cycles');
         cycleStartedAt = Date.now();
         log(`サイクル開始 (名前:${plan.skipName ? 'スキップ' : plan.name}` +
-          `, 誕生日:${plan.skipBday ? 'スキップ' : 'ランダム'}, 戻る:${plan.goBack ? 'あり' : 'なし'})`);
+          `, 誕生日:${plan.skipBday ? 'スキップ' : 'ランダム'}, 戻る:${plan.goBack ? 'あり' : 'なし'}` +
+          `${plan.quirk ? `, 行動:${plan.quirk}` : ''})`);
       } else {
         handled.started = false; // ボタン未描画なら次のtickで再試行
       }
     },
 
-    'nickname-screen': () => {
+    'nickname-screen': async () => {
+      if (plan?.quirk === 'idle-pause' && !plan.quirkDone) {
+        plan.quirkDone = true;
+        bumpStat('quirks');
+        busy = true;
+        try {
+          log('◇ 意外な行動: 入力画面で75秒放置（アイドル時の挙動確認）');
+          await sleep(75_000);
+          const s = screenOf();
+          log(s === 'nickname-screen'
+            ? '◇ 放置の結果: 画面はそのまま（アイドルリセットなし）'
+            : `◇ 放置の結果: 画面が「${s}」へ自動遷移（アイドルリセット動作）`);
+        } finally {
+          busy = false;
+        }
+        return;
+      }
       // プラン未生成（フロー途中で開始した場合など）はスキップで先へ進む
       if (!plan || plan.skipName) {
         click(document.querySelector('.btn-ghost'));
@@ -249,6 +314,21 @@
       const input = document.querySelector('[data-section="nickname-screen"] input');
       if (!input) return;
       setInputValue(input, plan.name);
+      if (plan?.quirk === 'next-mash' && !plan.quirkDone) {
+        plan.quirkDone = true;
+        bumpStat('quirks');
+        log('◇ 意外な行動: 「次へ」連打 x5（二重遷移の確認）');
+        busy = true;
+        try {
+          for (let i = 0; i < 5; i++) {
+            click(document.querySelector('.btn-primary'));
+            await sleep(120);
+          }
+        } finally {
+          busy = false;
+        }
+        return;
+      }
       click(document.querySelector('.btn-primary'));
     },
 
@@ -272,16 +352,55 @@
       }
     },
 
-    'camera-screen': () => {
+    'camera-screen': async () => {
       const btn = document.querySelector('[data-ui="shutter-btn"]');
       if (!btn || btn.disabled) return;
-      if (!handled.shutter) {
-        handled.shutter = true;
-        click(btn);
+      if (handled.shutter) return;
+      handled.shutter = true;
+      if (plan?.quirk === 'shutter-mash' && !plan.quirkDone) {
+        plan.quirkDone = true;
+        bumpStat('quirks');
+        log('◇ 意外な行動: シャッター連打 x6（多重撮影トリガの確認）');
+        busy = true;
+        try {
+          let landed = 0;
+          for (let i = 0; i < 6; i++) {
+            if (!btn.disabled) { btn.click(); landed++; }
+            await sleep(130);
+          }
+          // 1回しか着弾しない＝アプリ側のガードが効いている
+          log(`◇ 連打の結果: ${landed}/6 回が有効なボタンに着弾`);
+        } finally {
+          busy = false;
+        }
+        return;
       }
+      click(btn);
     },
 
-    'photoselect-screen': () => {
+    'photoselect-screen': async () => {
+      if (plan?.quirk === 'reload-midflow' && !plan.quirkDone) {
+        plan.quirkDone = true;
+        bumpStat('quirks');
+        log('◇ 意外な行動: フロー途中でブラウザリロード（誤操作からの復帰確認）');
+        setTimeout(() => location.reload(), 300);
+        return;
+      }
+      if (plan?.quirk === 'rapid-reselect' && !plan.quirkDone) {
+        const photos = [...document.querySelectorAll('[aria-label^="写真"]')];
+        if (photos.length >= 2) {
+          plan.quirkDone = true;
+          bumpStat('quirks');
+          log('◇ 意外な行動: 写真を素早く選び直し x5');
+          busy = true;
+          try {
+            for (let i = 0; i < 5; i++) { rand(photos).click(); await sleep(120); }
+          } finally {
+            busy = false;
+          }
+          // そのまま通常の選択ロジックへ落ちて続行
+        }
+      }
       if (plan?.goBack && !plan.backDone) {
         plan.backDone = true;
         handled = {};
@@ -305,10 +424,33 @@
       if (save && !handled.saved) {
         handled.saved = true;
         click(save);
+        if (plan?.quirk === 'double-click' && !plan.quirkDone) {
+          plan.quirkDone = true;
+          bumpStat('quirks');
+          log('◇ 意外な行動: 保存ボタンを二度押し（二重送信の確認）');
+          click(save);
+        }
       }
     },
 
-    'uploading-screen': () => { /* 完了 or オーバーレイを待つ */ },
+    'uploading-screen': async () => {
+      if (plan?.quirk === 'impatient-tap' && !plan.quirkDone) {
+        plan.quirkDone = true;
+        bumpStat('quirks');
+        log('◇ 意外な行動: アップロード中に連打（せっかちなタップの確認）');
+        busy = true;
+        try {
+          for (let i = 0; i < 6; i++) {
+            const btns = [...document.querySelectorAll('button')];
+            if (btns.length) rand(btns).click(); else document.body?.click();
+            await sleep(150);
+          }
+        } finally {
+          busy = false;
+        }
+      }
+      /* 完了 or オーバーレイを待つ */
+    },
 
     'qr-screen': async () => {
       if (handled.qrDone) return;
@@ -330,12 +472,20 @@
           bumpStat('dlFail');
           log('downloadUrl が取得できなかった');
         }
-        // サイクル正常完了 — 期待がオーバーレイだった注入の検証
+        // サイクル正常完了 — 期待がオーバーレイだった注入の検証。
+        // 未発火の注入（セッション事前作成などのタイミングずれで踏まれなかった）は実バグではないので
+        // 持ち越し扱いにし、発火したのにオーバーレイが出なかった場合だけ想定外とする
         const expected = (plan?.faults || []).filter(f => f.expectOverlay);
-        if (expected.length) {
+        const fired = expected.filter(f => firedFaultIds.has(f.id));
+        const unfired = expected.filter(f => !firedFaultIds.has(f.id));
+        if (fired.length) {
           bumpStat('unexpected');
-          log(`▲ 想定外: 注入したのにオーバーレイが出ずQRまで到達 (${expected.map(f => f.id).join(',')})`);
-        } else if (plan?.faults?.length) {
+          log(`▲ 想定外: 注入が発火したのにオーバーレイが出ずQRまで到達 (${fired.map(f => f.id).join(',')})`);
+        }
+        if (unfired.length) {
+          log(`△ 注入未発火のままサイクル完了 — 次サイクル開始時に掃除 (${unfired.map(f => f.id).join(',')})`);
+        }
+        if (!expected.length && plan?.faults?.length) {
           log(`✓ フォールバック動作OK (${plan.faults.map(f => f.id).join(',')})`);
         }
         if (cycleStartedAt) {
@@ -377,10 +527,7 @@
           screenshot('unexpected-overlay');
         }
       } else {
-        bumpStat('unexpected');
-        bumpStat('errors');
-        log('▲ 注入なしでオーバーレイ表示 — 実バグの可能性。ログを確認してください');
-        screenshot('real-bug-overlay');
+        verifyUnexpectedOverlay(); // 残留フォルト由来か照会してから判定する（fire-and-forget）
       }
     }
     // アプリは10秒で自動リロードする。30秒経っても残っていたら強制リロード
@@ -390,6 +537,28 @@
       location.reload();
     }
     return true;
+  }
+
+  // 注入なしのオーバーレイを実バグと断定する前に、サーバ側CHAOSの残留・直近発火を照会する
+  async function verifyUnexpectedOverlay() {
+    let residual = null;
+    try {
+      const st = await (await fetch('/api/admin/chaos')).json();
+      if (st.capture > 0 || st.r2 > 0 || st.qr > 0) {
+        residual = `armed capture:${st.capture} r2:${st.r2} qr:${st.qr}`;
+      } else if ((st.recentFired || []).some(f => Date.now() - f.at < 60_000)) {
+        residual = `直近発火: ${st.recentFired.map(f => f.target).join(',')}`;
+      }
+    } catch { /* 照会できなければ従来どおり実バグ扱い */ }
+    if (residual) {
+      log(`△ 注入なしでオーバーレイ表示 — 残留サーバフォルトが原因の可能性 (${residual})`);
+      screenshot('residual-fault-overlay');
+    } else {
+      bumpStat('unexpected');
+      bumpStat('errors');
+      log('▲ 注入なしでオーバーレイ表示 — 実バグの可能性。ログを確認してください');
+      screenshot('real-bug-overlay');
+    }
   }
 
   /* ── 監視: コスト・サーバ・ブラウザ ─────────── */
@@ -407,6 +576,7 @@
         log(`▲ リトライストーム検知: ${d.kind} が1サイクルで${reqCounts[d.kind]}回 — サーバコスト増のリスク`);
       }
     } else if (d.type === 'fault-fired') {
+      firedFaultIds.add(d.id);
       log(`注入発火: ${d.id} (${d.url})`);
     }
   }
@@ -508,7 +678,7 @@
     chrome.storage.local.get({ stats: {} }, ({ stats: s }) => {
       const alerts = (s.unexpected || 0) + (s.costAlerts || 0) + (s.serverDown || 0) + (s.freezes || 0);
       report(`統計: サイクル${s.cycles || 0} DL成功${s.dlOk || 0}/失敗${s.dlFail || 0} ` +
-        `注入${s.faultsInjected || 0} オーバーレイ${s.overlays || 0} ` +
+        `注入${s.faultsInjected || 0} 行動${s.quirks || 0} オーバーレイ${s.overlays || 0} ` +
         `想定外${s.unexpected || 0} コスト警告${s.costAlerts || 0} ` +
         `サーバ無応答${s.serverDown || 0} 停滞${s.freezes || 0}`,
         alerts > 0 ? 'alert' : 'info');

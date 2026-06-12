@@ -6,7 +6,7 @@ const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand }
 const QRCode = require('qrcode');
 
 const {
-    COMPOSITED_DIR, FRAMES_DIR, FLAME_PATH, MAX_COMPOSITED,
+    COMPOSITED_DIR, PREVIEW_DIR, FRAMES_DIR, FLAME_PATH, MAX_COMPOSITED,
     R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL,
     PAGES_BASE_URL, R2_RETENTION_MS, ts,
 } = require('./config');
@@ -62,6 +62,8 @@ async function compositeForSession(rawPath, frameId, sessionId) {
 
         console.log(`[${ts()}] composite saved → ${fileName}`);
         trimLocalDir(COMPOSITED_DIR, MAX_COMPOSITED);
+        // HEIC→JPEG変換のプレビューはraw本体と違い掃除されず無限に溜まるため、ここで一緒にトリムする
+        trimLocalDir(PREVIEW_DIR, MAX_COMPOSITED);
 
         return { fileName, destPath };
     } finally {
@@ -95,6 +97,8 @@ async function saveComposite(buffer) {
 
     console.log(`[${ts()}] composite saved → ${fileName}`);
     trimLocalDir(COMPOSITED_DIR, MAX_COMPOSITED);
+    // HEIC→JPEG変換のプレビューはraw本体と違い掃除されず無限に溜まるため、ここで一緒にトリムする
+    trimLocalDir(PREVIEW_DIR, MAX_COMPOSITED);
 
     return { fileName, destPath };
 }
@@ -153,6 +157,37 @@ async function uploadToR2(filePath, key) {
     console.log(`[${ts()}] R2 uploaded → ${key}`);
 }
 
+// ── 不安定ネットワーク時の後追いアップロード ──────────────────────────────
+// 通常経路の即時アップロードが失敗したときだけ使う代替手段。
+// QRは想定URLで先に出してあるので、ここでバックグラウンドで粘って成功させれば
+// ユーザーは時間をおいてからダウンロードできる。即時1回→失敗ならバックオフで長時間リトライ。
+const DEFERRED_DELAYS_MS = [0, 3_000, 10_000, 30_000, 60_000, 120_000, 300_000];
+
+async function deferredUploadToR2(filePath, key, { maxMs = R2_RETENTION_MS } = {}) {
+    const startedAt = Date.now();
+    let attempt = 0;
+    while (Date.now() - startedAt < maxMs) {
+        const waitMs = DEFERRED_DELAYS_MS[Math.min(attempt, DEFERRED_DELAYS_MS.length - 1)];
+        if (waitMs) await new Promise(r => setTimeout(r, waitMs));
+        attempt += 1;
+
+        // トリムで実ファイルが消えていたら諦める（後追いの間に新しい撮影が30件を超えた場合）
+        if (!fs.existsSync(filePath)) {
+            console.error(`[${ts()}] deferred upload aborted (file gone) → ${key}`);
+            return false;
+        }
+        try {
+            await uploadToR2(filePath, key);
+            console.log(`[${ts()}] deferred upload succeeded on attempt ${attempt} → ${key}`);
+            return true;
+        } catch (err) {
+            console.warn(`[${ts()}] deferred upload attempt ${attempt} failed → ${key}: ${err.message}`);
+        }
+    }
+    console.error(`[${ts()}] deferred upload gave up after ${attempt} attempt(s) → ${key}`);
+    return false;
+}
+
 // ── R2 cleanup: delete objects older than R2_RETENTION_MS ─────────────────
 async function cleanupOldR2Objects() {
     try {
@@ -205,6 +240,7 @@ module.exports = {
     saveComposite,
     generateQRDataUrl,
     uploadToR2,
+    deferredUploadToR2,
     cleanupOldR2Objects,
     listAllR2Objects,
     trimLocalDir,

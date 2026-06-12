@@ -187,36 +187,59 @@
     保存できない場合は、写真を長押し →「写真に追加」
   </p>
 
+  <!-- まだアップロードされていない（電波不安定での後追い中）場合の案内 -->
+  <div id="pending" class="error" style="display:none;">
+    <p class="t-heading">写真を準備しています</p>
+    <p class="t-body">通信状況により、表示まで数分かかることがあります。<br>少し時間をおいてから、もう一度このページを開いてダウンロードしてください。</p>
+    <button id="retry-btn" class="btn-download" style="margin-top:8px;">再読み込み</button>
+  </div>
+
   <div id="error" class="error" style="display:none;">
     <p class="t-heading">お写真が見つかりませんでした</p>
-    <p class="t-body">有効期限が切れているか、<br>URLが正しくない可能性があります。</p>
+    <p class="t-body">URLが正しくない可能性があります。</p>
   </div>
 
   <script>
     const params = new URLSearchParams(location.search);
     const id     = params.get('id');
 
+    // 画像が読めない＝未アップロード（後追い中）か期限切れ。何度か再試行してから案内を出す。
+    const RETRY_DELAYS_MS = [4000, 8000, 15000]; // ページ滞在中の自動再試行
+    let retryIndex = 0;
+
     if (!id) {
       show('error');
     } else {
+      loadPhoto();
+      document.getElementById('retry-btn').addEventListener('click', () => location.reload());
+    }
+
+    function loadPhoto() {
       const imgUrl = `/image/${id}.jpg`;
       const img    = document.getElementById('photo');
-
       img.onload = () => {
+        hide('pending');
         show('photo-wrap');
         show('notice');
         show('dl-btn');
         show('hint');
+        document.getElementById('dl-btn').onclick = () => savePhoto(imgUrl, id);
       };
-      img.onerror = () => show('error');
+      img.onerror = () => {
+        if (retryIndex < RETRY_DELAYS_MS.length) {
+          // 自動で少し待って再試行（後追いアップロードの完了を待つ）
+          show('pending');
+          setTimeout(() => { img.src = `${imgUrl}?t=${Date.now()}`; }, RETRY_DELAYS_MS[retryIndex++]);
+        } else {
+          // 一定回数試しても来なければ「時間をおいて」案内のまま据え置き
+          show('pending');
+        }
+      };
       img.src = imgUrl;
-
-      document.getElementById('dl-btn').addEventListener('click', () => savePhoto(imgUrl, id));
     }
 
-    function show(id) {
-      document.getElementById(id).style.display = '';
-    }
+    function show(id) { document.getElementById(id).style.display = ''; }
+    function hide(id) { document.getElementById(id).style.display = 'none'; }
 
     async function savePhoto(imgUrl, id) {
       const btn = document.getElementById('dl-btn');
@@ -225,15 +248,17 @@
 
       try {
         const res  = await fetch(imgUrl);
+        if (!res.ok) throw new Error('not ready');
         const blob = await res.blob();
-        const file = new File([blob], `photo_${id}.jpg`, { type: 'image/jpeg' });
+        const saveName = `${id}.jpg`; // id は familia_EggCamera_日時。そのまま保存名に使う
+        const file = new File([blob], saveName, { type: 'image/jpeg' });
 
         if (navigator.canShare?.({ files: [file] })) {
           await navigator.share({ files: [file] });
         } else {
           const url = URL.createObjectURL(blob);
           const a   = Object.assign(document.createElement('a'), {
-            href: url, download: `photo_${id}.jpg`,
+            href: url, download: saveName,
           });
           document.body.appendChild(a);
           a.click();
@@ -241,7 +266,11 @@
           setTimeout(() => URL.revokeObjectURL(url), 1000);
         }
       } catch (e) {
-        // AbortError はキャンセルなので無視
+        // 保存時にまだ来ていなければ「時間をおいて」案内へ（AbortErrorはキャンセルなので無視）
+        if (e && e.name !== 'AbortError' && String(e.message).includes('not ready')) {
+          hide('photo-wrap'); hide('notice'); hide('dl-btn'); hide('hint');
+          show('pending');
+        }
       } finally {
         btn.disabled    = false;
         btn.textContent = '↓ 写真を保存する';
