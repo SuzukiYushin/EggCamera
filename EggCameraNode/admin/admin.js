@@ -204,7 +204,13 @@ function drawCropPreview() {
 }
 
 ['crop-zoom', 'crop-ox', 'crop-oy'].forEach(id => {
-  $(`#${id}`).addEventListener('input', drawCropPreview);
+  $(`#${id}`).addEventListener('input', () => {
+    drawCropPreview();
+    // 値を変えたら古い「保存しました」を消して未保存を明示
+    const status = $('#crop-status');
+    status.className = 'status';
+    status.textContent = '未保存の変更があります';
+  });
 });
 
 $('#btn-test-capture').addEventListener('click', async () => {
@@ -238,7 +244,8 @@ $('#btn-save-crop').addEventListener('click', async () => {
     const saved = await api.put('/settings', { crop: currentCrop() });
     savedCrop = saved.crop;
     status.className = 'status';
-    status.textContent = '保存しました（次の撮影から反映）';
+    const t = new Date().toLocaleTimeString('ja-JP');
+    status.textContent = `保存しました ${t}（次の撮影から反映）`;
   } catch (err) {
     status.className = 'status err';
     status.textContent = `保存失敗: ${err.message}`;

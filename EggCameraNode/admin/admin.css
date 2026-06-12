@@ -187,6 +187,8 @@ hr { border: none; border-top: 1px solid #E8E9EF; margin: 20px 0 26px; }
   display: flex; align-items: center; justify-content: center;
   z-index: 50;
 }
+/* hidden 属性での開閉を効かせる（display:flex に勝たせる） */
+[hidden] { display: none !important; }
 .modal {
   background: #fff;
   border-radius: 16px;
