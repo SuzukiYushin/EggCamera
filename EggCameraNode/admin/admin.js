@@ -22,10 +22,11 @@ async function req(path, init) {
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
-    for (const id of ['frames', 'photo', 'logs']) {
+    for (const id of ['frames', 'photo', 'failed', 'logs']) {
       $(`#tab-${id}`).hidden = btn.dataset.tab !== id;
     }
     if (btn.dataset.tab === 'logs') startLogPolling(); else stopLogPolling();
+    if (btn.dataset.tab === 'failed') loadFailed();
   });
 });
 
@@ -283,8 +284,57 @@ function stopLogPolling() {
   logTimer = null;
 }
 
+/* ── 失敗画像 ─────────────────────────── */
+async function loadFailed() {
+  const items = await api.get('/failed').catch(() => []);
+  const grid = $('#failed-grid');
+  grid.innerHTML = '';
+  $('#failed-empty').style.display = items.length ? 'none' : '';
+  for (const it of items) {
+    const when = new Date(it.failedAt).toLocaleString('ja-JP');
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <img class="thumb" src="${it.url}" alt="" style="aspect-ratio:2/3;object-fit:cover;">
+      <div class="name"></div>
+      <div class="failed-when"></div>
+      <div class="failed-actions">
+        <a class="badge active" download>ダウンロード</a>
+        <button class="badge" data-act="retry">再送</button>
+        <button class="del" title="一覧から削除">x</button>
+      </div>`;
+    card.querySelector('.name').textContent = it.fileName;
+    card.querySelector('.failed-when').textContent = `失敗: ${when}`;
+    const dl = card.querySelector('a.badge');
+    dl.href = `${it.url}?download=1`;
+    card.querySelector('[data-act="retry"]').addEventListener('click', async (e) => {
+      const b = e.target; b.disabled = true; b.textContent = '再送中…';
+      try {
+        await api.post(`/failed/${encodeURIComponent(it.fileName)}/retry`, {});
+        loadFailed(); refreshFailedCount();
+      } catch { b.disabled = false; b.textContent = '再送失敗'; }
+    });
+    card.querySelector('.del').addEventListener('click', async () => {
+      if (!confirm(`「${it.fileName}」を一覧から削除しますか？（ローカルの失敗画像も消えます）`)) return;
+      await api.del(`/failed/${encodeURIComponent(it.fileName)}`);
+      loadFailed(); refreshFailedCount();
+    });
+    grid.appendChild(card);
+  }
+}
+
+// タブのバッジに失敗件数を出す（定期更新）
+async function refreshFailedCount() {
+  const items = await api.get('/failed').catch(() => []);
+  const badge = $('#failed-count');
+  if (items.length) { badge.textContent = items.length; badge.hidden = false; }
+  else badge.hidden = true;
+}
+
 /* ── 初期化 ───────────────────────────── */
 loadFrames();
 loadDisk();
 loadSettings();
+refreshFailedCount();
 setInterval(loadDisk, 30_000);
+setInterval(refreshFailedCount, 30_000);

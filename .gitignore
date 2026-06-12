@@ -40,3 +40,7 @@ EggCameraUserUI/src/assets/NEW/
 data/assets/frames/*
 !data/assets/frames/.gitkeep
 !data/assets/frames/flame_sample.png
+data/deferred/*
+!data/deferred/.gitkeep
+data/failed/*
+!data/failed/.gitkeep

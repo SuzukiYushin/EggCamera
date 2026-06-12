@@ -16,6 +16,7 @@
   <nav class="tabs">
     <button class="tab active" data-tab="frames">フレーム管理</button>
     <button class="tab" data-tab="photo">写真設定</button>
+    <button class="tab" data-tab="failed">失敗画像<span id="failed-count" class="tab-badge" hidden>0</span></button>
     <button class="tab" data-tab="logs">ログ</button>
   </nav>
 </header>
@@ -66,6 +67,19 @@
         <div id="crop-status" class="status"></div>
       </div>
     </div>
+  </section>
+
+  <!-- ── 失敗画像 ──────────────────────────────────── -->
+  <section id="tab-failed" class="panel" hidden>
+    <div class="panel-head">
+      <div>
+        <h2>失敗画像</h2>
+        <p class="hint">1時間アップロードできなかった写真。アップは24時間継続し、成功すると自動で消えます。手動で再送・ダウンロードもできます。</p>
+      </div>
+    </div>
+    <hr>
+    <div id="failed-grid" class="grid"></div>
+    <p id="failed-empty" class="hint" style="margin-top:8px;">現在、失敗した画像はありません。</p>
   </section>
 
   <!-- ── ログ ────────────────────────────────────── -->

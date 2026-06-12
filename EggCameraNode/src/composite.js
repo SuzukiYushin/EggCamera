@@ -6,13 +6,16 @@ const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand }
 const QRCode = require('qrcode');
 
 const {
-    COMPOSITED_DIR, PREVIEW_DIR, FRAMES_DIR, FLAME_PATH, MAX_COMPOSITED,
+    COMPOSITED_DIR, PREVIEW_DIR, DEFERRED_DIR, FAILED_DIR, FRAMES_DIR, FLAME_PATH, MAX_COMPOSITED,
+    DEFERRED_MAX_MS,
     R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL,
     PAGES_BASE_URL, R2_RETENTION_MS, ts,
 } = require('./config');
 const { heicToJpeg } = require('./capture');
 
 fs.mkdirSync(COMPOSITED_DIR, { recursive: true });
+fs.mkdirSync(DEFERRED_DIR, { recursive: true });
+fs.mkdirSync(FAILED_DIR, { recursive: true });
 
 const r2 = new S3Client({
     region: 'auto',
@@ -160,32 +163,85 @@ async function uploadToR2(filePath, key) {
 // ── 不安定ネットワーク時の後追いアップロード ──────────────────────────────
 // 通常経路の即時アップロードが失敗したときだけ使う代替手段。
 // QRは想定URLで先に出してあるので、ここでバックグラウンドで粘って成功させれば
-// ユーザーは時間をおいてからダウンロードできる。即時1回→失敗ならバックオフで長時間リトライ。
+// ユーザーは時間をおいてからダウンロードできる。
+// ・対象ファイルは DEFERRED_DIR に退避してトリム(30件)で消えないよう保護する
+// ・即時1回→バックオフで R2_RETENTION_MS(24時間) までリトライし続ける
+// ・DEFERRED_MAX_MS(1時間)を超えたら、アップは継続したまま FAILED_DIR にも複製して
+//   管理画面の「失敗画像」一覧に出す（手動DL/再試行が可能）。
+//   後からアップに成功すれば一覧からも自動で消える。
 const DEFERRED_DELAYS_MS = [0, 3_000, 10_000, 30_000, 60_000, 120_000, 300_000];
 
-async function deferredUploadToR2(filePath, key, { maxMs = R2_RETENTION_MS } = {}) {
+async function deferredUploadToR2(sourcePath, key, { maxMs = R2_RETENTION_MS, listAfterMs = DEFERRED_MAX_MS } = {}) {
+    const safePath   = path.join(DEFERRED_DIR, key);
+    const failedPath = path.join(FAILED_DIR, key);
+    try {
+        if (fs.existsSync(sourcePath)) fs.copyFileSync(sourcePath, safePath);
+    } catch (err) {
+        console.error(`[${ts()}] deferred copy failed → ${key}: ${err.message}`);
+    }
+
     const startedAt = Date.now();
     let attempt = 0;
+    let listed = false;
     while (Date.now() - startedAt < maxMs) {
         const waitMs = DEFERRED_DELAYS_MS[Math.min(attempt, DEFERRED_DELAYS_MS.length - 1)];
         if (waitMs) await new Promise(r => setTimeout(r, waitMs));
         attempt += 1;
 
-        // トリムで実ファイルが消えていたら諦める（後追いの間に新しい撮影が30件を超えた場合）
-        if (!fs.existsSync(filePath)) {
+        const working = fs.existsSync(safePath) ? safePath
+            : (fs.existsSync(failedPath) ? failedPath : null);
+        if (!working) {
             console.error(`[${ts()}] deferred upload aborted (file gone) → ${key}`);
             return false;
         }
         try {
-            await uploadToR2(filePath, key);
+            await uploadToR2(working, key);
             console.log(`[${ts()}] deferred upload succeeded on attempt ${attempt} → ${key}`);
+            try { fs.rmSync(safePath,   { force: true }); } catch { /* ignore */ }
+            try { fs.rmSync(failedPath, { force: true }); } catch { /* ignore */ } // 管理画面の失敗一覧からも除く
             return true;
         } catch (err) {
             console.warn(`[${ts()}] deferred upload attempt ${attempt} failed → ${key}: ${err.message}`);
         }
+
+        // 1時間経過したら（アップは継続したまま）管理画面の失敗一覧へ追加
+        if (!listed && Date.now() - startedAt >= listAfterMs) {
+            try {
+                fs.copyFileSync(safePath, failedPath);
+                listed = true;
+                console.warn(`[${ts()}] deferred upload overdue (>1h), listed in admin → ${key}`);
+            } catch { /* ignore */ }
+        }
     }
-    console.error(`[${ts()}] deferred upload gave up after ${attempt} attempt(s) → ${key}`);
+
+    // 24時間粘っても無理 → 失敗一覧に残したまま作業コピーだけ片付ける
+    if (!fs.existsSync(failedPath)) {
+        try { fs.copyFileSync(safePath, failedPath); } catch { /* ignore */ }
+    }
+    fs.rm(safePath, { force: true }, () => {});
+    console.error(`[${ts()}] deferred upload gave up after 24h → ${key} (kept in failed list)`);
     return false;
+}
+
+// ── 失敗画像（1時間アップできなかったもの）の一覧と再アップロード ──────────
+function listFailedUploads() {
+    let files;
+    try { files = fs.readdirSync(FAILED_DIR).filter(f => /\.(jpe?g|png)$/i.test(f)); }
+    catch { return []; }
+    return files.map(f => {
+        let failedAt = 0;
+        try { failedAt = fs.statSync(path.join(FAILED_DIR, f)).mtimeMs; } catch { /* ignore */ }
+        return { fileName: f, failedAt };
+    }).sort((a, b) => b.failedAt - a.failedAt);
+}
+
+// 管理画面からの手動再アップロード。成功したら FAILED_DIR から除く。
+async function retryFailedUpload(fileName) {
+    const p = path.join(FAILED_DIR, fileName);
+    if (!fs.existsSync(p)) throw new Error('not_found');
+    await uploadToR2(p, fileName);
+    fs.rm(p, { force: true }, () => {});
+    console.log(`[${ts()}] failed upload re-sent OK → ${fileName}`);
 }
 
 // ── R2 cleanup: delete objects older than R2_RETENTION_MS ─────────────────
@@ -241,6 +297,8 @@ module.exports = {
     generateQRDataUrl,
     uploadToR2,
     deferredUploadToR2,
+    listFailedUploads,
+    retryFailedUpload,
     cleanupOldR2Objects,
     listAllR2Objects,
     trimLocalDir,

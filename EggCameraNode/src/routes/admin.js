@@ -3,9 +3,10 @@ const os      = require('node:os');
 const path    = require('node:path');
 const express = require('express');
 
-const { DATA_DIR, CAPTURE_TIMEOUT_MS, ts } = require('../config');
+const { DATA_DIR, FAILED_DIR, CAPTURE_TIMEOUT_MS, ts } = require('../config');
 const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
 const { registerPhoto } = require('../sessions');
+const { listFailedUploads, retryFailedUpload } = require('../composite');
 const frames   = require('../frames');
 const settings = require('../settings');
 const logger   = require('../logger');
@@ -160,5 +161,41 @@ router.post('/chaos', (req, res) => {
 });
 router.get('/chaos', (req, res) => res.json(chaos.status()));
 router.delete('/chaos', (req, res) => { chaos.reset(); res.json(chaos.status()); });
+
+// ── 失敗画像（1時間アップできなかったもの） ────────────────────────────────
+router.get('/failed', (req, res) => {
+    res.json(listFailedUploads().map(f => ({
+        fileName: f.fileName,
+        failedAt: f.failedAt,
+        url: `/api/admin/failed/${encodeURIComponent(f.fileName)}`,
+    })));
+});
+
+// 画像本体（管理画面のサムネ表示＆ダウンロード）
+router.get('/failed/:file', (req, res) => {
+    const name = path.basename(req.params.file); // パストラバーサル防止
+    const p = path.join(FAILED_DIR, name);
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'not_found' });
+    if (req.query.download) res.set('Content-Disposition', `attachment; filename="${name}"`);
+    res.sendFile(p);
+});
+
+// 手動で再アップロード（成功したら一覧から消える）
+router.post('/failed/:file/retry', async (req, res) => {
+    try {
+        await retryFailedUpload(path.basename(req.params.file));
+        res.json({ ok: true });
+    } catch (err) {
+        const code = err.message === 'not_found' ? 404 : 502;
+        res.status(code).json({ error: err.message });
+    }
+});
+
+// 一覧から削除（ローカルの失敗ファイルを破棄）
+router.delete('/failed/:file', (req, res) => {
+    const p = path.join(FAILED_DIR, path.basename(req.params.file));
+    try { fs.rmSync(p); res.json({ ok: true }); }
+    catch { res.status(404).json({ error: 'not_found' }); }
+});
 
 module.exports = router;

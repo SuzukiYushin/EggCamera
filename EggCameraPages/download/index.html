@@ -84,6 +84,15 @@
       color: var(--color-brand-600);
       letter-spacing: 0.03em;
     }
+    /* クレーム対応時の写真特定用ファイル名 */
+    .filename {
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--color-ink-400);
+      word-break: break-all;
+      text-align: center;
+      max-width: 480px;
+    }
 
     /* Primary button（ユーザーUIの .btn-primary と同じピル型） */
     .btn-download {
@@ -181,6 +190,9 @@
 
   <p id="notice" class="notice" style="display:none;">24時間以内にダウンロードしてください。</p>
 
+  <!-- クレーム対応時にどの写真か特定できるようファイル名を表示 -->
+  <p id="filename" class="filename" style="display:none;"></p>
+
   <button id="dl-btn" class="btn-download" style="display:none;">↓ 写真を保存する</button>
 
   <p id="hint" class="hint" style="display:none;">
@@ -190,7 +202,7 @@
   <!-- まだアップロードされていない（電波不安定での後追い中）場合の案内 -->
   <div id="pending" class="error" style="display:none;">
     <p class="t-heading">写真を準備しています</p>
-    <p class="t-body">通信状況により、表示まで数分かかることがあります。<br>少し時間をおいてから、もう一度このページを開いてダウンロードしてください。</p>
+    <p class="t-body">通信状況により、表示まで時間がかかることがあります。<br>時間をおいてから、もう一度このページを開いてダウンロードしてください。</p>
     <button id="retry-btn" class="btn-download" style="margin-top:8px;">再読み込み</button>
   </div>
 
@@ -221,6 +233,9 @@
         hide('pending');
         show('photo-wrap');
         show('notice');
+        const fn = document.getElementById('filename');
+        fn.textContent = `ファイル名: ${id}.jpg`;
+        show('filename');
         show('dl-btn');
         show('hint');
         document.getElementById('dl-btn').onclick = () => savePhoto(imgUrl, id);
