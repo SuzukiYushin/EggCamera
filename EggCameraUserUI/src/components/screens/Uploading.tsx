@@ -3,30 +3,41 @@ import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
 import { getSession } from '../../api';
 import type { SessionResult } from '../../api';
+import { reportClientError } from '../../clientLog';
 import bearImg from '../../assets/bear_uploading.png';
 
 interface UploadingProps {
   sessionId: string | null;
   onResult: (result: SessionResult) => void;
   onNext: () => void;
-  onRetry: () => void;
+  onError: () => void;
 }
 
-export function Uploading({ sessionId, onResult, onNext, onRetry }: UploadingProps) {
+// ポーリングの上限。超えたら全画面のお詫びオーバーレイへ
+const MAX_POLL_FAILURES = 20;   // 連続失敗 約20秒
+const OVERALL_TIMEOUT_MS = 90_000;
+
+export function Uploading({ sessionId, onResult, onNext, onError }: UploadingProps) {
   const { T } = useLang();
   const [prog, setProg] = useState(0);
-  const [error, setError] = useState(false);
-  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
+    let failures = 0;
+    const startedAt = Date.now();
 
     const poll = async () => {
+      if (Date.now() - startedAt > OVERALL_TIMEOUT_MS) {
+        reportClientError('upload timed out (90s)');
+        onError();
+        return;
+      }
       try {
         const session = await getSession(sessionId);
         if (cancelled) return;
+        failures = 0;
 
         if (session.status === 'done' && session.result) {
           setProg(100);
@@ -35,26 +46,27 @@ export function Uploading({ sessionId, onResult, onNext, onRetry }: UploadingPro
           return;
         }
         if (session.status === 'error') {
-          setError(true);
+          reportClientError(`upload failed: ${session.error}`);
+          onError();
           return;
         }
         setProg(p => Math.min(p + 6, 90));
         timer = setTimeout(poll, 1000);
       } catch {
-        if (!cancelled) timer = setTimeout(poll, 1000);
+        if (cancelled) return;
+        failures += 1;
+        if (failures >= MAX_POLL_FAILURES) {
+          reportClientError(`session polling failed ${MAX_POLL_FAILURES} times in a row`);
+          onError();
+          return;
+        }
+        timer = setTimeout(poll, 1000);
       }
     };
 
     poll();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [sessionId, attempt]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleRetry = () => {
-    setError(false);
-    setProg(0);
-    onRetry();
-    setAttempt(a => a + 1);
-  };
+  }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <IPad animKey="upload">
@@ -87,14 +99,14 @@ export function Uploading({ sessionId, onResult, onNext, onRetry }: UploadingPro
               marginBottom: 10,
               lineHeight: 1.3,
             }}>
-              {error ? T.uploading.error : prog < 100 ? T.uploading.saving : T.uploading.done}
+              {prog < 100 ? T.uploading.saving : T.uploading.done}
             </div>
             <div style={{
               fontFamily: "var(--font-ui)",
               fontSize: 12, fontWeight: 600,
               color: 'var(--color-brand-600)',
               marginBottom: 50,
-              visibility: !error && prog < 100 ? 'visible' : 'hidden',
+              visibility: prog < 100 ? 'visible' : 'hidden',
             }}>
               {T.uploading.wait}
             </div>
@@ -117,19 +129,10 @@ export function Uploading({ sessionId, onResult, onNext, onRetry }: UploadingPro
           <div style={{
             height: '100%', width: `${prog}%`,
             borderRadius: 99,
-            background: error ? 'var(--color-gray-300)' : 'var(--color-brand-400)',
+            background: 'var(--color-brand-400)',
             transition: 'width 0.18s cubic-bezier(0.22, 1, 0.36, 1)',
           }} />
         </div>
-
-        {/* Retry on error */}
-        {error && (
-          <div style={{ marginTop: 32, width: '80%' }}>
-            <button className="btn-primary" onClick={handleRetry}>
-              {T.uploading.retry}
-            </button>
-          </div>
-        )}
 
       </div>
     </IPad>

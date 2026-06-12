@@ -1,15 +1,33 @@
 import AVFoundation
+import CoreImage
 import Foundation
 import ImageIO
+import QuartzCore
 
 final class CameraController: NSObject {
     private let session = AVCaptureSession()
     private let photoOutput = AVCapturePhotoOutput()
+    private let videoOutput = AVCaptureVideoDataOutput()
     private let sessionQueue = DispatchQueue(label: "com.eggcamera.iphone.camera")
+    private let videoQueue = DispatchQueue(label: "com.eggcamera.iphone.preview-frames")
     private weak var logger: AppLogger?
     private var device: AVCaptureDevice?
     private var activeDelegates: [PhotoCaptureDelegate] = []
     private let delegateLock = NSLock()
+
+    // ブラウザのライブプレビュー用: 最新フレームのJPEGを保持（GET /frame が読む）
+    private let frameLock = NSLock()
+    private var latestFrameJPEG: Data?
+    private var lastFrameEncodedAt: TimeInterval = 0
+    private let ciContext = CIContext(options: [.cacheIntermediates: false])
+    private static let previewFPS: Double = 10
+    private static let previewLongEdge: CGFloat = 720
+
+    func latestPreviewFrame() -> Data? {
+        frameLock.lock()
+        defer { frameLock.unlock() }
+        return latestFrameJPEG
+    }
 
     init(logger: AppLogger) {
         self.logger = logger
@@ -139,6 +157,23 @@ final class CameraController: NSObject {
         photoOutput.maxPhotoQualityPrioritization = .quality
         self.device = device
 
+        // ライブプレビュー配信用の映像出力（静止画撮影には影響しない）
+        videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        videoOutput.alwaysDiscardsLateVideoFrames = true
+        videoOutput.setSampleBufferDelegate(self, queue: videoQueue)
+        if session.canAddOutput(videoOutput) {
+            session.addOutput(videoOutput)
+            if let connection = videoOutput.connection(with: .video) {
+                if #available(iOS 17.0, *) {
+                    if connection.isVideoRotationAngleSupported(90) {
+                        connection.videoRotationAngle = 90 // 縦向き
+                    }
+                } else if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = .portrait
+                }
+            }
+        }
+
         if let format = device.formats.max(by: { maxArea($0) < maxArea($1) }) {
             try device.lockForConfiguration()
             device.activeFormat = format
@@ -227,6 +262,38 @@ final class CameraController: NSObject {
     private func describe(_ dimensions: CMVideoDimensions?) -> String {
         guard let dimensions else { return "-" }
         return "\(dimensions.width)x\(dimensions.height)"
+    }
+}
+
+// ── ライブプレビューのフレーム生成 ──────────────────────────────
+extension CameraController: AVCaptureVideoDataOutputSampleBufferDelegate {
+    func captureOutput(_ output: AVCaptureOutput,
+                       didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        // FPSを間引いてCPU/帯域を節約
+        let now = CACurrentMediaTime()
+        guard now - lastFrameEncodedAt >= 1.0 / Self.previewFPS else { return }
+        lastFrameEncodedAt = now
+
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+
+        var image = CIImage(cvPixelBuffer: pixelBuffer)
+        let longEdge = max(image.extent.width, image.extent.height)
+        if longEdge > Self.previewLongEdge {
+            let scale = Self.previewLongEdge / longEdge
+            image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        }
+
+        let qualityKey = CIImageRepresentationOption(rawValue: kCGImageDestinationLossyCompressionQuality as String)
+        guard let jpeg = ciContext.jpegRepresentation(
+            of: image,
+            colorSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+            options: [qualityKey: 0.55]
+        ) else { return }
+
+        frameLock.lock()
+        latestFrameJPEG = jpeg
+        frameLock.unlock()
     }
 }
 

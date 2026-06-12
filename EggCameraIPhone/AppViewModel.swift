@@ -23,7 +23,7 @@ final class AppViewModel: ObservableObject {
         let pipeline = CapturePipeline(cameraController: cameraController,
                                        transferClient: transferClient,
                                        logger: logger)
-        let commandServer = CaptureCommandServer(pipeline: pipeline, logger: logger)
+        let commandServer = CaptureCommandServer(pipeline: pipeline, cameraController: cameraController, logger: logger)
 
         self.logger = logger
         self.cameraController = cameraController

@@ -5,6 +5,7 @@ const { CAPTURE_TIMEOUT_MS, COMPOSITED_DIR, R2_RETENTION_MS, ts } = require('../
 const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
 const { saveComposite, uploadToR2, generateQRDataUrl } = require('../composite');
 const { createSession, getSession, touch, registerPhoto } = require('../sessions');
+const chaos = require('../chaos');
 
 const router = express.Router();
 
@@ -32,6 +33,7 @@ router.post('/:id/capture', async (req, res) => {
     session.status = 'capturing';
 
     try {
+        if (chaos.consume('capture')) throw new Error('mac-unreachable');
         const sinceMs = Date.now();
         await sendTrigger();
         const rawPath     = await waitForNewRawFile(sinceMs, CAPTURE_TIMEOUT_MS);
@@ -96,7 +98,9 @@ router.post('/:id/composite', express.raw({ type: 'image/png', limit: '20mb' }),
     (async () => {
         try {
             const { fileName } = await saveComposite(req.body, session.id);
+            if (chaos.consume('r2')) throw new Error('injected_r2_failure');
             await uploadToR2(path.join(COMPOSITED_DIR, fileName), fileName);
+            if (chaos.consume('qr')) throw new Error('injected_qr_failure');
             const { dataUrl, targetUrl } = await generateQRDataUrl(fileName);
 
             session.result = {

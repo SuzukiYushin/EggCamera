@@ -10,9 +10,11 @@ import { FinalPreview } from './components/screens/FinalPreview';
 import { Uploading }    from './components/screens/Uploading';
 import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
+import { ErrorOverlay } from './components/ErrorOverlay';
 import { FRAMES }       from './data/frames';
 import { createSession, selectPhoto, uploadComposite } from './api';
 import type { SessionPhoto, SessionResult } from './api';
+import { reportClientError } from './clientLog';
 
 type Screen = 'start' | 'nick' | 'bday' | 'capture' | 'photosel' | 'preview' | 'upload' | 'qr' | 'end';
 
@@ -26,12 +28,32 @@ export default function App() {
   const [photos, setPhotos]         = useState<SessionPhoto[]>([]);
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [result, setResult]         = useState<SessionResult | null>(null);
-  const [compositeBlob, setCompositeBlob] = useState<Blob | null>(null);
+  const [fatal, setFatal]           = useState(false);
+
+  // 想定外のエラーは全画面共通のお詫びオーバーレイ → 自動リロードでトップへ。
+  // 原因はサーバログへ送って data/logs/ と管理画面で追えるようにする。
+  useEffect(() => {
+    const onError = (e: Event) => {
+      const detail = e instanceof ErrorEvent
+        ? `${e.message} @${e.filename}:${e.lineno}`
+        : e instanceof PromiseRejectionEvent
+          ? `unhandledrejection: ${e.reason}`
+          : 'unknown error';
+      reportClientError(detail);
+      setFatal(true);
+    };
+    window.addEventListener('error', onError);
+    window.addEventListener('unhandledrejection', onError);
+    return () => {
+      window.removeEventListener('error', onError);
+      window.removeEventListener('unhandledrejection', onError);
+    };
+  }, []);
 
   useEffect(() => {
     createSession()
       .then(({ sessionId }) => setSessionId(sessionId))
-      .catch(err => console.error('createSession failed', err));
+      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); });
   }, []);
 
   const go = (s: Screen) => setScreen(s);
@@ -49,26 +71,21 @@ export default function App() {
     setSelectedPhotoId(null);
     createSession()
       .then(({ sessionId }) => setSessionId(sessionId))
-      .catch(err => console.error('createSession failed', err));
+      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); });
     go('capture');
   };
 
   const goUpload = (blob: Blob) => {
-    setCompositeBlob(blob);
     if (sessionId && selectedPhotoId) {
+      // メタデータ記録のみ。失敗しても合成画像のアップロードには影響しない
       selectPhoto(sessionId, { photoId: selectedPhotoId, frameId, nickname, days })
         .catch(err => console.error('selectPhoto failed', err));
     }
     if (sessionId) {
-      uploadComposite(sessionId, blob).catch(err => console.error('uploadComposite failed', err));
+      uploadComposite(sessionId, blob)
+        .catch(err => { reportClientError(`uploadComposite failed: ${err}`); setFatal(true); });
     }
     go('upload');
-  };
-
-  const retryUpload = () => {
-    if (sessionId && compositeBlob) {
-      uploadComposite(sessionId, compositeBlob).catch(err => console.error('uploadComposite failed', err));
-    }
   };
 
   const restart = () => {
@@ -79,10 +96,9 @@ export default function App() {
     setPhotos([]);
     setSelectedPhotoId(null);
     setResult(null);
-    setCompositeBlob(null);
     createSession()
       .then(({ sessionId }) => setSessionId(sessionId))
-      .catch(err => console.error('createSession failed', err));
+      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); });
     go('start');
   };
 
@@ -93,12 +109,13 @@ export default function App() {
       {screen === 'start'    && <Start       onNext={() => go('nick')} />}
       {screen === 'nick'     && <Nickname    nickname={nickname} onChange={setNickname} onNext={() => go('bday')} onSkip={() => go('bday')} />}
       {screen === 'bday'     && <Birthday    nickname={nickname} onNext={goCapture} onSkip={() => goCapture(0)} />}
-      {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} />}
+      {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={() => setFatal(true)} />}
       {screen === 'photosel' && <PhotoSelect photos={photos} onNext={photoId => { setSelectedPhotoId(photoId); go('preview'); }} onBack={retake} />}
       {screen === 'preview'  && <FinalPreview nickname={nickname} days={days} frameLabel={frameLabel} photoUrl={selectedPhoto?.url ?? ''} onNext={goUpload} />}
-      {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onRetry={retryUpload} />}
+      {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onError={() => setFatal(true)} />}
       {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={restart} />}
       {screen === 'end'      && <End         onRestart={restart} />}
+      {fatal && <ErrorOverlay />}
     </LangProvider>
   );
 }

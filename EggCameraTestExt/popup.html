@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  body {
+    width: 340px;
+    font-family: 'Hiragino Kaku Gothic Pro', sans-serif;
+    margin: 0; padding: 16px;
+    background: #14141f; color: #eee;
+  }
+  h1 { font-size: 14px; margin: 0 0 12px; }
+  h1 span { color: #FF2D78; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  button {
+    flex: 1; border: none; border-radius: 8px;
+    padding: 10px 0; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  #toggle.start { background: #2ECC8F; color: #fff; }
+  #toggle.stop  { background: #FF5A5A; color: #fff; }
+  #clear { background: #2a2a3a; color: #aaa; flex: 0 0 80px; }
+  label { font-size: 11px; color: #9aa0b4; display: flex; align-items: center; gap: 6px; }
+  input[type=number] {
+    width: 64px; border: 1px solid #333; border-radius: 6px;
+    background: #1e1e2c; color: #eee; padding: 6px;
+  }
+  .stats {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
+    margin: 12px 0;
+  }
+  .stat { background: #1e1e2c; border-radius: 8px; padding: 7px 9px; }
+  .stat .v { font-size: 16px; font-weight: 800; }
+  .stat .k { font-size: 9px; color: #9aa0b4; }
+  .stat.err .v { color: #FF7B7B; }
+  .stat.warn .v { color: #FFD166; }
+  pre {
+    background: #0d0d16; border-radius: 8px; padding: 10px;
+    font-size: 10px; line-height: 1.6; color: #C9F7D4;
+    height: 150px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    margin: 0;
+  }
+</style>
+</head>
+<body>
+  <h1><span>●</span> EggCamera 長期運用テスト</h1>
+  <div class="row">
+    <button id="toggle" class="start">開始</button>
+    <button id="export" style="background:#2a2a3a;color:#aaa;flex:0 0 80px;">保存</button>
+    <button id="clear">統計クリア</button>
+  </div>
+  <div class="row">
+    <label>QR待機秒数 <input id="qrwait" type="number" min="5" max="600" value="60"></label>
+    <label><input id="inject" type="checkbox" checked> エラー注入</label>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="v" id="s-cycles">0</div><div class="k">サイクル</div></div>
+    <div class="stat"><div class="v" id="s-dlok">0</div><div class="k">DL成功</div></div>
+    <div class="stat err"><div class="v" id="s-dlfail">0</div><div class="k">DL失敗</div></div>
+    <div class="stat warn"><div class="v" id="s-faults">0</div><div class="k">注入</div></div>
+    <div class="stat warn"><div class="v" id="s-overlays">0</div><div class="k">オーバーレイ</div></div>
+    <div class="stat err"><div class="v" id="s-unexpected">0</div><div class="k">想定外</div></div>
+    <div class="stat err"><div class="v" id="s-cost">0</div><div class="k">コスト警告</div></div>
+    <div class="stat err"><div class="v" id="s-down">0</div><div class="k">サーバ無応答</div></div>
+    <div class="stat err"><div class="v" id="s-freeze">0</div><div class="k">停滞検知</div></div>
+  </div>
+  <pre id="log"></pre>
+  <script src="popup.js"></script>
+</body>
+</html>

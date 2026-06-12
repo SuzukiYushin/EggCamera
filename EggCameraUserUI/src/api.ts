@@ -77,6 +77,29 @@ export function selectPhoto(sessionId: string, params: SelectPhotoParams): Promi
   });
 }
 
+// Active frames managed via the admin panel (/admin). The user UI picks one
+// at random; falls back to the bundled frames if this fails or returns [].
+export interface FrameInfo {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export function getFrames(): Promise<FrameInfo[]> {
+  return request('/frames');
+}
+
+// Crop tuning saved from the admin panel's 写真設定 tab.
+export interface CropSettings {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export function getCropSettings(): Promise<{ crop: CropSettings }> {
+  return request('/settings');
+}
+
 // Uploads the client-composited final image (photo + frame + name/days, baked
 // in via canvas) as a raw PNG body.
 export async function uploadComposite(sessionId: string, blob: Blob): Promise<{ status: string }> {

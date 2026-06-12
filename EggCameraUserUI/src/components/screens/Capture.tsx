@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
 import { capturePhoto, ApiError } from '../../api';
 import type { SessionPhoto } from '../../api';
+import { reportClientError } from '../../clientLog';
 import babyImg from '../../assets/baby_illustrator.png';
 
 interface CaptureProps {
   sessionId: string | null;
   onComplete: (photos: SessionPhoto[]) => void;
+  onError: () => void;
 }
 
 const MAX_SHOTS = 3;
@@ -39,12 +41,12 @@ function makeBurst(): Burst {
     id: ++burstCounter,
     particles: BASE_ANGLES.map((base, i) => {
       const angle = (base + (Math.random() - 0.5) * 18) * (Math.PI / 180);
-      const dist = 75 + Math.random() * 90;
+      const dist = 225 + Math.random() * 270;
       return {
         tx: Math.cos(angle) * dist,
         ty: Math.sin(angle) * dist,
         color: PARTICLE_COLORS[i % PARTICLE_COLORS.length],
-        size: 10 + Math.random() * 12,
+        size: 30 + Math.random() * 36,
         shape: (['circle', 'square', 'star'] as const)[i % 3],
         duration: 600 + Math.random() * 300,
         delay: Math.random() * 60,
@@ -53,71 +55,129 @@ function makeBurst(): Burst {
   };
 }
 
-type CaptureError = 'mac_unreachable' | 'capture_timeout' | 'capture_failed';
+// ── iPhoneのリアルタイム映像（約8fpsでフレームをポーリング） ──────
+// 取得できない間は同梱イラストにフォールバックし、自動で再接続を試みる。
+const PREVIEW_INTERVAL_MS = 125;
+const PREVIEW_RETRY_MS = 1500;
 
-export function Capture({ sessionId, onComplete }: CaptureProps) {
+function LiveCameraView() {
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let prevUrl: string | null = null;
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+    (async () => {
+      while (!cancelled) {
+        const t0 = Date.now();
+        try {
+          const res = await fetch('/api/preview/frame', { cache: 'no-store' });
+          if (!res.ok) throw new Error(`status ${res.status}`);
+          const blob = await res.blob();
+          if (cancelled) break;
+          const url = URL.createObjectURL(blob);
+          setFrameUrl(url);
+          if (prevUrl) URL.revokeObjectURL(prevUrl);
+          prevUrl = url;
+          await sleep(Math.max(0, PREVIEW_INTERVAL_MS - (Date.now() - t0)));
+        } catch {
+          if (cancelled) break;
+          setFrameUrl(null); // イラストにフォールバック
+          await sleep(PREVIEW_RETRY_MS);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (prevUrl) URL.revokeObjectURL(prevUrl);
+    };
+  }, []);
+
+  if (frameUrl) {
+    return (
+      <img
+        src={frameUrl}
+        alt="camera preview"
+        style={{
+          position: 'absolute', inset: 0,
+          width: '100%', height: '100%',
+          objectFit: 'cover', display: 'block',
+        }}
+      />
+    );
+  }
+
+  // フォールバック（iPhone未接続・プレビュー取得失敗時）
+  return (
+    <img
+      src={babyImg}
+      alt="camera preview"
+      style={{
+        position: 'absolute', top: '45%', left: '47%',
+        transform: 'translate(-49%, -48%)',
+        width: '105%', height: '105%', objectFit: 'cover', display: 'block',
+      }}
+    />
+  );
+}
+
+export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
   const { T } = useLang();
   const [photos, setPhotos] = useState<SessionPhoto[]>([]);
   const [flashKey, setFlashKey] = useState(0);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const [started, setStarted] = useState(false);
-  const [error, setError] = useState<CaptureError | null>(null);
 
   const canShoot = !!sessionId && !started && photos.length < MAX_SHOTS;
+
+  // iPhoneのシャッターはトリガー送信の直後に切れる（レスポンスはHEIC転送・変換後で
+  // 数秒遅れる）ので、エフェクトは完了を待たず送信直後+補正分の遅延で発火させる
+  const FX_DELAY_MS = 400;
+
+  const fireShotEffect = () => {
+    setFlashKey(k => k + 1);
+    const burst = makeBurst();
+    setBursts(b => [...b, burst]);
+    setTimeout(() => setBursts(b => b.filter(x => x.id !== burst.id)), 900);
+  };
 
   const shoot = async () => {
     if (!canShoot || !sessionId) return;
     setStarted(true);
-    setError(null);
 
     const acc = [...photos];
     while (acc.length < MAX_SHOTS) {
+      const fxTimer = setTimeout(fireShotEffect, FX_DELAY_MS);
       try {
         const photo = await capturePhoto(sessionId);
         acc.push(photo);
         setPhotos([...acc]);
-        setFlashKey(k => k + 1);
-        const burst = makeBurst();
-        setBursts(b => [...b, burst]);
-        setTimeout(() => setBursts(b => b.filter(x => x.id !== burst.id)), 900);
         if (acc.length < MAX_SHOTS) {
           await new Promise(r => setTimeout(r, SHOT_INTERVAL));
         }
       } catch (err) {
-        setStarted(false);
-        if (err instanceof ApiError && err.code === 'mac_unreachable') setError('mac_unreachable');
-        else if (err instanceof ApiError && err.code === 'capture_timeout') setError('capture_timeout');
-        else setError('capture_failed');
+        clearTimeout(fxTimer); // 失敗時はエフェクトを出さない（即時エラーの場合）
+        // 撮影エラーは全画面共通のお詫びオーバーレイへ（自動リロードで復帰）
+        const code = err instanceof ApiError ? err.code : 'capture_failed';
+        reportClientError(`capture failed: ${code} (shot ${acc.length + 1}/3)`);
+        onError();
         return;
       }
     }
     setTimeout(() => onComplete(acc), 700);
   };
 
-  const errorText = error === 'mac_unreachable' ? T.capture.errorMacUnreachable
-    : error === 'capture_timeout' ? T.capture.errorCaptureTimeout
-      : error === 'capture_failed' ? T.capture.errorGeneric
-        : null;
-
-  const shutterLabel = error ? T.capture.retry
-    : started ? T.capture.capturing
-      : T.capture.shutter;
+  const shutterLabel = started ? T.capture.capturing : T.capture.shutter;
 
   return (
     <IPad animKey="capture">
       {/* Full-bleed camera view */}
       <div data-section="camera-screen" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
 
-        {/* Photo fills entire area */}
-        <img
-          src={babyImg}
-          alt="camera preview"
-          style={{
-            position: 'absolute', top: '53%', left: '47%',
-            transform: 'translate(-49%, -48%)',
-            width: '105%', height: '105%', objectFit: 'cover', display: 'block',
-          }}
-        />
+        {/* iPhoneのリアルタイム映像（未接続時はイラストにフォールバック） */}
+        <LiveCameraView />
 
         {/* Instruction text at top */}
         <div style={{
@@ -170,23 +230,6 @@ export function Capture({ sessionId, onComplete }: CaptureProps) {
             fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600,
             color: '#FF3B30',
           }}>{photos.length} / {MAX_SHOTS}</div>
-        )}
-
-        {/* Error message */}
-        {errorText && (
-          <div style={{
-            position: 'absolute', bottom: 134, left: 24, right: 24,
-            textAlign: 'center',
-          }}>
-            <div style={{
-              display: 'inline-block',
-              background: 'rgba(0,0,0,0.7)',
-              color: '#040404',
-              borderRadius: 8,
-              padding: '10px 18px',
-              fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 500,
-            }}>{errorText}</div>
-          </div>
         )}
 
         {/* Circular shutter button — outer navy ring + inner blue circle with label */}

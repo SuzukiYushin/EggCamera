@@ -3,11 +3,16 @@ import type { CSSProperties } from 'react';
 import { IPad, useFitScale } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
+import { getFrames, getCropSettings } from '../../api';
+import type { CropSettings } from '../../api';
 import frameA from '../../assets/photo_frameA.png';
 import frameB from '../../assets/photo_frameB.png';
 import frameC from '../../assets/photo_frameC.png';
 
-const FRAME_VARIANTS = [frameA, frameB, frameC];
+// 管理画面のフレームAPIが空/失敗のときに使う同梱フォールバック
+const FRAME_FALLBACKS = [frameA, frameB, frameC];
+
+const DEFAULT_CROP: CropSettings = { zoom: 1, offsetX: 0, offsetY: 0 };
 
 // Design-space layout constants for the photo box (matches the CSS that used
 // to position photo/frame/text — kept here so the canvas can replicate it).
@@ -83,7 +88,8 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
   const { T } = useLang();
   const daysText = days > 0 ? T.preview.daysSinceBirth(days) : '';
   const [bursts, setBursts] = useState<Burst[]>([]);
-  const [frameSrc] = useState(() => FRAME_VARIANTS[Math.floor(Math.random() * FRAME_VARIANTS.length)]);
+  const [frameSrc, setFrameSrc] = useState<string | null>(null);
+  const [crop, setCrop] = useState<CropSettings>(DEFAULT_CROP);
   const [ready, setReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -98,12 +104,36 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
     return () => clearTimeout(t);
   }, []);
 
+  // 管理画面で登録された「使用中」フレームから1つ抽選（マウント時に一度だけ）。
+  // API失敗・0件のときは同梱の photo_frameA/B/C にフォールバック。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const frames = await getFrames();
+        if (cancelled) return;
+        if (frames.length > 0) {
+          setFrameSrc(frames[Math.floor(Math.random() * frames.length)].url);
+        } else {
+          setFrameSrc(FRAME_FALLBACKS[Math.floor(Math.random() * FRAME_FALLBACKS.length)]);
+        }
+      } catch {
+        if (!cancelled) setFrameSrc(FRAME_FALLBACKS[Math.floor(Math.random() * FRAME_FALLBACKS.length)]);
+      }
+      try {
+        const s = await getCropSettings();
+        if (!cancelled && s?.crop) setCrop(s.crop);
+      } catch { /* デフォルトのまま */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   // Composite photo + frame + nickname/days onto the canvas — this is the
   // exact image that gets exported and uploaded on save.
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container || !photoUrl) return;
+    if (!canvas || !container || !photoUrl || !frameSrc) return;
 
     let cancelled = false;
     setReady(false);
@@ -113,12 +143,14 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
       if (cancelled) return;
 
       const targetAspect = 2 / 3;
+      const iw = photoImg.naturalWidth;
+      const ih = photoImg.naturalHeight;
       let cw: number, ch: number;
-      if (photoImg.naturalWidth / photoImg.naturalHeight > targetAspect) {
-        ch = photoImg.naturalHeight;
+      if (iw / ih > targetAspect) {
+        ch = ih;
         cw = ch * targetAspect;
       } else {
-        cw = photoImg.naturalWidth;
+        cw = iw;
         ch = cw / targetAspect;
       }
       cw = Math.round(cw);
@@ -129,10 +161,15 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Photo, center-cropped to 2:3 (object-fit: cover)
-      const sx = (photoImg.naturalWidth - cw) / 2;
-      const sy = (photoImg.naturalHeight - ch) / 2;
-      ctx.drawImage(photoImg, sx, sy, cw, ch, 0, 0, cw, ch);
+      // Photo: 2:3 center-crop (object-fit: cover) に管理画面のクロップ設定
+      // （zoom / offsetX% / offsetY%）を適用
+      const rw = cw / crop.zoom;
+      const rh = ch / crop.zoom;
+      let rx = (iw - cw) / 2 + (cw - rw) / 2 + (crop.offsetX / 100) * rw;
+      let ry = (ih - ch) / 2 + (ch - rh) / 2 + (crop.offsetY / 100) * rh;
+      rx = Math.max(0, Math.min(rx, iw - rw));
+      ry = Math.max(0, Math.min(ry, ih - rh));
+      ctx.drawImage(photoImg, rx, ry, rw, rh, 0, 0, cw, ch);
 
       // Frame, stretched to fill (object-fit: fill)
       ctx.drawImage(frameImg, 0, 0, cw, ch);
@@ -181,7 +218,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
     })();
 
     return () => { cancelled = true; };
-  }, [photoUrl, frameSrc, nickname, daysText, scale]);
+  }, [photoUrl, frameSrc, crop, nickname, daysText, scale]);
 
   const handleSave = () => {
     const canvas = canvasRef.current;

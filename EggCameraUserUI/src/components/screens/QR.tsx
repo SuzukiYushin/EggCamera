@@ -9,23 +9,23 @@ interface QRProps {
   onRestart: () => void;
 }
 
+// この画面を表示してから自動でEndページへ遷移するまでの時間
+const QR_TIMEOUT_SEC = 3 * 60;
+
 export function QR({ result, onDone, onRestart }: QRProps) {
   const { T } = useLang();
-  const [secs, setSecs] = useState(() =>
-    result ? Math.max(0, Math.ceil((result.expiresAt - Date.now()) / 1000)) : 0
-  );
+  const [secs, setSecs] = useState(QR_TIMEOUT_SEC);
 
   useEffect(() => {
-    if (!result) return;
+    const startedAt = Date.now();
     const update = () => {
-      const remaining = Math.max(0, Math.ceil((result.expiresAt - Date.now()) / 1000));
+      const remaining = Math.max(0, QR_TIMEOUT_SEC - Math.floor((Date.now() - startedAt) / 1000));
       setSecs(remaining);
       if (remaining <= 0) onDone();
     };
-    update();
     const t = setInterval(update, 1000);
     return () => clearInterval(t);
-  }, [result, onDone]);
+  }, [onDone]);
 
   const mm     = String(Math.floor(secs / 60)).padStart(2, '0');
   const ss     = String(secs % 60).padStart(2, '0');
@@ -63,7 +63,7 @@ export function QR({ result, onDone, onRestart }: QRProps) {
         }}>{T.qr.body}</div>
 
         {/* QR code — centered, no frame */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
           {result && (
             <img
               src={result.qrDataUrl}
@@ -73,6 +73,13 @@ export function QR({ result, onDone, onRestart }: QRProps) {
             />
           )}
         </div>
+
+        {/* ダウンロード期限の案内 */}
+        <div style={{
+          fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 700,
+          color: 'var(--color-brand-600)',
+          textAlign: 'center', marginBottom: 24,
+        }}>{T.qr.expireNote}</div>
 
         {/* Timer pill — compact */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'auto' }}>

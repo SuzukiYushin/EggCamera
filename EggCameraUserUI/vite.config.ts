@@ -9,6 +9,7 @@ export default defineConfig({
     port: process.env.PORT ? parseInt(process.env.PORT) : 5173,
     proxy: {
       '/api': 'http://localhost:3000',
+      '/frames': 'http://localhost:3000',
     },
   },
   build: {

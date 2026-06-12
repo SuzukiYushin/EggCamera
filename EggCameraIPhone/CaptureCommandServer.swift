@@ -3,14 +3,16 @@ import Network
 
 final class CaptureCommandServer {
     private let pipeline: CapturePipeline
+    private let cameraController: CameraController
     private weak var logger: AppLogger?
     private let queue = DispatchQueue(label: "com.eggcamera.iphone.commandserver")
     private var listener: NWListener?
 
     let port: UInt16 = 8080
 
-    init(pipeline: CapturePipeline, logger: AppLogger) {
+    init(pipeline: CapturePipeline, cameraController: CameraController, logger: AppLogger) {
         self.pipeline = pipeline
+        self.cameraController = cameraController
         self.logger = logger
     }
 
@@ -67,6 +69,17 @@ final class CaptureCommandServer {
 
         let header = String(data: data[..<range.lowerBound], encoding: .utf8) ?? ""
         let requestLine = header.components(separatedBy: "\r\n").first ?? ""
+
+        // ライブプレビュー: 最新フレームのJPEGを1枚返す（ブラウザがポーリング）
+        if requestLine.hasPrefix("GET /frame") {
+            if let frame = cameraController.latestPreviewFrame() {
+                sendJPEG(frame, on: connection)
+            } else {
+                send(status: 503, message: "No Frame", on: connection)
+            }
+            return
+        }
+
         guard requestLine.hasPrefix("POST /capture") else {
             send(status: 404, message: "Not Found", on: connection)
             return
@@ -115,6 +128,22 @@ final class CaptureCommandServer {
             "", ""
         ].joined(separator: "\r\n")
         connection.send(content: Data(header.utf8), completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+
+    private func sendJPEG(_ body: Data, on connection: NWConnection) {
+        let header = [
+            "HTTP/1.1 200 OK",
+            "Content-Type: image/jpeg",
+            "Content-Length: \(body.count)",
+            "Cache-Control: no-store",
+            "Connection: close",
+            "", ""
+        ].joined(separator: "\r\n")
+        var payload = Data(header.utf8)
+        payload.append(body)
+        connection.send(content: payload, completion: .contentProcessed { _ in
             connection.cancel()
         })
     }

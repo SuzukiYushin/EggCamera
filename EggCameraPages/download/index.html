@@ -6,21 +6,16 @@
   <title>Egg Camera</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;1,300&family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     /* ── Design tokens (mirrors EggCameraUserUI/src/styles/tokens.css) ── */
     :root {
-      --color-brand-700:  #2C6499;
-      --color-brand-500:  #518FCC;
-      --color-brand-100:  #C3D9EF;
-      --color-brand-50:   #E3EEF8;
-      --color-gray-200:   #E4E4E4;
-      --color-ink-900:    #121212;
-      --color-ink-500:    #666666;
-      --color-ink-300:    #767676;
-      --color-ink-200:    #BBBBBB;
-      --font-display:     'Cormorant Garamond', Georgia, serif;
-      --font-body:        'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+      --color-brand-700:  #05195A;
+      --color-brand-600:  #06236F;
+      --color-brand-500:  #5087C0;
+      --color-brand-200:  #A3C4E6;
+      --color-ink-400:    #717171;
+      --font-ui: 'Hiragino Kaku Gothic Pro', 'ヒラギノ角ゴ Pro W6', 'Noto Sans JP', sans-serif;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,76 +27,88 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: #F0EDE8;
-      font-family: var(--font-body);
+      background: #F2EDE8;
+      font-family: var(--font-ui);
       padding: 32px 24px 36px;
       gap: 16px;
     }
 
-    /* Eyebrow / logo */
+    /* Eyebrow（ユーザーUIの .t-eyebrow 相当） */
     .logo {
       flex-shrink: 0;
-      font-family: var(--font-display);
-      font-style: italic;
-      font-weight: 300;
-      font-size: 18px;
-      letter-spacing: 0.12em;
-      color: var(--color-ink-300);
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--color-brand-600);
     }
 
-    /* Photo card */
+    /* Heading（ユーザーUIの .t-heading 相当） */
+    .heading {
+      flex-shrink: 0;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--color-brand-600);
+    }
+
+    /* Photo card（FinalPreview の写真枠に合わせて角丸4px） */
     .photo-wrap {
       flex: 1;
       min-height: 0;
       width: 100%;
       max-width: 480px;
-      border-radius: 12px;
+      border-radius: 4px;
       overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .photo-wrap img {
-      width: 100%;
-      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
       object-fit: contain;
       display: block;
+      border-radius: 4px;
     }
 
     /* Notice */
     .notice {
       flex-shrink: 0;
-      font-family: var(--font-body);
-      font-size: 12px;
-      font-weight: 400;
-      color: var(--color-ink-300);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-brand-600);
       letter-spacing: 0.03em;
     }
 
-    /* Primary button (mirrors .btn-primary) */
+    /* Primary button（ユーザーUIの .btn-primary と同じピル型） */
     .btn-download {
       flex-shrink: 0;
       width: 100%;
       max-width: 480px;
-      height: 64px;
+      height: 60px;
       background: var(--color-brand-500);
       color: #fff;
       border: none;
-      border-radius: 12px;
-      font-family: var(--font-body);
+      border-radius: 99px;
+      font-family: var(--font-ui);
       font-size: 17px;
-      font-weight: 500;
-      letter-spacing: 0.06em;
+      font-weight: 600;
+      letter-spacing: 0.1em;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 10px;
-      transition: background 0.15s, transform 0.1s;
+      transition: background 0.25s ease, transform 0.45s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease;
       -webkit-tap-highlight-color: transparent;
       -webkit-appearance: none;
     }
     .btn-download:active {
-      background: var(--color-brand-700);
-      transform: scale(0.99);
+      background: var(--color-brand-600);
+      transform: scale(0.97);
+      box-shadow: 0 1px 6px rgba(81,143,204,0.15);
+      transition: background 0.1s ease, transform 0.12s ease, box-shadow 0.1s ease;
     }
     .btn-download:disabled {
       opacity: 0.45;
@@ -111,10 +118,9 @@
     /* Hint */
     .hint {
       flex-shrink: 0;
-      font-family: var(--font-body);
       font-size: 12px;
       font-weight: 400;
-      color: var(--color-ink-200);
+      color: var(--color-ink-400);
       text-align: center;
       line-height: 1.6;
     }
@@ -127,17 +133,18 @@
       align-items: center;
       justify-content: center;
       text-align: center;
-      gap: 8px;
+      gap: 10px;
     }
     .error .t-heading {
-      font-family: var(--font-body);
       font-size: 18px;
-      font-weight: 300;
-      color: var(--color-ink-900);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      color: var(--color-brand-600);
     }
     .error .t-body {
       font-size: 14px;
-      color: var(--color-ink-500);
+      font-weight: 600;
+      color: var(--color-brand-600);
       line-height: 1.8;
     }
 
@@ -147,13 +154,14 @@
   </style>
 </head>
 <body>
-  <p class="logo">Egg Camera</p>
+  <p class="logo">EGG CAMERA</p>
+  <p class="heading">お写真のダウンロード</p>
 
   <div id="photo-wrap" class="photo-wrap" style="display:none;">
     <img id="photo" alt="お写真">
   </div>
 
-  <p id="notice" class="notice" style="display:none;">24時間以内にダウンロードしてください</p>
+  <p id="notice" class="notice" style="display:none;">24時間以内にダウンロードしてください。</p>
 
   <button id="dl-btn" class="btn-download" style="display:none;">↓ 写真を保存する</button>
 

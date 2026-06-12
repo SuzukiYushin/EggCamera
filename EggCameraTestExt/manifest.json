@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "EggCamera 長期運用テスト",
+  "version": "1.0.0",
+  "description": "EggCamera ユーザーUI（:3000）を自動操作して長期運用テストを行います",
+  "permissions": ["storage", "downloads"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://192.168.10.104:3000/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "js": ["hook.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "http://192.168.10.104:3000/*",
+        "http://localhost:3000/*",
+        "http://127.0.0.1:3000/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

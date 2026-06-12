@@ -30,10 +30,6 @@
 	<string>定期撮影のためカメラを使用します</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Macとの通信にローカルネットワークを使用します</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>deferred処理済みの最終画像を取得するため写真ライブラリへ一時保存します</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>deferred処理済みの最終画像を読み出すため写真ライブラリへアクセスします</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
