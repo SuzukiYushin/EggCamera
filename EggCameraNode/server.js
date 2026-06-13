@@ -12,6 +12,8 @@ const frames   = require('./src/frames');
 const settings = require('./src/settings');
 const preview  = require('./src/preview');
 const maintenance = require('./src/maintenance');
+const mode        = require('./src/mode');
+const selftest    = require('./src/selftest');
 const sessionsRouter = require('./src/routes/sessions');
 const photosRouter   = require('./src/routes/photos');
 const adminRouter    = require('./src/routes/admin');
@@ -28,6 +30,9 @@ app.get('/api/frames', (req, res) => {
     res.json(frames.listActiveFrames().map(f => ({ id: f.id, name: f.name, url: `/frames/${f.file}` })));
 });
 app.get('/api/settings', (req, res) => res.json(settings.getSettings()));
+
+// ── ユーザーUIが参照する運用モード（メンテ中は操作ロック） ──
+app.get('/api/mode', (req, res) => res.json({ maintenance: mode.isMaintenance() }));
 
 // ── iPhone ライブプレビュー（Bonjourで発見した iPhone:8080/frame を中継） ──
 app.get('/api/preview/frame', (req, res) => preview.proxyFrame(req, res));
@@ -102,6 +107,11 @@ process.on('unhandledRejection', reason => {
 
 const server = app.listen(PORT, () => {
     console.log(`[${ts()}] EggCameraNode listening on :${PORT} (static: ${STATIC_DIR})`);
+    // Mac本体リブート等でbot自身が落ちた場合の保険: 起動時フラグがあればセルフテスト
+    if (mode.get().runSelfTestOnBoot) {
+        mode.clearSelfTestFlag();
+        setTimeout(() => selftest.run({ reason: '再起動後（起動時自動）' }).catch(() => {}), 8000);
+    }
 });
 
 // グレースフルシャットダウン: 受付を止めて処理中リクエストを捌いてから終了

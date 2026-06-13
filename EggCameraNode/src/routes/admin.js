@@ -12,6 +12,8 @@ const settings = require('../settings');
 const logger   = require('../logger');
 const chaos    = require('../chaos');
 const slack    = require('../slack');
+const mode     = require('../mode');
+const selftest = require('../selftest');
 
 const router = express.Router();
 router.use(express.json());
@@ -216,6 +218,27 @@ router.post('/notify', (req, res) => {
     const level = ['fix', 'warn', 'alert', 'info'].includes(kind) ? kind : 'info';
     const sent = slack.notify(text.slice(0, 1500), { level });
     res.json({ ok: true, sent });
+});
+
+// ── メンテナンス（ユーザー操作ロック）＋ 再起動後セルフテスト ─────────────
+router.get('/maintenance', (req, res) => res.json(mode.get()));
+
+// 開始: キオスクUIをロック。runSelfTestOnBoot=true で次回node起動時に自動テスト
+router.post('/maintenance/start', (req, res) => {
+    res.json(mode.startMaintenance(req.body || {}));
+});
+
+// 解除: ユーザー操作を再開（Slackの「OK」に相当）
+router.post('/maintenance/stop', (req, res) => {
+    res.json(mode.stopMaintenance());
+});
+
+// 今すぐセルフテストを実行（node稼働中の再起動の後にBotが呼ぶ）。
+// 実行前にロックし、完了後もロックは維持（解除は /maintenance/stop）。
+router.post('/selftest', (req, res) => {
+    mode.startMaintenance({ reason: (req.body && req.body.reason) || 'selftest' });
+    res.json({ started: true });
+    selftest.run({ reason: (req.body && req.body.reason) || '' }).catch(() => {});
 });
 
 module.exports = router;

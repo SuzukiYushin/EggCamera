@@ -50,3 +50,4 @@ data/backups/
 data/.soak-watch-state.json
 .env.slackbot
 EggCameraBot/node_modules/
+data/mode.json

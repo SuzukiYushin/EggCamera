@@ -11,7 +11,8 @@ import { Uploading }    from './components/screens/Uploading';
 import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
 import { ErrorOverlay } from './components/ErrorOverlay';
-import { createSession, selectPhoto, uploadComposite, PROTO } from './api';
+import { MaintenanceLock } from './components/MaintenanceLock';
+import { createSession, selectPhoto, uploadComposite, getMode, PROTO } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 import { reportClientError } from './clientLog';
 
@@ -51,6 +52,7 @@ export default function App() {
   const [selectedPhotoId, setSelectedPhotoId] = useState<string | null>(null);
   const [result, setResult]         = useState<SessionResult | null>(null);
   const [fatal, setFatal]           = useState(false);
+  const [maintenance, setMaintenance] = useState(false);
 
   // 想定外のエラーは全画面共通のお詫びオーバーレイ → 自動リロードでトップへ。
   // 原因はサーバログへ送って data/logs/ と管理画面で追えるようにする。
@@ -76,6 +78,26 @@ export default function App() {
     createSession()
       .then(({ sessionId }) => setSessionId(sessionId))
       .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); });
+  }, []);
+
+  // メンテナンス状態を定期確認。再起動後の自己診断中は操作をロックし、
+  // 解除されたらトップへ戻す（PROTOでは常にfalse）。
+  useEffect(() => {
+    if (PROTO) return;
+    let prev = false;
+    const check = () => {
+      getMode()
+        .then(({ maintenance: m }) => {
+          setMaintenance(m);
+          if (prev && !m) { restart(); } // 解除された瞬間にトップへ
+          prev = m;
+        })
+        .catch(() => {});
+    };
+    check();
+    const t = setInterval(check, 5000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const go = (s: Screen) => setScreen(s);
@@ -145,6 +167,7 @@ export default function App() {
       {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={restart} />}
       {screen === 'end'      && <End         onRestart={restart} />}
       {screen === 'dl'       && <ProtoDownload />}
+      {maintenance && <MaintenanceLock />}
       {fatal && <ErrorOverlay />}
     </LangProvider>
   );

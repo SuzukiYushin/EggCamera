@@ -113,6 +113,12 @@ export function getCropSettings(): Promise<{ crop: CropSettings }> {
   return request('/settings');
 }
 
+// 運用モード。メンテナンス中はキオスクの操作をロックする。
+export function getMode(): Promise<{ maintenance: boolean }> {
+  if (PROTO) return Promise.resolve({ maintenance: false });
+  return request('/mode');
+}
+
 // Uploads the client-composited final image (photo + frame + name/days, baked
 // in via canvas) as a raw PNG body.
 export async function uploadComposite(sessionId: string, blob: Blob): Promise<{ status: string }> {

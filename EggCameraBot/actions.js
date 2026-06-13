@@ -35,6 +35,21 @@ async function postMarker(text) {
     '--data', JSON.stringify({ level: 'info', text: `DEPLOY-MARKER(slack-bot): ${text}` })]);
 }
 
+// メンテナンス（ユーザー操作ロック）制御
+async function lockKiosk(reason, runSelfTestOnBoot = false) {
+  await sh('curl', ['-s', '-X', 'POST', `${SERVER}/api/admin/maintenance/start`,
+    '-H', 'Content-Type: application/json',
+    '--data', JSON.stringify({ reason, runSelfTestOnBoot })]);
+}
+async function startSelfTest(reason) {
+  await sh('curl', ['-s', '-X', 'POST', `${SERVER}/api/admin/selftest`,
+    '-H', 'Content-Type: application/json', '--data', JSON.stringify({ reason })]);
+}
+async function resumeKiosk() {
+  const r = await sh('curl', ['-s', '-X', 'POST', `${SERVER}/api/admin/maintenance/stop`]);
+  return r.ok ? '✅ ユーザー操作の受付を再開しました（通常運用へ）' : '⚠️ 解除に失敗。`/egg status` を確認してください';
+}
+
 async function launchctlKickstart(label) {
   return sh('launchctl', ['kickstart', '-k', `gui/${UID}/${label}`]);
 }
@@ -76,39 +91,50 @@ async function status() {
 }
 
 // ── 再起動系（前後にマーカー＆復旧確認） ───────────────
+// ロック中である旨と、セルフテストはSlackに別途結果が来る旨を末尾に付ける
+const LOCK_NOTE = '\n:lock: ユーザー操作はロック中。撮影→合成→アップの自己診断を実行し結果を通知します。完了後 `/egg ok` で再開してください。';
+
 async function restartNode() {
-  await postMarker('Slackからnodeサーバを再起動します。一時的なAPI断・セッションリセットは本操作由来で異常ではありません。');
+  await lockKiosk('node再起動');
+  await postMarker('Slackからnodeサーバを再起動します。ユーザー操作はロック。一時的なAPI断・セッションリセットは本操作由来で異常ではありません。');
   await launchctlKickstart('com.eggcamera.node');
   await new Promise(r => setTimeout(r, 3000));
   const code = await httpCode(SERVER + '/');
-  await postMarker(`node再起動完了 :3000=${code}。以降正常。`);
-  return code === '200' ? '✅ nodeサーバ再起動OK（:3000=200）' : `⚠️ 再起動後 :3000=${code}`;
+  await postMarker(`node再起動完了 :3000=${code}。`);
+  if (code === '200') await startSelfTest('node再起動後');
+  return (code === '200' ? '✅ nodeサーバ再起動OK（:3000=200）' : `⚠️ 再起動後 :3000=${code}`) + LOCK_NOTE;
 }
 
 async function restartMac() {
-  await postMarker('SlackからEggCameraMacを再起動します。撮影トリガ断は本操作由来で異常ではありません。');
+  await lockKiosk('EggCameraMac再起動');
+  await postMarker('SlackからEggCameraMacを再起動します。ユーザー操作はロック。撮影トリガ断は本操作由来で異常ではありません。');
   await launchctlKickstart('com.eggcamera.mac');
   await new Promise(r => setTimeout(r, 3000));
   const ports = await sh('bash', ['-lc', "lsof -nP -iTCP:8081 -iTCP:8082 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN"]);
   const n = parseInt(ports.out.trim(), 10) || 0;
   await postMarker(`EggCameraMac再起動完了 待受${n}ポート。`);
-  return n >= 2 ? '✅ EggCameraMac再起動OK（:8081/8082 待受）' : `⚠️ 待受ポート ${n}（2が正常）`;
+  await startSelfTest('EggCameraMac再起動後');
+  return (n >= 2 ? '✅ EggCameraMac再起動OK（:8081/8082 待受）' : `⚠️ 待受ポート ${n}（2が正常）`) + LOCK_NOTE;
 }
 
 async function restartIphone() {
-  await postMarker('SlackからiPhoneアプリを再起動します。数サイクルのcapture断は本操作由来で異常ではありません。');
+  await lockKiosk('iPhoneアプリ再起動');
+  await postMarker('SlackからiPhoneアプリを再起動します。ユーザー操作はロック。数サイクルのcapture断は本操作由来で異常ではありません。');
   const r = await sh(path.join(IPHONE_DIR, 'iphone.sh'), ['restart'], { cwd: IPHONE_DIR });
   await new Promise(r => setTimeout(r, 5000));
   const code = await httpCode(IPHONE_FRAME);
   await postMarker(`iPhone再起動 :8080/frame=${code}。`);
-  return code === '200' ? '✅ iPhone再起動OK（:8080/frame=200）'
-    : `⚠️ 再起動後 :8080=${code}\n${r.out.slice(-300)}`;
+  await startSelfTest('iPhoneアプリ再起動後');
+  return (code === '200' ? '✅ iPhone再起動OK（:8080/frame=200）'
+    : `⚠️ 再起動後 :8080=${code}\n${r.out.slice(-300)}`) + LOCK_NOTE;
 }
 
 // Mac mini「本体」再起動（破壊的・要 sudoers NOPASSWD）。
 // 再起動すると bot 自身も落ちるので完了報告はできない。autorestart+自動ログイン+launchdで復帰。
 async function rebootMac() {
-  await postMarker('SlackからMac mini本体を再起動します。全サービスが一時停止し、自動復旧（autorestart→自動ログイン→launchd）まで数分かかります。本操作由来で異常ではありません。');
+  // 本体が落ちるとbotも止まるので、起動時に自動セルフテストするフラグを立ててロック
+  await lockKiosk('Mac mini本体再起動', true);
+  await postMarker('SlackからMac mini本体を再起動します。ユーザー操作はロック。全サービス停止→自動復旧（autorestart→自動ログイン→launchd）後に自己診断を実行します。本操作由来で異常ではありません。');
   // sudoers に NOPASSWD が無いと失敗する
   const r = await sh('sudo', ['-n', '/sbin/shutdown', '-r', 'now']);
   if (!r.ok) {
@@ -120,24 +146,28 @@ async function rebootMac() {
 
 // iPhone「本体」再起動（破壊的: パスコード有りだと復帰後ロックされる）
 async function rebootIphone() {
-  await postMarker('SlackからiPhone本体を再起動します。1〜2分のcapture/プレビュー断は本操作由来で異常ではありません。');
+  await lockKiosk('iPhone本体再起動');
+  await postMarker('SlackからiPhone本体を再起動します。ユーザー操作はロック。1〜2分のcapture/プレビュー断は本操作由来で異常ではありません。');
   const r = await sh(path.join(IPHONE_DIR, 'iphone.sh'), ['reboot'], { cwd: IPHONE_DIR, timeout: 300_000 });
   await new Promise(r => setTimeout(r, 8000));
   const code = await httpCode(IPHONE_FRAME);
   await postMarker(`iPhone本体再起動 :8080/frame=${code}。`);
-  return code === '200'
+  if (code === '200') await startSelfTest('iPhone本体再起動後');
+  return (code === '200'
     ? '✅ iPhone本体を再起動し、アプリ復帰OK（:8080/frame=200）'
-    : `⚠️ 再起動後 :8080=${code}。パスコード有りだと端末がロックされ手動解除が必要です。\n${r.out.slice(-300)}`;
+    : `⚠️ 再起動後 :8080=${code}。パスコード有りだと端末がロックされ手動解除が必要です。\n${r.out.slice(-300)}`) + LOCK_NOTE;
 }
 
 async function refreshIphone() {
-  await postMarker('SlackからiPhoneアプリを再ビルド・再インストール・再起動します（プロファイル更新）。数サイクルのcapture断は本操作由来で異常ではありません。');
+  await lockKiosk('iPhone refresh');
+  await postMarker('SlackからiPhoneアプリを再ビルド・再インストール・再起動します（プロファイル更新）。ユーザー操作はロック。数サイクルのcapture断は本操作由来で異常ではありません。');
   const r = await sh(path.join(IPHONE_DIR, 'iphone.sh'), ['refresh'], { cwd: IPHONE_DIR, timeout: 420_000 });
   await new Promise(r => setTimeout(r, 5000));
   const code = await httpCode(IPHONE_FRAME);
   await postMarker(`iPhone refresh完了 :8080/frame=${code}。`);
-  return code === '200' ? '✅ iPhone refresh OK（再ビルド→入れ直し→:8080=200）'
-    : `⚠️ refresh後 :8080=${code}\n${r.out.slice(-400)}`;
+  if (code === '200') await startSelfTest('iPhone refresh後');
+  return (code === '200' ? '✅ iPhone refresh OK（再ビルド→入れ直し→:8080=200）'
+    : `⚠️ refresh後 :8080=${code}\n${r.out.slice(-400)}`) + LOCK_NOTE;
 }
 
 async function logs(n = 20) {
@@ -169,8 +199,11 @@ const HELP = [
   '• `refresh iphone` … iPhoneアプリ再ビルド＋入れ直し（プロファイル更新）',
   '• `logs` … 直近のエラーログ',
   '• `failed` … 失敗画像の一覧',
+  '• `ok` … 再起動後ロックを解除しユーザー操作を再開（`resume`/`unlock`も可）',
   '• `help` … この一覧',
   '',
+  '再起動系を実行すると、自動で1周セルフテスト（撮影→合成→アップ）を行い結果を通知し、',
+  'その間ユーザー操作はロックされます。問題なければ `/egg ok` で再開します。',
   ':warning: *本体リブート*（Mac mini / iPhone本体）は誤操作防止のため別コマンド `/egg-reboot` に分離（`confirm` 必須）。',
 ].join('\n');
 
@@ -185,6 +218,7 @@ async function run(text) {
   if (t === 'refresh iphone' || t === 'refresh') return refreshIphone();
   if (t === 'logs') return logs();
   if (t === 'failed') return failedList();
+  if (t === 'ok' || t === 'resume' || t === 'unlock') return resumeKiosk();
   if (/^reboot/.test(t)) return '本体リブートは専用コマンド `/egg-reboot` です（誤操作防止のため分離）。`/egg-reboot help` を参照。';
   return `不明なコマンド: \`${text}\`\n${HELP}`;
 }
