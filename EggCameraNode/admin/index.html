@@ -17,6 +17,7 @@
     <button class="tab active" data-tab="frames">フレーム管理</button>
     <button class="tab" data-tab="photo">写真設定</button>
     <button class="tab" data-tab="failed">失敗画像<span id="failed-count" class="tab-badge" hidden>0</span></button>
+    <button class="tab" data-tab="restart">再起動<span id="restart-badge" class="tab-badge" hidden>!</span></button>
     <button class="tab" data-tab="logs">ログ</button>
   </nav>
 </header>
@@ -82,6 +83,20 @@
     <p id="failed-empty" class="hint" style="margin-top:8px;">現在、失敗した画像はありません。</p>
   </section>
 
+  <!-- ── 再起動 ────────────────────────────────────── -->
+  <section id="tab-restart" class="panel" hidden>
+    <div class="panel-head">
+      <div>
+        <h2>再起動</h2>
+        <p class="hint">ログから推奨を診断して赤く点滅させます。エラーでも実際は無事なこともあるので「無視」も可。特定できない時は推奨順を表示。実行にはパスワードが必要です。</p>
+      </div>
+      <button id="restart-resume" class="btn-pink" style="background:#2ECC8F;">通常運用に戻す（ロック解除）</button>
+    </div>
+    <hr>
+    <div id="diag-box" class="diag-box"></div>
+    <div id="restart-grid" class="restart-grid"></div>
+  </section>
+
   <!-- ── ログ ────────────────────────────────────── -->
   <section id="tab-logs" class="panel" hidden>
     <div class="panel-head">
@@ -95,6 +110,41 @@
     <pre id="log-view" class="logview"></pre>
   </section>
 </main>
+
+<!-- ── 診断ポップアップ（エラー検知時・無視可） ──────── -->
+<div id="diag-modal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h3>⚠️ エラーを検知しました</h3>
+      <button id="diag-close" class="modal-x">×</button>
+    </div>
+    <p id="diag-reason" class="diag-reason"></p>
+    <div id="diag-order" class="diag-order"></div>
+    <pre id="diag-recent" class="logview" style="height:120px;"></pre>
+    <div class="modal-foot" style="justify-content:space-between;">
+      <button id="diag-ignore" class="badge hidden-badge" style="width:auto;padding:10px 20px;">無視する</button>
+      <button id="diag-goto" class="btn-pink">推奨ボタンへ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── パスワード確認モーダル（再起動実行時） ────────── -->
+<div id="pw-modal" class="modal-backdrop" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="pw-title">再起動の確認</h3>
+      <button id="pw-close" class="modal-x">×</button>
+    </div>
+    <p id="pw-target" class="diag-reason"></p>
+    <label class="field">パスワード
+      <input id="pw-input" type="password" placeholder="パスワードを入力" autocomplete="off">
+    </label>
+    <div class="modal-foot">
+      <button id="pw-exec" class="btn-pink">実行する</button>
+      <div id="pw-status" class="status"></div>
+    </div>
+  </div>
+</div>
 
 <!-- ── フレーム追加モーダル ──────────────────────── -->
 <div id="modal" class="modal-backdrop" hidden>

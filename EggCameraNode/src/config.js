@@ -32,6 +32,9 @@ const DEFERRED_MAX_MS = 60 * 60 * 1000; // 1時間
 // 管理画面/管理APIの認証トークン（未設定なら認証なし＝従来どおり）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
+// 管理画面からの再起動操作に要求するパスワード
+const REBOOT_PASSWORD = process.env.REBOOT_PASSWORD || 'familiar1234';
+
 // ── Server ─────────────────────────────────────────────
 const PORT       = parseInt(process.env.PORT || '3000', 10);
 const STATIC_DIR = process.env.STATIC_DIR
@@ -66,7 +69,7 @@ module.exports = {
     FRAMES_DIR, FLAME_PATH,
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
-    ADMIN_TOKEN,
+    ADMIN_TOKEN, REBOOT_PASSWORD,
     PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,
     SWIFT_HOST, SWIFT_PORT,

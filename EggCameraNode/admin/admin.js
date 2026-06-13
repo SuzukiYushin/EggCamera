@@ -42,6 +42,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     }
     if (btn.dataset.tab === 'logs') startLogPolling(); else stopLogPolling();
     if (btn.dataset.tab === 'failed') loadFailed();
+    if (btn.dataset.tab === 'restart') loadRestart();
   });
 });
 
@@ -347,10 +348,143 @@ async function refreshFailedCount() {
   else badge.hidden = true;
 }
 
+/* ── 再起動タブ ─────────────────────────── */
+const RESTART_LABELS = {
+  iphone: 'iPhoneアプリ再起動', mac: 'EggCameraMac再起動', node: 'Nodeサーバ再起動',
+  'iphone-refresh': 'iPhoneアプリ再ビルド(refresh)', 'iphone-reboot': 'iPhone本体再起動', 'mac-reboot': 'Mac mini本体再起動',
+};
+const RESTART_DESC = {
+  iphone: 'アプリだけ再起動・数秒・最も軽い', mac: '撮影トリガ役のMacアプリを再起動',
+  node: 'APIサーバを再起動', 'iphone-refresh': 'プロファイル更新つき再ビルド',
+  'iphone-reboot': 'iPhoneのiOSごと再起動（最終手段）', 'mac-reboot': 'Mac mini本体を再起動（最終手段）',
+};
+const RESTART_ORDER_ALL = ['iphone', 'mac', 'node', 'iphone-refresh', 'iphone-reboot', 'mac-reboot'];
+let lastDiagSig = '';
+let diagDismissed = '';
+
+async function loadRestart() {
+  const diag = await api.get('/diagnose').catch(() => null);
+  renderRestartButtons(diag);
+  renderDiagBox(diag);
+  maybePopupDiag(diag);
+}
+
+function renderRestartButtons(diag) {
+  const grid = $('#restart-grid');
+  grid.innerHTML = '';
+  const primary = diag && diag.primary;
+  const ordered = (diag && diag.ordered) || [];
+  for (const id of RESTART_ORDER_ALL) {
+    const rank = ordered.indexOf(id);
+    const card = document.createElement('div');
+    card.className = 'restart-card' + (primary === id ? ' recommend' : '');
+    card.innerHTML = `
+      <div class="rc-name"></div>
+      <div class="rc-desc"></div>
+      <div class="rc-rank"></div>
+      <button class="btn-pink rc-btn">再起動</button>`;
+    card.querySelector('.rc-name').textContent = RESTART_LABELS[id];
+    card.querySelector('.rc-desc').textContent = RESTART_DESC[id];
+    card.querySelector('.rc-rank').textContent =
+      primary === id ? '★ まずこれを推奨' : (rank >= 0 ? `推奨順 ${rank + 1}番目` : '');
+    if (/reboot/.test(id)) card.querySelector('.rc-btn').style.background = '#FF5A5A';
+    card.querySelector('.rc-btn').addEventListener('click', () => askPassword(id));
+    grid.appendChild(card);
+  }
+}
+
+function renderDiagBox(diag) {
+  const box = $('#diag-box');
+  if (!diag) { box.textContent = ''; return; }
+  if (!diag.hasError) {
+    box.className = 'diag-box ok';
+    box.textContent = '✅ ' + diag.reason;
+  } else {
+    box.className = 'diag-box err';
+    box.innerHTML = `⚠️ <b>${diag.reason}</b>`;
+  }
+}
+
+// エラー検知時、未対応の新しい内容ならポップアップ
+function maybePopupDiag(diag) {
+  const badge = $('#restart-badge');
+  if (diag && diag.hasError) { badge.hidden = false; } else { badge.hidden = true; }
+  if (!diag || !diag.hasError) return;
+  if (diag.signature === diagDismissed) return; // 無視済みの同じエラー
+  if (diag.signature === lastDiagSig && $('#diag-modal').hidden === false) return;
+  lastDiagSig = diag.signature;
+  $('#diag-reason').textContent = diag.reason;
+  const order = $('#diag-order');
+  order.innerHTML = '<b>推奨順:</b> ' + diag.ordered.map((id, i) =>
+    `${i + 1}. ${RESTART_LABELS[id] || id}`).join(' → ');
+  $('#diag-recent').textContent = (diag.recent || []).map(r => `${r.time} ${r.text}`).join('\n');
+  $('#diag-modal').hidden = false;
+}
+
+$('#diag-close').addEventListener('click', () => { $('#diag-modal').hidden = true; });
+$('#diag-ignore').addEventListener('click', () => { diagDismissed = lastDiagSig; $('#diag-modal').hidden = true; });
+$('#diag-goto').addEventListener('click', () => {
+  $('#diag-modal').hidden = true;
+  document.querySelector('.tab[data-tab="restart"]').click();
+  $('#restart-grid').scrollIntoView({ behavior: 'smooth' });
+});
+
+// パスワード確認 → 実行
+let pendingTarget = null;
+function askPassword(target) {
+  pendingTarget = target;
+  $('#pw-title').textContent = RESTART_LABELS[target] + ' の確認';
+  $('#pw-target').textContent = `「${RESTART_LABELS[target]}」を実行します。${/reboot/.test(target) ? '本体ごと再起動するため数分かかります。' : ''}`;
+  $('#pw-input').value = '';
+  $('#pw-status').textContent = '';
+  $('#pw-status').className = 'status';
+  $('#pw-modal').hidden = false;
+  setTimeout(() => $('#pw-input').focus(), 100);
+}
+$('#pw-close').addEventListener('click', () => { $('#pw-modal').hidden = true; });
+$('#pw-exec').addEventListener('click', execRestart);
+$('#pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') execRestart(); });
+
+async function execRestart() {
+  const pw = $('#pw-input').value;
+  const status = $('#pw-status');
+  status.className = 'status';
+  status.textContent = '実行中…';
+  try {
+    const res = await fetch(`/api/admin/restart/${pendingTarget}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}) },
+      body: JSON.stringify({ password: pw }),
+    });
+    if (res.status === 401) { status.className = 'status err'; status.textContent = 'パスワードが違います'; return; }
+    const j = await res.json();
+    status.textContent = j.message || '実行しました';
+    diagDismissed = lastDiagSig; // 対応したので同じエラーは再ポップアップしない
+    setTimeout(() => { $('#pw-modal').hidden = true; loadRestart(); }, 2500);
+  } catch (err) {
+    status.className = 'status err';
+    status.textContent = '失敗: ' + err.message;
+  }
+}
+
+$('#restart-resume').addEventListener('click', async () => {
+  await api.post('/maintenance/stop', {}).catch(() => {});
+  alert('通常運用に戻しました（ユーザー操作の受付を再開）');
+});
+
 /* ── 初期化 ───────────────────────────── */
 loadFrames();
 loadDisk();
 loadSettings();
 refreshFailedCount();
+checkDiagBadge();
 setInterval(loadDisk, 30_000);
 setInterval(refreshFailedCount, 30_000);
+setInterval(checkDiagBadge, 20_000);
+
+// どのタブにいてもエラー検知でタブにバッジ＆（再起動タブ表示中なら）ポップアップ
+async function checkDiagBadge() {
+  const diag = await api.get('/diagnose').catch(() => null);
+  $('#restart-badge').hidden = !(diag && diag.hasError);
+  if (!$('#tab-restart').hidden) maybePopupDiag(diag);
+}

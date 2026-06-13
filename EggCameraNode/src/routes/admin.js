@@ -3,7 +3,9 @@ const os      = require('node:os');
 const path    = require('node:path');
 const express = require('express');
 
-const { DATA_DIR, FAILED_DIR, CAPTURE_TIMEOUT_MS, ADMIN_TOKEN, ts } = require('../config');
+const { DATA_DIR, FAILED_DIR, CAPTURE_TIMEOUT_MS, ADMIN_TOKEN, REBOOT_PASSWORD, ts } = require('../config');
+const { diagnose } = require('../diagnose');
+const ops = require('../ops');
 const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
 const { registerPhoto } = require('../sessions');
 const { listFailedUploads, retryFailedUpload } = require('../composite');
@@ -239,6 +241,24 @@ router.post('/selftest', (req, res) => {
     mode.startMaintenance({ reason: (req.body && req.body.reason) || 'selftest' });
     res.json({ started: true });
     selftest.run({ reason: (req.body && req.body.reason) || '' }).catch(() => {});
+});
+
+// ── 再起動タブ: 診断＋パスワード保護の再起動 ─────────────────────────────
+// どの対象を再起動すべきかをログから推定
+router.get('/diagnose', (req, res) => res.json(diagnose()));
+
+// 再起動実行（パスワード必須）。target = iphone|mac|node|iphone-reboot|iphone-refresh|mac-reboot
+router.post('/restart/:target', async (req, res) => {
+    if ((req.body && req.body.password) !== REBOOT_PASSWORD) {
+        return res.status(401).json({ error: 'bad_password' });
+    }
+    try {
+        const result = await ops.restart(req.params.target);
+        res.json(result);
+    } catch (err) {
+        console.error(`[${ts()}] admin restart failed: ${err.message}`);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;
