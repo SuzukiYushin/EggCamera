@@ -12,6 +12,7 @@
 | `com.eggcamera.iphone-refresh` | iPhone署名の週次更新＋起動確認 | 毎日4:30 | ~/Library/Logs/eggcamera-iphone-refresh.log |
 | `com.eggcamera.heartbeat` | 死活監視ビート送信（要 .env.watchdog） | 5分ごと | — |
 | `com.eggcamera.soak-watch` | テスト番犬（モデル非依存・Slack検知） | 10分ごと | ~/Library/Logs/eggcamera-soak-watch.log |
+| `com.eggcamera.bot` | Slack遠隔操作Bot（/egg status・restart…） | 常駐(KeepAlive) | ~/Library/Logs/eggcamera-bot.{out,err} |
 
 plist の実体はリポジトリ `ops/launchd/` に保管。再構築は:
 ```bash

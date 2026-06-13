@@ -1,0 +1,9 @@
+{
+  "name": "eggcamera-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Slack bot for remote status/restart of the EggCamera kiosk (Socket Mode)",
+  "main": "bot.js",
+  "scripts": { "start": "node bot.js" },
+  "dependencies": { "@slack/bolt": "^3.22.0" }
+}

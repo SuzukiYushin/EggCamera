@@ -48,3 +48,5 @@ data/failed/*
 data/backups/
 .env.watchdog
 data/.soak-watch-state.json
+.env.slackbot
+EggCameraBot/node_modules/
