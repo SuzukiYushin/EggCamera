@@ -52,10 +52,26 @@ for j in node mac backup iphone-refresh; do launchctl bootstrap gui/$(id -u) ~/L
 管理画面は一度 `http://<mac>:3000/admin?token=<同じ値>` で開けば localStorage に保存され以降自動付与。
 未設定なら従来どおり認証なし。会場の共有wifiでは設定推奨。
 
+## Mac mini の電源・ログイン設定（設定済み 2026-06-13）
+
+無人復旧のための設定。停電→復電で「自動起動→自動ログイン→launchdが全サービス起動」まで全自動。
+
+| 設定 | 値 | 意味 |
+|---|---|---|
+| 自動ログイン | `eggcamera` | 再起動後パスワード無しでデスクトップ到達（launchdのGUIセッション維持） |
+| `pmset -c sleep` | 0 | 本体スリープしない |
+| `pmset -c disksleep` | 0 | ディスクスリープしない（アップロード中の引っかかり予防） |
+| `pmset -c autorestart` | 1 | 電源障害後に自動起動 |
+| `pmset -c womp` | 1 | Wake on LAN |
+| displaysleep | 10分 | 画面だけ消えて本体は稼働（省電力・正常） |
+
+確認: `pmset -g` / `defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser`
+再設定: `sudo pmset -c sleep 0 disksleep 0 autorestart 1`、自動ログインは GUI「ユーザとグループ」。
+注: 自動ログインには FileVault が OFF である必要がある。
+
 ## ハードウェア（ソフトで対処不可・要手配）
 
-- **UPS（無停電電源）**: 会場の電源ブレ・瞬断対策。Mac mini と iPhone充電を保護。電源復帰時は launchd の RunAtLoad で自動復旧するが、UPSがあれば瞬断で落ちないので無停止に近づく。
-- Mac mini は「自動ログイン」「スリープしない」設定にしておくこと（launchd の GUI セッション維持に必要）。
+- **UPS（無停電電源）**: 会場の電源ブレ・瞬断対策。Mac mini と iPhone充電を保護。電源復帰時は autorestart + 自動ログイン + launchd で自動復旧するが、UPSがあれば瞬断で落ちないので無停止に近づく。**唯一の未対応項目。**
 
 ## 起動セルフチェック
 
