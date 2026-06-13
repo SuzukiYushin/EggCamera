@@ -12,6 +12,10 @@ const {
     PAGES_BASE_URL, R2_RETENTION_MS, ts,
 } = require('./config');
 const { heicToJpeg } = require('./capture');
+const slack = require('./slack');
+
+// R2無料枠(10GB)に近づいたら警告する閾値
+const R2_WARN_BYTES = 8 * 1024 * 1024 * 1024; // 8GB
 
 fs.mkdirSync(COMPOSITED_DIR, { recursive: true });
 fs.mkdirSync(DEFERRED_DIR, { recursive: true });
@@ -210,6 +214,11 @@ async function deferredUploadToR2(sourcePath, key, { maxMs = R2_RETENTION_MS, li
                 fs.copyFileSync(safePath, failedPath);
                 listed = true;
                 console.warn(`[${ts()}] deferred upload overdue (>1h), listed in admin → ${key}`);
+                // 人力対応が要る合図。連投を避け15分に1回だけ件数つきで通知
+                slack.notify(
+                    `アップロードに失敗した写真があります（現在 ${listFailedUploads().length} 件）。`
+                    + `管理画面の「失敗画像」タブで再送/ダウンロードしてください。`,
+                    { level: 'warn', key: 'failed-uploads', throttleMs: 15 * 60_000 });
             } catch { /* ignore */ }
         }
     }
@@ -220,6 +229,9 @@ async function deferredUploadToR2(sourcePath, key, { maxMs = R2_RETENTION_MS, li
     }
     fs.rm(safePath, { force: true }, () => {});
     console.error(`[${ts()}] deferred upload gave up after 24h → ${key} (kept in failed list)`);
+    slack.notify(
+        `写真 ${key} を24時間アップロードできませんでした。管理画面の「失敗画像」から手動で再送してください。`,
+        { level: 'alert', key: `gaveup-${key}`, throttleMs: 60 * 60_000 });
     return false;
 }
 
@@ -258,8 +270,17 @@ async function cleanupOldR2Objects() {
             .filter(o => o.LastModified && o.LastModified.getTime() < cutoff)
             .map(o => ({ Key: o.Key }));
 
-        const totalMB = (objects.reduce((s, o) => s + (o.Size || 0), 0) / 1024 / 1024).toFixed(1);
+        const totalBytes = objects.reduce((s, o) => s + (o.Size || 0), 0);
+        const totalMB = (totalBytes / 1024 / 1024).toFixed(1);
         console.log(`[${ts()}] R2 cleanup: ${objects.length} objects (${totalMB}MB), ${toDelete.length} to delete`);
+
+        // 無料枠(10GB)に近づいたら課金警告（6時間に1回）
+        if (totalBytes >= R2_WARN_BYTES) {
+            slack.notify(
+                `R2ストレージが ${(totalBytes / 1024 / 1024 / 1024).toFixed(1)}GB に達しました（無料枠10GB）。`
+                + `保持期間の短縮や不要オブジェクト削除を検討してください。`,
+                { level: 'warn', key: 'r2-storage', throttleMs: 6 * 60 * 60_000 });
+        }
 
         if (!toDelete.length) return;
 

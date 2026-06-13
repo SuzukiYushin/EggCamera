@@ -11,6 +11,7 @@ const frames   = require('../frames');
 const settings = require('../settings');
 const logger   = require('../logger');
 const chaos    = require('../chaos');
+const slack    = require('../slack');
 
 const router = express.Router();
 router.use(express.json());
@@ -196,6 +197,16 @@ router.delete('/failed/:file', (req, res) => {
     const p = path.join(FAILED_DIR, path.basename(req.params.file));
     try { fs.rmSync(p); res.json({ ok: true }); }
     catch { res.status(404).json({ error: 'not_found' }); }
+});
+
+// ── Slack 通知（監視ループ/エージェントからのバグ修正・人力対応報告用） ───
+// POST {text, kind?: 'fix'|'warn'|'alert'|'info'}
+router.post('/notify', (req, res) => {
+    const { text, kind } = req.body || {};
+    if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text_required' });
+    const level = ['fix', 'warn', 'alert', 'info'].includes(kind) ? kind : 'info';
+    const sent = slack.notify(text.slice(0, 1500), { level });
+    res.json({ ok: true, sent });
 });
 
 module.exports = router;

@@ -7,6 +7,7 @@ logger.install();
 
 const { cleanupOldR2Objects } = require('./src/composite');
 const { cleanupExpiredSessions } = require('./src/sessions');
+const slack = require('./src/slack');
 const frames   = require('./src/frames');
 const settings = require('./src/settings');
 const preview  = require('./src/preview');
@@ -84,6 +85,18 @@ setInterval(() => {
         `heap=${(m.heapUsed / 1048576).toFixed(0)}MB load=${os.loadavg()[0].toFixed(2)} ` +
         `freemem=${(os.freemem() / 1073741824).toFixed(1)}GB`);
 }, 5 * 60 * 1000);
+
+// 想定外のクラッシュ要因は人力対応が要るので Slack 通知（ログに残してプロセスは継続）
+process.on('uncaughtException', err => {
+    console.error(`[${ts()}] uncaughtException: ${err.stack || err.message}`);
+    slack.notify(`サーバで未捕捉エラーが発生しました: ${err.message}`,
+        { level: 'alert', key: 'uncaught', throttleMs: 5 * 60_000 });
+});
+process.on('unhandledRejection', reason => {
+    console.error(`[${ts()}] unhandledRejection: ${reason}`);
+    slack.notify(`サーバで未処理のPromise拒否: ${String(reason).slice(0, 200)}`,
+        { level: 'alert', key: 'unhandled', throttleMs: 5 * 60_000 });
+});
 
 app.listen(PORT, () => {
     console.log(`[${ts()}] EggCameraNode listening on :${PORT} (static: ${STATIC_DIR})`);
