@@ -164,6 +164,17 @@ async function uploadToR2(filePath, key) {
     console.log(`[${ts()}] R2 uploaded → ${key}`);
 }
 
+// 任意ファイルをR2へ（バックアップ用・ContentType指定可）
+async function uploadFileToR2(filePath, key, contentType = 'application/octet-stream') {
+    await r2.send(new PutObjectCommand({
+        Bucket:      R2_BUCKET,
+        Key:         key,
+        Body:        fs.readFileSync(filePath),
+        ContentType: contentType,
+    }));
+    console.log(`[${ts()}] R2 uploaded (backup) → ${key}`);
+}
+
 // ── 不安定ネットワーク時の後追いアップロード ──────────────────────────────
 // 通常経路の即時アップロードが失敗したときだけ使う代替手段。
 // QRは想定URLで先に出してあるので、ここでバックグラウンドで粘って成功させれば
@@ -317,6 +328,7 @@ module.exports = {
     saveComposite,
     generateQRDataUrl,
     uploadToR2,
+    uploadFileToR2,
     deferredUploadToR2,
     listFailedUploads,
     retryFailedUpload,

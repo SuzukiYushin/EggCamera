@@ -1,0 +1,12 @@
+name = "eggcamera-watchdog"
+main = "src/worker.js"
+compatibility_date = "2026-06-01"
+
+# 5分ごとに死活チェック（Cloudflare側で独立実行）
+[triggers]
+crons = ["*/5 * * * *"]
+
+# KV: デプロイ前に `wrangler kv namespace create WATCHDOG` で id を作り、ここに貼る
+[[kv_namespaces]]
+binding = "WATCHDOG"
+id = "REPLACE_WITH_KV_ID"

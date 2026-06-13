@@ -3,7 +3,7 @@ const os      = require('node:os');
 const path    = require('node:path');
 const express = require('express');
 
-const { DATA_DIR, FAILED_DIR, CAPTURE_TIMEOUT_MS, ts } = require('../config');
+const { DATA_DIR, FAILED_DIR, CAPTURE_TIMEOUT_MS, ADMIN_TOKEN, ts } = require('../config');
 const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
 const { registerPhoto } = require('../sessions');
 const { listFailedUploads, retryFailedUpload } = require('../composite');
@@ -15,6 +15,15 @@ const slack    = require('../slack');
 
 const router = express.Router();
 router.use(express.json());
+
+// ADMIN_TOKEN を設定すると管理APIに認証が要る（未設定なら従来どおり素通り）。
+// ヘッダ X-Admin-Token か ?token= で渡す。
+router.use((req, res, next) => {
+    if (!ADMIN_TOKEN) return next();
+    const tok = req.get('X-Admin-Token') || req.query.token;
+    if (tok === ADMIN_TOKEN) return next();
+    res.status(401).json({ error: 'unauthorized' });
+});
 
 const HOME = os.homedir();
 

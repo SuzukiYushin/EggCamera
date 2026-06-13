@@ -1,6 +1,19 @@
 /* Photo Booth 管理画面 */
 const $ = sel => document.querySelector(sel);
 
+// 管理APIにトークンが要る場合: ?token=… を一度開くと localStorage に保存し、
+// 以降は自動付与する。トークン無効なら従来どおり素通り。
+const ADMIN_TOKEN = (() => {
+  const p = new URLSearchParams(location.search).get('token');
+  if (p) localStorage.setItem('adminToken', p);
+  return localStorage.getItem('adminToken') || '';
+})();
+// img/aタグ用にトークンをクエリで付ける
+function withToken(url) {
+  if (!ADMIN_TOKEN) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(ADMIN_TOKEN);
+}
+
 const api = {
   async get(path)        { return req(path); },
   async del(path)        { return req(path, { method: 'DELETE' }); },
@@ -8,8 +21,10 @@ const api = {
   async post(path, b)    { return req(path, { method: 'POST',  headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); },
   async put(path, b)     { return req(path, { method: 'PUT',   headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) }); },
 };
-async function req(path, init) {
+async function req(path, init = {}) {
+  if (ADMIN_TOKEN) init.headers = { ...(init.headers || {}), 'X-Admin-Token': ADMIN_TOKEN };
   const res = await fetch(`/api/admin${path}`, init);
+  if (res.status === 401) throw new Error('unauthorized（?token=… を付けて開いてください）');
   if (!res.ok) {
     let code = `http_${res.status}`;
     try { const j = await res.json(); if (j.error) code = j.error; } catch {}
@@ -141,6 +156,7 @@ $('#btn-upload').addEventListener('click', async () => {
         headers: {
           'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
           'X-Frame-Name': encodeURIComponent(name || file.name.replace(/\.[^.]+$/, '')),
+          ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
         },
         body: file,
       });
@@ -295,7 +311,7 @@ async function loadFailed() {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <img class="thumb" src="${it.url}" alt="" style="aspect-ratio:2/3;object-fit:cover;">
+      <img class="thumb" src="${withToken(it.url)}" alt="" style="aspect-ratio:2/3;object-fit:cover;">
       <div class="name"></div>
       <div class="failed-when"></div>
       <div class="failed-actions">
@@ -306,7 +322,7 @@ async function loadFailed() {
     card.querySelector('.name').textContent = it.fileName;
     card.querySelector('.failed-when').textContent = `失敗: ${when}`;
     const dl = card.querySelector('a.badge');
-    dl.href = `${it.url}?download=1`;
+    dl.href = withToken(`${it.url}?download=1`);
     card.querySelector('[data-act="retry"]').addEventListener('click', async (e) => {
       const b = e.target; b.disabled = true; b.textContent = '再送中…';
       try {

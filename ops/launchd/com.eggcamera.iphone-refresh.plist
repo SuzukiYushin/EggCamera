@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.iphone-refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/eggcamera/EggCamera/EggCameraIPhone/refresh-cron.sh</string>
+  </array>
+  <!-- 毎日 4:30。失効2日前以降なら焼き直し、それ以外は起動確認だけ -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>4</integer>
+    <key>Minute</key><integer>30</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>

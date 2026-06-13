@@ -20,9 +20,17 @@ const LOG_DIR        = path.join(DATA_DIR, 'logs');
 const ADMIN_DIR      = path.resolve(__dirname, '../admin');
 
 const MAX_COMPOSITED = 30;
+const MAX_RAW        = 60;   // data/raw のHEIC保持枚数（無制限増加を防ぐ）
+const LOG_RETAIN_DAYS = 14;  // data/logs の保持日数
+
+// ディスク空きがこれを下回ったらSlack警告
+const DISK_WARN_BYTES = 5 * 1024 * 1024 * 1024; // 5GB
 
 // 後追いアップロードをこの時間まで粘り、超えたら failed として管理画面に出す
 const DEFERRED_MAX_MS = 60 * 60 * 1000; // 1時間
+
+// 管理画面/管理APIの認証トークン（未設定なら認証なし＝従来どおり）
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
 // ── Server ─────────────────────────────────────────────
 const PORT       = parseInt(process.env.PORT || '3000', 10);
@@ -57,7 +65,8 @@ module.exports = {
     DATA_DIR, RAW_DIR, PREVIEW_DIR, COMPOSITED_DIR, DEFERRED_DIR, FAILED_DIR,
     FRAMES_DIR, FLAME_PATH,
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
-    MAX_COMPOSITED, DEFERRED_MAX_MS,
+    MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
+    ADMIN_TOKEN,
     PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,
     SWIFT_HOST, SWIFT_PORT,

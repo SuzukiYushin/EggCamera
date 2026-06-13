@@ -11,6 +11,7 @@ const slack = require('./src/slack');
 const frames   = require('./src/frames');
 const settings = require('./src/settings');
 const preview  = require('./src/preview');
+const maintenance = require('./src/maintenance');
 const sessionsRouter = require('./src/routes/sessions');
 const photosRouter   = require('./src/routes/photos');
 const adminRouter    = require('./src/routes/admin');
@@ -73,6 +74,7 @@ app.use((req, res) => {
 });
 
 preview.startDiscovery();
+maintenance.start(); // 起動セルフチェック + raw/log保持 + ディスク監視
 cleanupOldR2Objects();
 setInterval(cleanupOldR2Objects, R2_CLEANUP_INTERVAL);
 setInterval(cleanupExpiredSessions, Math.min(SESSION_TTL_MS, 5 * 60 * 1000));
@@ -98,6 +100,18 @@ process.on('unhandledRejection', reason => {
         { level: 'alert', key: 'unhandled', throttleMs: 5 * 60_000 });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`[${ts()}] EggCameraNode listening on :${PORT} (static: ${STATIC_DIR})`);
 });
+
+// グレースフルシャットダウン: 受付を止めて処理中リクエストを捌いてから終了
+let shuttingDown = false;
+function shutdown(sig) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[${ts()}] ${sig} received → graceful shutdown`);
+    server.close(() => { console.log(`[${ts()}] closed`); process.exit(0); });
+    setTimeout(() => process.exit(0), 10_000).unref(); // 念のため上限
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));

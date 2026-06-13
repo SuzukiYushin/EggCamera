@@ -45,3 +45,5 @@ data/deferred/*
 data/failed/*
 !data/failed/.gitkeep
 .env.slack
+data/backups/
+.env.watchdog
