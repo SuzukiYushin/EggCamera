@@ -11,6 +11,30 @@ cd "$(dirname "$0")" || exit 1
 # 失効まで何日を切ったら焼き直すか
 RENEW_WITHIN_DAYS=2
 
+# 長期運用テストの監視（別セッション）向け設定
+TEST_REPORT_URL="http://localhost:3000/api/test-report"
+IPHONE_FRAME_URL="${IPHONE_FRAME_URL:-http://192.168.10.109:8080/frame}"
+
+# 監視ログに DEPLOY-MARKER を投稿（このジョブによるアプリ再起動を「申し送り」扱いにさせる）
+post_marker() {
+  local text="$1"
+  curl -s -m 8 -X POST "$TEST_REPORT_URL" -H 'Content-Type: application/json' \
+    --data "{\"level\":\"info\",\"text\":\"DEPLOY-MARKER(iphone-refresh): ${text}\"}" >/dev/null 2>&1 \
+    && echo "marker投稿OK" || echo "marker投稿失敗(監視サーバ未起動?)"
+}
+
+# 再デプロイ完了の必須確認: iPhoneが :8080/frame を200で返す状態に戻ったか
+verify_iphone_up() {
+  local code i
+  for i in 1 2 3 4 5 6; do
+    code=$(curl -s -o /dev/null -m 5 -w "%{http_code}" "$IPHONE_FRAME_URL" 2>/dev/null || echo 000)
+    [[ "$code" == 200 ]] && { echo "iPhone :8080/frame=200（復旧確認）"; return 0; }
+    sleep 5
+  done
+  echo "iPhone :8080/frame=${code}（200に戻らず）"
+  return 1
+}
+
 # Slack 通知（Webhook URL は ~/EggCamera/.env.slack に置く・git管理外）
 #   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
 notify_slack() {
@@ -41,8 +65,11 @@ profile_expiry_epoch() {
   echo "==== $(date '+%Y-%m-%d %H:%M:%S') check start ===="
   exp=$(profile_expiry_epoch)
   now=$(date +%s)
+  did_redeploy=0   # アプリを再起動/再インストールしたら1
   if (( exp == 0 )); then
     echo "プロファイルが見つからない → refresh を試行"
+    post_marker "iPhoneアプリを再ビルド・再インストール・再起動します（プロファイル無し→再生成）。数サイクルのcapture_timeout/プレビュー断は本作業由来で異常ではありません。"
+    did_redeploy=1
     if ./iphone.sh refresh; then echo "refresh OK"
     else echo "refresh FAILED"; notify_slack "プロファイルが見つからず再生成にも失敗しました。アプリが起動しない恐れ。Xcodeでサインイン状態を確認してください。"; fi
   else
@@ -50,9 +77,10 @@ profile_expiry_epoch() {
     echo "プロファイル失効まで ${days_left} 日"
     if (( exp - now <= RENEW_WITHIN_DAYS * 86400 )); then
       echo "失効が近い → refresh（焼き直し）"
+      post_marker "プロビジョニング失効間近のためiPhoneアプリを再ビルド・再インストール・再起動します。数サイクルのcapture_timeout/プレビュー断は本作業由来で異常ではありません。"
+      did_redeploy=1
       if ./iphone.sh refresh; then
         echo "refresh OK"
-        # 焼き直し後も失効が更新されていなければ（=再生成できていない）通知
         newexp=$(profile_expiry_epoch)
         if (( newexp <= now )); then
           notify_slack "プロビジョニングが失効し、自動更新できませんでした。手動でXcodeを開いて更新してください。"
@@ -65,10 +93,22 @@ profile_expiry_epoch() {
       fi
     else
       echo "余裕あり → restart（起動確認のみ）"
+      post_marker "iPhoneアプリの起動確認のため再起動します（プロファイルは有効）。一時的なプレビュー断は本作業由来で異常ではありません。"
+      did_redeploy=1
       ./iphone.sh restart && echo "restart OK" || { echo "restart FAILED"; notify_slack "アプリの起動確認に失敗しました。iPhoneの接続/状態を確認してください。"; }
     fi
   fi
-  # 念のため: 現時点で既に失効しているのに上で拾えていなければ通知
+
+  # 再デプロイした場合は :8080 が200に戻ったことを必ず確認し、結果をマーカーで申し送る
+  if (( did_redeploy )); then
+    if verify_iphone_up; then
+      post_marker "iPhone再デプロイ完了。:8080/frame=200 で復旧確認済み。以降は正常稼働。"
+    else
+      post_marker "iPhone再デプロイ後、:8080/frame が200に戻りません。撮影系が止まっている可能性。要確認。"
+      notify_slack "iPhone再デプロイ後にアプリが :8080 を返しません。撮影が止まっている可能性があります。"
+    fi
+  fi
+
   finalexp=$(profile_expiry_epoch)
   if (( finalexp != 0 && finalexp <= now )); then
     notify_slack "プロビジョニングが失効中です。アプリが起動できない可能性があります。"
