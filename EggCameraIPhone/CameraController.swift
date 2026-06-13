@@ -15,6 +15,12 @@ final class CameraController: NSObject {
     private var activeDelegates: [PhotoCaptureDelegate] = []
     private let delegateLock = NSLock()
 
+    // 省電力: 一定時間アクティビティ（wake/撮影/プレビュー取得）が無ければ
+    // カメラセッションを止める。客がいない待機中の発熱・電力・電池劣化を抑える。
+    // 復帰は wake()（iPad のスタート押下で呼ばれる）または撮影時の遅延起動。
+    private var idleTimer: DispatchSourceTimer?
+    private static let idleTimeout: TimeInterval = 180
+
     // ブラウザのライブプレビュー用: 最新フレームのJPEGを保持（GET /frame が読む）
     private let frameLock = NSLock()
     private var latestFrameJPEG: Data?
@@ -73,13 +79,8 @@ final class CameraController: NSObject {
         try await withCheckedThrowingContinuation { continuation in
             sessionQueue.async {
                 do {
-                    if !self.session.isRunning {
-                        try self.configureSessionIfNeeded()
-                        self.session.startRunning()
-                        Task { @MainActor in
-                            self.logger?.log("AVCaptureSession started")
-                        }
-                    }
+                    try self.ensureRunningLocked()
+                    self.scheduleIdleStopLocked()
                     continuation.resume()
                 } catch {
                     continuation.resume(throwing: error)
@@ -88,14 +89,62 @@ final class CameraController: NSObject {
         }
     }
 
+    // iPad のスタート押下時に呼ばれる。撮影ページ到達前にカメラを温めておき、
+    // 待ち時間をなくす。同時にアイドルタイマを延長する。
+    func keepAwake() {
+        sessionQueue.async {
+            do {
+                try self.ensureRunningLocked()
+            } catch {
+                Task { @MainActor in self.logger?.log("keepAwake start failed: \(error.localizedDescription)") }
+            }
+            self.scheduleIdleStopLocked()
+        }
+    }
+
+    // プレビュー取得など、稼働中のアクティビティでアイドル時間を延長する
+    // （稼働していなければ何もしない＝/frame だけでは起動しない）。
+    func noteActivity() {
+        sessionQueue.async {
+            guard self.session.isRunning else { return }
+            self.scheduleIdleStopLocked()
+        }
+    }
+
     func stopSession() {
         sessionQueue.async {
+            self.idleTimer?.cancel()
+            self.idleTimer = nil
             guard self.session.isRunning else { return }
             self.session.stopRunning()
             Task { @MainActor in
                 self.logger?.log("AVCaptureSession stopped")
             }
         }
+    }
+
+    // sessionQueue 上で呼ぶこと。未起動なら構成して起動する。
+    private func ensureRunningLocked() throws {
+        guard !session.isRunning else { return }
+        try configureSessionIfNeeded()
+        session.startRunning()
+        Task { @MainActor in self.logger?.log("AVCaptureSession started") }
+    }
+
+    // sessionQueue 上で呼ぶこと。アイドルタイマを idleTimeout 後に張り直す。
+    private func scheduleIdleStopLocked() {
+        idleTimer?.cancel()
+        let timer = DispatchSource.makeTimerSource(queue: sessionQueue)
+        timer.schedule(deadline: .now() + Self.idleTimeout)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            self.idleTimer = nil
+            guard self.session.isRunning else { return }
+            self.session.stopRunning()
+            Task { @MainActor in self.logger?.log("AVCaptureSession stopped (idle \(Int(Self.idleTimeout))s)") }
+        }
+        idleTimer = timer
+        timer.resume()
     }
 
     func supportedDimensionsSummary() -> String {
@@ -109,10 +158,14 @@ final class CameraController: NSObject {
     func capture(preferredWidth: Int?, preferredHeight: Int?) async throws -> (CaptureIntermediate, CaptureCandidate?) {
         try await withCheckedThrowingContinuation { continuation in
             sessionQueue.async {
-                guard self.session.isRunning else {
-                    continuation.resume(throwing: CameraError.sessionNotRunning)
+                // 念のための遅延起動: wake を取りこぼしても撮影は成立させる
+                do {
+                    try self.ensureRunningLocked()
+                } catch {
+                    continuation.resume(throwing: error)
                     return
                 }
+                self.scheduleIdleStopLocked()
 
                 let candidate = self.chooseCandidate(preferredWidth: preferredWidth, preferredHeight: preferredHeight)
                 let settings = self.makePhotoSettings(candidate: candidate)

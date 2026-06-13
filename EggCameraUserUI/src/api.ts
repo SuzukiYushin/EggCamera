@@ -64,6 +64,13 @@ export function createSession(): Promise<{ sessionId: string }> {
   return request('/sessions', { method: 'POST' });
 }
 
+// スタート押下で iPhone のカメラを先行起動させる（撮影ページの待ち時間軽減）。
+// 投げっぱなしで良く、失敗しても画面遷移はそのまま進める。
+export function wakeCamera(): Promise<void> {
+  if (PROTO) return Promise.resolve();
+  return request('/preview/wake', { method: 'POST' }).then(() => {});
+}
+
 export function getSession(sessionId: string): Promise<SessionState> {
   if (PROTO) return proto.getSession(sessionId);
   return request(`/sessions/${sessionId}`);

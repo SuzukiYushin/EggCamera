@@ -12,7 +12,7 @@ import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
 import { ErrorOverlay } from './components/ErrorOverlay';
 import { MaintenanceLock } from './components/MaintenanceLock';
-import { createSession, selectPhoto, uploadComposite, getMode, PROTO } from './api';
+import { createSession, wakeCamera, selectPhoto, uploadComposite, getMode, PROTO } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 import { reportClientError } from './clientLog';
 
@@ -157,7 +157,7 @@ export default function App() {
           ))}
         </nav>
       )}
-      {screen === 'start'    && <Start       onNext={() => go('nick')} />}
+      {screen === 'start'    && <Start       onNext={() => { wakeCamera().catch(() => {}); go('nick'); }} />}
       {screen === 'nick'     && <Nickname    nickname={nickname} onChange={setNickname} onNext={() => go('bday')} onSkip={() => go('bday')} />}
       {screen === 'bday'     && <Birthday    nickname={nickname} onNext={goCapture} onSkip={() => goCapture(0)} />}
       {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={() => setFatal(true)} />}

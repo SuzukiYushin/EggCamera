@@ -37,6 +37,9 @@ app.get('/api/mode', (req, res) => res.json({ maintenance: mode.isMaintenance() 
 // ── iPhone ライブプレビュー（Bonjourで発見した iPhone:8080/frame を中継） ──
 app.get('/api/preview/frame', (req, res) => preview.proxyFrame(req, res));
 
+// ── iPhone カメラ先行起動（iPad のスタート押下時に呼ぶ。撮影ページの待ち時間軽減） ──
+app.post('/api/preview/wake', (req, res) => res.json({ ok: preview.wake() }));
+
 // ── フロントのエラー詳細をサーバログへ集約（オーバーレイの原因調査用） ──
 app.post('/api/client-log', (req, res) => {
     const { message = '', screen = '' } = req.body || {};

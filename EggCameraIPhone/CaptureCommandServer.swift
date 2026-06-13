@@ -70,8 +70,16 @@ final class CaptureCommandServer {
         let header = String(data: data[..<range.lowerBound], encoding: .utf8) ?? ""
         let requestLine = header.components(separatedBy: "\r\n").first ?? ""
 
+        // ウェイク: iPad のスタート押下で呼ばれ、撮影ページ前にカメラを温める
+        if requestLine.hasPrefix("POST /wake") {
+            cameraController.keepAwake()
+            send(status: 200, message: "OK", on: connection)
+            return
+        }
+
         // ライブプレビュー: 最新フレームのJPEGを1枚返す（ブラウザがポーリング）
         if requestLine.hasPrefix("GET /frame") {
+            cameraController.noteActivity()
             if let frame = cameraController.latestPreviewFrame() {
                 sendJPEG(frame, on: connection)
             } else {

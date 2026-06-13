@@ -33,7 +33,11 @@ final class AppViewModel: ObservableObject {
     }
 
     func start() {
+        // 自動ロックは無効のまま（端末をロックさせない）。ただしこの画面は
+        // 誰も見ない（プレビューは /frame で iPad に送る）ので、消灯して
+        // 電力・発熱・OLED焼き付きを抑える。整備時は手動で明るさを上げられる。
         UIApplication.shared.isIdleTimerDisabled = true
+        UIScreen.main.brightness = 0
         Task {
             do {
                 try await cameraController.startSession()

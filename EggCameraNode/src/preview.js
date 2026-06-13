@@ -66,4 +66,18 @@ function proxyFrame(req, res) {
     });
 }
 
-module.exports = { startDiscovery, proxyFrame };
+// iPad のスタート押下時に、iPhone のカメラを先行起動させる（撮影ページの
+// 待ち時間をなくすため）。投げっぱなしで良く、未発見なら何もしない
+// （撮影時の遅延起動が保険になる）。
+function wake() {
+    if (!iphone) return false;
+    const req = http.request({
+        host: iphone.host, port: iphone.port, path: '/wake', method: 'POST', timeout: 2000,
+    }, r => r.resume());
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => { /* 起動できなくても撮影時に遅延起動する */ });
+    req.end();
+    return true;
+}
+
+module.exports = { startDiscovery, proxyFrame, wake };
