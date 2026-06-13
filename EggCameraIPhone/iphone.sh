@@ -65,6 +65,24 @@ cmd_launch() {
   xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID"
 }
 
+# iPhone本体を再起動 → 復帰を待つ → アプリを起動。
+# 注意: iOSは再起動後にアプリを自動起動しない（ここで起動する）。
+#       iPhoneにパスコードがあると再起動後ロックされ、解除するまでアプリが使えない。
+#       キオスク機はパスコード無し（またはガイドアクセス）にしておくこと。
+cmd_reboot() {
+  detect_device
+  echo "▶ iPhone本体を再起動（--wait-for-device で復帰待ち）"
+  xcrun devicectl device reboot --device "$CORE_ID" --wait-for-device --timeout 180 || true
+  echo "▶ 復帰後、アプリを起動"
+  # 再起動直後はサービスが立ち上がるまで数回リトライ
+  for i in 1 2 3 4 5 6; do
+    if xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID" 2>/dev/null; then
+      echo "アプリ起動OK"; break
+    fi
+    echo "  起動待ち… ($i)"; sleep 10
+  done
+}
+
 # プロファイル更新を伴う再ビルド（週次の自動更新用）。
 # -allowProvisioningUpdates で失効前のプロファイルを焼き直し、入れ直して起動する。
 # Apple IDアカウントに接続するため、GUIログイン中のセッションで実行すること。
@@ -93,9 +111,10 @@ case "${1:-run}" in
   build)   cmd_build ;;
   install) cmd_install ;;
   launch)  cmd_launch ;;
-  restart) cmd_launch ;;                       # ビルドせず再起動だけ
+  restart) cmd_launch ;;                       # アプリ再起動（ビルドせず）
+  reboot)  cmd_reboot ;;                        # iPhone本体を再起動→アプリ起動
   run)     cmd_build && cmd_install && cmd_launch ;;
   refresh) cmd_refresh ;;                      # 週次の自動更新用（プロファイル焼き直し）
   status)  cmd_status ;;
-  *) echo "usage: ./iphone.sh {run|build|install|launch|restart|refresh|status}" >&2; exit 1 ;;
+  *) echo "usage: ./iphone.sh {run|build|install|launch|restart|reboot|refresh|status}" >&2; exit 1 ;;
 esac

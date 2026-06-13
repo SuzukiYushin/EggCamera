@@ -12,12 +12,21 @@ Slackから `/egg <コマンド>` でキオスクの状況確認・各種再起�
 | `/egg restart node` | Nodeサーバ再起動（:3000復旧確認つき） |
 | `/egg restart mac` | EggCameraMac再起動（:8081/8082確認） |
 | `/egg restart iphone` | iPhoneアプリ再起動（ビルドなし・速い、:8080確認） |
+| `/egg reboot iphone` | iPhone**本体**再起動→アプリ起動（最終手段・下の注意必読） |
 | `/egg refresh iphone` | iPhoneアプリ再ビルド＋入れ直し（プロファイル更新） |
 | `/egg logs` | 直近の実エラーログ |
 | `/egg failed` | 失敗画像の一覧 |
 | `/egg help` | コマンド一覧 |
 
 再起動系は実行前後に自動で DEPLOY-MARKER をテストログへ投稿し、復旧（:8080=200等）も確認する。
+
+## iPhone本体再起動(`reboot iphone`)の注意
+
+`restart iphone`（アプリ再起動）でほぼ解決する。本体再起動は最終手段:
+- iOSは再起動後にアプリを自動起動しない → スクリプトがdevicectlで起動し直す（実装済み）
+- **iPhoneにパスコードがあると、再起動後ロックされ、解除するまでアプリが使えない**。
+  キオスク機は**パスコード無し**（または設定→アクセシビリティのガイドアクセス）にしておくこと。
+- 約1〜2分の停止。USB接続が前提。
 
 ## Slackアプリ作成（一度だけ）
 

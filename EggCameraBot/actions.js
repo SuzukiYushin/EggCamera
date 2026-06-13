@@ -105,6 +105,18 @@ async function restartIphone() {
     : `⚠️ 再起動後 :8080=${code}\n${r.out.slice(-300)}`;
 }
 
+// iPhone「本体」再起動（破壊的: パスコード有りだと復帰後ロックされる）
+async function rebootIphone() {
+  await postMarker('SlackからiPhone本体を再起動します。1〜2分のcapture/プレビュー断は本操作由来で異常ではありません。');
+  const r = await sh(path.join(IPHONE_DIR, 'iphone.sh'), ['reboot'], { cwd: IPHONE_DIR, timeout: 300_000 });
+  await new Promise(r => setTimeout(r, 8000));
+  const code = await httpCode(IPHONE_FRAME);
+  await postMarker(`iPhone本体再起動 :8080/frame=${code}。`);
+  return code === '200'
+    ? '✅ iPhone本体を再起動し、アプリ復帰OK（:8080/frame=200）'
+    : `⚠️ 再起動後 :8080=${code}。パスコード有りだと端末がロックされ手動解除が必要です。\n${r.out.slice(-300)}`;
+}
+
 async function refreshIphone() {
   await postMarker('SlackからiPhoneアプリを再ビルド・再インストール・再起動します（プロファイル更新）。数サイクルのcapture断は本操作由来で異常ではありません。');
   const r = await sh(path.join(IPHONE_DIR, 'iphone.sh'), ['refresh'], { cwd: IPHONE_DIR, timeout: 420_000 });
@@ -140,7 +152,8 @@ const HELP = [
   '• `status` … 全体の状況確認',
   '• `restart node` … Nodeサーバ再起動',
   '• `restart mac` … EggCameraMac再起動',
-  '• `restart iphone` … iPhoneアプリ再起動（ビルドなし・速い）',
+  '• `restart iphone` … iPhone*アプリ*再起動（ビルドなし・速い）',
+  '• `reboot iphone` … iPhone*本体*再起動（最終手段。パスコード有りだと要手動解除）',
   '• `refresh iphone` … iPhoneアプリ再ビルド＋入れ直し（プロファイル更新）',
   '• `logs` … 直近のエラーログ',
   '• `failed` … 失敗画像の一覧',
@@ -155,10 +168,11 @@ async function run(text) {
   if (t === 'restart node') return restartNode();
   if (t === 'restart mac')  return restartMac();
   if (t === 'restart iphone') return restartIphone();
+  if (t === 'reboot iphone')  return rebootIphone();
   if (t === 'refresh iphone' || t === 'refresh') return refreshIphone();
   if (t === 'logs') return logs();
   if (t === 'failed') return failedList();
   return `不明なコマンド: \`${text}\`\n${HELP}`;
 }
 
-module.exports = { run, status, restartNode, restartMac, restartIphone, refreshIphone, logs, failedList, HELP };
+module.exports = { run, status, restartNode, restartMac, restartIphone, rebootIphone, refreshIphone, logs, failedList, HELP };
