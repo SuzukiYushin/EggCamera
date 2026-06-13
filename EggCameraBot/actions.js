@@ -105,6 +105,19 @@ async function restartIphone() {
     : `⚠️ 再起動後 :8080=${code}\n${r.out.slice(-300)}`;
 }
 
+// Mac mini「本体」再起動（破壊的・要 sudoers NOPASSWD）。
+// 再起動すると bot 自身も落ちるので完了報告はできない。autorestart+自動ログイン+launchdで復帰。
+async function rebootMac() {
+  await postMarker('SlackからMac mini本体を再起動します。全サービスが一時停止し、自動復旧（autorestart→自動ログイン→launchd）まで数分かかります。本操作由来で異常ではありません。');
+  // sudoers に NOPASSWD が無いと失敗する
+  const r = await sh('sudo', ['-n', '/sbin/shutdown', '-r', 'now']);
+  if (!r.ok) {
+    return '⚠️ Mac mini再起動の権限がありません。一度だけ以下を実行してください:\n'
+      + '```echo "eggcamera ALL=(root) NOPASSWD: /sbin/shutdown, /sbin/reboot" | sudo tee /etc/sudoers.d/eggcamera-reboot && sudo chmod 440 /etc/sudoers.d/eggcamera-reboot```';
+  }
+  return ':arrows_counterclockwise: Mac mini本体を再起動します。数分後に自動復旧します（復旧後 `/egg status` で確認）。';
+}
+
 // iPhone「本体」再起動（破壊的: パスコード有りだと復帰後ロックされる）
 async function rebootIphone() {
   await postMarker('SlackからiPhone本体を再起動します。1〜2分のcapture/プレビュー断は本操作由来で異常ではありません。');
@@ -153,11 +166,12 @@ const HELP = [
   '• `restart node` … Nodeサーバ再起動',
   '• `restart mac` … EggCameraMac再起動',
   '• `restart iphone` … iPhone*アプリ*再起動（ビルドなし・速い）',
-  '• `reboot iphone` … iPhone*本体*再起動（最終手段。パスコード有りだと要手動解除）',
   '• `refresh iphone` … iPhoneアプリ再ビルド＋入れ直し（プロファイル更新）',
   '• `logs` … 直近のエラーログ',
   '• `failed` … 失敗画像の一覧',
   '• `help` … この一覧',
+  '',
+  ':warning: *本体リブート*（Mac mini / iPhone本体）は誤操作防止のため別コマンド `/egg-reboot` に分離（`confirm` 必須）。',
 ].join('\n');
 
 // サブコマンド振り分け
@@ -168,11 +182,30 @@ async function run(text) {
   if (t === 'restart node') return restartNode();
   if (t === 'restart mac')  return restartMac();
   if (t === 'restart iphone') return restartIphone();
-  if (t === 'reboot iphone')  return rebootIphone();
   if (t === 'refresh iphone' || t === 'refresh') return refreshIphone();
   if (t === 'logs') return logs();
   if (t === 'failed') return failedList();
+  if (/^reboot/.test(t)) return '本体リブートは専用コマンド `/egg-reboot` です（誤操作防止のため分離）。`/egg-reboot help` を参照。';
   return `不明なコマンド: \`${text}\`\n${HELP}`;
 }
 
-module.exports = { run, status, restartNode, restartMac, restartIphone, rebootIphone, refreshIphone, logs, failedList, HELP };
+// ── 危険系（本体リブート）専用ルーター。confirm 必須で二重の誤操作防止 ──
+const DANGER_HELP = [
+  ':warning: *本体リブート専用コマンド*（`/egg-reboot <対象> confirm`）',
+  '誤操作防止のため、必ず末尾に `confirm` が必要です。',
+  '• `/egg-reboot mac confirm` … *Mac mini本体*を再起動（全サービス停止→自動復旧）',
+  '• `/egg-reboot iphone confirm` … *iPhone本体*を再起動（パスコード有りだと要手動解除）',
+  '通常はこちらではなく `/egg restart …`（アプリ/サービス再起動）で対処してください。',
+].join('\n');
+
+async function runDanger(text) {
+  const t = (text || '').trim().toLowerCase();
+  if (t === '' || t === 'help') return DANGER_HELP;
+  if (t === 'mac confirm')    return rebootMac();
+  if (t === 'iphone confirm') return rebootIphone();
+  if (t === 'mac' || t === 'iphone')
+    return `:warning: 確認のため \`/egg-reboot ${t} confirm\` と入力してください（${t === 'mac' ? 'Mac mini本体' : 'iPhone本体'}を再起動します）。`;
+  return `不明な指定: \`${text}\`\n${DANGER_HELP}`;
+}
+
+module.exports = { run, runDanger, status, restartNode, restartMac, restartIphone, rebootMac, rebootIphone, refreshIphone, logs, failedList, HELP, DANGER_HELP };

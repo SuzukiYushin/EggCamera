@@ -12,7 +12,6 @@ Slackから `/egg <コマンド>` でキオスクの状況確認・各種再起�
 | `/egg restart node` | Nodeサーバ再起動（:3000復旧確認つき） |
 | `/egg restart mac` | EggCameraMac再起動（:8081/8082確認） |
 | `/egg restart iphone` | iPhoneアプリ再起動（ビルドなし・速い、:8080確認） |
-| `/egg reboot iphone` | iPhone**本体**再起動→アプリ起動（最終手段・下の注意必読） |
 | `/egg refresh iphone` | iPhoneアプリ再ビルド＋入れ直し（プロファイル更新） |
 | `/egg logs` | 直近の実エラーログ |
 | `/egg failed` | 失敗画像の一覧 |
@@ -20,7 +19,26 @@ Slackから `/egg <コマンド>` でキオスクの状況確認・各種再起�
 
 再起動系は実行前後に自動で DEPLOY-MARKER をテストログへ投稿し、復旧（:8080=200等）も確認する。
 
-## iPhone本体再起動(`reboot iphone`)の注意
+## 本体リブートは専用コマンド `/egg-reboot`（誤操作防止）
+
+Mac mini / iPhone「本体」の再起動は、通常の `/egg` とは**別のスラッシュコマンド**に分離し、
+さらに末尾 `confirm` を必須にしている（二重の誤操作防止）。
+
+| コマンド | 動作 |
+|---|---|
+| `/egg-reboot mac confirm` | **Mac mini本体**を再起動（全サービス停止→autorestart/自動ログイン/launchdで自動復旧） |
+| `/egg-reboot iphone confirm` | **iPhone本体**を再起動→アプリ起動（パスコード有りだと要手動解除） |
+| `/egg-reboot help` | 説明 |
+
+- `confirm` を付けないと実行されず確認文を返す。通常の不調は `/egg restart …` で対処すること。
+- **Mac mini本体の再起動には sudoers 設定が一度だけ必要**（NOPASSWD）:
+  ```
+  echo "eggcamera ALL=(root) NOPASSWD: /sbin/shutdown, /sbin/reboot" | sudo tee /etc/sudoers.d/eggcamera-reboot
+  sudo chmod 440 /etc/sudoers.d/eggcamera-reboot
+  ```
+  未設定だと `/egg-reboot mac confirm` は権限エラーを返す（壊れはしない）。
+
+## iPhone本体再起動の注意
 
 `restart iphone`（アプリ再起動）でほぼ解決する。本体再起動は最終手段:
 - iOSは再起動後にアプリを自動起動しない → スクリプトがdevicectlで起動し直す（実装済み）
@@ -36,6 +54,7 @@ Slackから `/egg <コマンド>` でキオスクの状況確認・各種再起�
 4. **Slash Commands** → Create New Command:
    - Command: `/egg`　Description: `EggCamera 運用`　Usage hint: `status | restart node | ...`
    - （Socket Mode なので Request URL は不要）
+   - 同様に **`/egg-reboot`** も追加（危険系・本体リブート専用）
 5. **Event Subscriptions**（@メンションも使うなら）→ Subscribe to bot events: `app_mention`
 6. Botを通知チャンネルに招待: `/invite @アプリ名`
 

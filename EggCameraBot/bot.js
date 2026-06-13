@@ -9,9 +9,15 @@ const os   = require('node:os');
 const path = require('node:path');
 const actions = require('./actions');
 
-// ── CLIテストモード: `node bot.js test status` 等（Slack不要） ──
+// ── CLIテストモード（Slack不要） ──
+//   node bot.js test <safe cmd>        例) test status
+//   node bot.js test-reboot <danger>   例) test-reboot help / test-reboot mac
 if (process.argv[2] === 'test') {
   actions.run(process.argv.slice(3).join(' ')).then(r => { console.log(r); process.exit(0); });
+  return;
+}
+if (process.argv[2] === 'test-reboot') {
+  actions.runDanger(process.argv.slice(3).join(' ')).then(r => { console.log(r); process.exit(0); });
   return;
 }
 
@@ -56,6 +62,24 @@ app.command('/egg', async ({ command, ack, respond }) => {
   try {
     const result = await actions.run(sub);
     await respond({ response_type: 'in_channel', text: result });
+  } catch (err) {
+    await respond({ response_type: 'in_channel', text: `:x: エラー: ${err.message}` });
+  }
+});
+
+// 危険系（本体リブート）専用コマンド /egg-reboot（confirm 必須）
+app.command('/egg-reboot', async ({ command, ack, respond }) => {
+  await ack();
+  if (!allowed(command.user_id)) {
+    await respond({ response_type: 'ephemeral', text: ':no_entry: このコマンドの実行権限がありません。' });
+    return;
+  }
+  const sub = (command.text || '').trim();
+  if (/confirm/i.test(sub)) {
+    await respond({ response_type: 'in_channel', text: `:warning: 本体リブート実行: \`/egg-reboot ${sub}\` …` });
+  }
+  try {
+    await respond({ response_type: 'in_channel', text: await actions.runDanger(sub) });
   } catch (err) {
     await respond({ response_type: 'in_channel', text: `:x: エラー: ${err.message}` });
   }
