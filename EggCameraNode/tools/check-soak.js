@@ -3,13 +3,28 @@
 // 直近 N 分の [TEST] / [CLIENT] / error 行を拾い、アラートを分類して出力する。
 // 終了コード: 異常あり=1 / 正常=0 （ループ側が分岐しやすいように）
 
+const fs = require('node:fs');
+const path = require('node:path');
+
 const WINDOW_MIN = parseInt(process.argv[2] || '30', 10);
 const PORT = process.env.PORT || '3000';
+
+// 管理APIに ADMIN_TOKEN が設定されていればヘッダで渡す（同階層の ../.env から読む）。
+function readAdminToken() {
+  if (process.env.ADMIN_TOKEN) return process.env.ADMIN_TOKEN;
+  try {
+    const env = fs.readFileSync(path.join(__dirname, '..', '.env'), 'utf8');
+    const m = env.match(/^ADMIN_TOKEN=(.*)$/m);
+    return m ? m[1].trim() : '';
+  } catch { return ''; }
+}
+const ADMIN_TOKEN = readAdminToken();
 
 (async () => {
   let logs;
   try {
-    const res = await fetch(`http://localhost:${PORT}/api/admin/logs?since=0`);
+    const headers = ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {};
+    const res = await fetch(`http://localhost:${PORT}/api/admin/logs?since=0`, { headers });
     logs = await res.json();
   } catch (err) {
     console.log(`SERVER_UNREACHABLE: ${err.message}`);
@@ -23,11 +38,20 @@ const PORT = process.env.PORT || '3000';
     e.level === 'error' || /\[TEST\].*[▲△]/.test(e.text) || /\[CLIENT/.test(e.text));
   const testLines = recent.filter(e => /\[TEST\]/.test(e.text));
   const lastSnapshot = [...testLines].reverse().find(e => /統計:/.test(e.text));
+  // メインスレッドからの申し送り。アラートではないが必ず表示する
+  const markers = recent.filter(e => /DEPLOY-MARKER|NOTE-TO-LOOP/.test(e.text));
 
   console.log(`=== soak check (直近${WINDOW_MIN}分) ===`);
   console.log(`ログ行: ${recent.length} / うちTEST: ${testLines.length} / 要注意: ${alerts.length}`);
   if (lastSnapshot) console.log(`最新スナップショット: ${lastSnapshot.text.replace(/^\[[^\]]+\]\s*\[TEST\]\s*/, '')}`);
   else console.log('最新スナップショット: なし（テスト未稼働の可能性）');
+
+  if (markers.length) {
+    console.log('\n--- メインスレッドからの申し送り（異常ではない） ---');
+    for (const e of markers) {
+      console.log(`${e.time.slice(11, 19)} ${e.text.replace(/^\[[^\]]+\]\s*\[TEST\]\s*/, '')}`);
+    }
+  }
 
   if (alerts.length) {
     console.log('\n--- 要注意ログ ---');

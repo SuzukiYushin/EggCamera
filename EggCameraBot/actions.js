@@ -1,6 +1,7 @@
 // EggCamera 運用アクション（Slackから呼ぶ実体）。
 // Slackに依存しないので CLI からも `node bot.js test <cmd>` で検証できる。
 const { execFile } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const REPO = path.resolve(__dirname, '..');
@@ -11,6 +12,22 @@ const IPHONE_FRAME = process.env.IPHONE_FRAME_URL || 'http://192.168.10.109:8080
 const WATCHDOG_URL = process.env.WATCHDOG_URL || '';
 const UID = process.getuid ? process.getuid() : null;
 
+// 管理API認証。Nodeと同じ EggCameraNode/.env から ADMIN_TOKEN を読む。
+// 未設定なら従来どおりヘッダ無し（素通り）。/api/admin/* を叩く curl にだけ付ける。
+function readAdminToken() {
+  if (process.env.ADMIN_TOKEN) return process.env.ADMIN_TOKEN;
+  try {
+    const env = fs.readFileSync(path.join(NODE_DIR, '.env'), 'utf8');
+    const m = env.match(/^ADMIN_TOKEN=(.*)$/m);
+    return m ? m[1].trim() : '';
+  } catch { return ''; }
+}
+const ADMIN_TOKEN = readAdminToken();
+// /api/admin を含むURLにだけ管理トークンのヘッダを足す curl 引数
+function adminHeader(url) {
+  return (ADMIN_TOKEN && /\/api\/admin\b/.test(url)) ? ['-H', `X-Admin-Token: ${ADMIN_TOKEN}`] : [];
+}
+
 function sh(cmd, args, opts = {}) {
   return new Promise(resolve => {
     execFile(cmd, args, { timeout: 120_000, ...opts }, (err, stdout, stderr) => {
@@ -20,11 +37,11 @@ function sh(cmd, args, opts = {}) {
 }
 
 async function httpCode(url, ms = 5000) {
-  const r = await sh('curl', ['-s', '-o', '/dev/null', '-m', String(ms / 1000), '-w', '%{http_code}', url]);
+  const r = await sh('curl', ['-s', '-o', '/dev/null', '-m', String(ms / 1000), '-w', '%{http_code}', ...adminHeader(url), url]);
   return r.out.trim();
 }
 async function httpJson(url, ms = 5000) {
-  const r = await sh('curl', ['-s', '-m', String(ms / 1000), url]);
+  const r = await sh('curl', ['-s', '-m', String(ms / 1000), ...adminHeader(url), url]);
   try { return JSON.parse(r.out); } catch { return null; }
 }
 
@@ -37,16 +54,19 @@ async function postMarker(text) {
 
 // メンテナンス（ユーザー操作ロック）制御
 async function lockKiosk(reason, runSelfTestOnBoot = false) {
-  await sh('curl', ['-s', '-X', 'POST', `${SERVER}/api/admin/maintenance/start`,
+  const url = `${SERVER}/api/admin/maintenance/start`;
+  await sh('curl', ['-s', '-X', 'POST', url, ...adminHeader(url),
     '-H', 'Content-Type: application/json',
     '--data', JSON.stringify({ reason, runSelfTestOnBoot })]);
 }
 async function startSelfTest(reason) {
-  await sh('curl', ['-s', '-X', 'POST', `${SERVER}/api/admin/selftest`,
+  const url = `${SERVER}/api/admin/selftest`;
+  await sh('curl', ['-s', '-X', 'POST', url, ...adminHeader(url),
     '-H', 'Content-Type: application/json', '--data', JSON.stringify({ reason })]);
 }
 async function resumeKiosk() {
-  const r = await sh('curl', ['-s', '-X', 'POST', `${SERVER}/api/admin/maintenance/stop`]);
+  const url = `${SERVER}/api/admin/maintenance/stop`;
+  const r = await sh('curl', ['-s', '-X', 'POST', url, ...adminHeader(url)]);
   return r.ok ? '✅ ユーザー操作の受付を再開しました（通常運用へ）' : '⚠️ 解除に失敗。`/egg status` を確認してください';
 }
 

@@ -25,6 +25,14 @@
   const TICK_MS = 700;
   const STUCK_LIMIT_MS = 150_000;
 
+  // 管理APIに ADMIN_TOKEN が要る場合（同一オリジンの管理画面が localStorage に保存済み）。
+  // 一度 :3000/admin?token=… を開いておけば共有される。未設定なら従来どおりヘッダ無し。
+  const adminFetch = (url, init = {}) => {
+    const tok = (() => { try { return localStorage.getItem('adminToken') || ''; } catch { return ''; } })();
+    if (tok) init = { ...init, headers: { ...(init.headers || {}), 'X-Admin-Token': tok } };
+    return fetch(url, init);
+  };
+
   // ── エラー注入の確率（低確率） ─────────────────
   const P_FAULT = 0.08;            // このサイクルでエラーを注入する確率 (8%)
   const MULTI = [                  // 注入時の同時発生数（低確率で多重化）
@@ -211,7 +219,7 @@
       } else if (f.kind === 'server') {
         // サーバ側注入は素の fetch（content script はフックの影響を受けない）
         try {
-          await fetch('/api/admin/chaos', {
+          await adminFetch('/api/admin/chaos', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ target: f.target, count: 1 }),
@@ -239,9 +247,9 @@
     window.postMessage({ source: 'eggtest-ctl', cmd: 'clear' }, '*');
     firedFaultIds.clear();
     try {
-      const st = await (await fetch('/api/admin/chaos')).json();
+      const st = await (await adminFetch('/api/admin/chaos')).json();
       if (st.capture > 0 || st.r2 > 0 || st.qr > 0) {
-        await fetch('/api/admin/chaos', { method: 'DELETE' });
+        await adminFetch('/api/admin/chaos', { method: 'DELETE' });
         log(`残留サーバフォルトを掃除 (capture:${st.capture} r2:${st.r2} qr:${st.qr})`);
       }
     } catch { /* サーバ無応答は healthCheck 側で検知される */ }
@@ -543,7 +551,7 @@
   async function verifyUnexpectedOverlay() {
     let residual = null;
     try {
-      const st = await (await fetch('/api/admin/chaos')).json();
+      const st = await (await adminFetch('/api/admin/chaos')).json();
       if (st.capture > 0 || st.r2 > 0 || st.qr > 0) {
         residual = `armed capture:${st.capture} r2:${st.r2} qr:${st.qr}`;
       } else if ((st.recentFired || []).some(f => Date.now() - f.at < 60_000)) {
@@ -586,7 +594,7 @@
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 5000);
     try {
-      const res = await fetch('/api/admin/metrics', { signal: ctrl.signal, cache: 'no-store' });
+      const res = await adminFetch('/api/admin/metrics', { signal: ctrl.signal, cache: 'no-store' });
       if (!res.ok) throw new Error(`status ${res.status}`);
       const m = await res.json();
       if (serverWasDown) {
