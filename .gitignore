@@ -47,3 +47,4 @@ data/failed/*
 .env.slack
 data/backups/
 .env.watchdog
+data/.soak-watch-state.json

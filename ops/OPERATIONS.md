@@ -11,6 +11,7 @@
 | `com.eggcamera.backup` | 設定・フレーム日次バックアップ | 毎日3:30 | ~/Library/Logs/eggcamera-backup.log |
 | `com.eggcamera.iphone-refresh` | iPhone署名の週次更新＋起動確認 | 毎日4:30 | ~/Library/Logs/eggcamera-iphone-refresh.log |
 | `com.eggcamera.heartbeat` | 死活監視ビート送信（要 .env.watchdog） | 5分ごと | — |
+| `com.eggcamera.soak-watch` | テスト番犬（モデル非依存・Slack検知） | 10分ごと | ~/Library/Logs/eggcamera-soak-watch.log |
 
 plist の実体はリポジトリ `ops/launchd/` に保管。再構築は:
 ```bash
@@ -18,6 +19,13 @@ cp ops/launchd/com.eggcamera.*.plist ~/Library/LaunchAgents/
 for j in node mac backup iphone-refresh; do launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.$j.plist; done
 ```
 操作: `launchctl kickstart -k gui/$(id -u)/com.eggcamera.node`（再起動） / `launchctl bootout gui/$(id -u)/com.eggcamera.node`（停止）
+
+## 本番運用と監視の関係（重要）
+
+- **本番運用（実顧客が使う）では Chrome拡張も Claude も不要。** 監視は完全に自走する:
+  サーバ側 Slack 通知（失敗画像/課金/ディスク/未捕捉エラー/起動時不備）＋ 死活監視Worker ＋ launchd常駐監視。
+- **Chrome拡張 ＋ Claude監視ループ は本番前のストレステスト専用**（無人で長時間回して壊れないか検証する道具）。本番では動かさない。
+- **テスト番犬（soak-watch）** はモデル非依存。テスト中にClaude監視が落ちても、想定外/コスト警告/サーバ無応答/停滞/DL失敗の「増加」とスナップショット途絶を Slack で検知し続ける。
 
 ## 監視・通知
 
