@@ -70,6 +70,14 @@ for j in node mac backup iphone-refresh; do launchctl bootstrap gui/$(id -u) ~/L
 再設定: `sudo pmset -c sleep 0 disksleep 0 autorestart 1`、自動ログインは GUI「ユーザとグループ」。
 注: 自動ログインには FileVault が OFF である必要がある。
 
+
+## リモートデスクトップ（最終手段）
+
+Slack Bot で対処できない事態のための SSH / 画面共有。Cloudflare Tunnel の
+**ドメイン不要・WARPプライベートネットワーク**方式（Mac miniに固定IP 10.99.99.1）。
+手順は `ops/remote-desktop.md`。WARPをONにして `ssh eggcamera@10.99.99.1` /
+`open vnc://10.99.99.1`。Cloudflareアカウント移行時はトンネルを作り直すだけ。
+
 ## ハードウェア（ソフトで対処不可・要手配）
 
 - **UPS（無停電電源）**: 会場の電源ブレ・瞬断対策。Mac mini と iPhone充電を保護。電源復帰時は autorestart + 自動ログイン + launchd で自動復旧するが、UPSがあれば瞬断で落ちないので無停止に近づく。**唯一の未対応項目。**
