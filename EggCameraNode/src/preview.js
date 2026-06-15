@@ -1,11 +1,10 @@
 // iPhone のライブプレビューフレームを中継する。
 // USB設計: iPhone:8080 は Mac 上の iproxy(usbmuxd) により localhost:8080 へ
 // USB経由でフォワードされる。WiFi/Bonjour には依存しない（IP漂流・WiFi断の影響を受けない）。
-// 環境変数 IPHONE_HOST / IPHONE_PORT で上書き可。
+// 接続先は config.js に一元化（IPHONE_HOST/IPHONE_PORT、env上書き可）。
 const http = require('node:http');
 
-const IPHONE_HOST = process.env.IPHONE_HOST || '127.0.0.1';
-const IPHONE_PORT = parseInt(process.env.IPHONE_PORT || '8080', 10);
+const { IPHONE_HOST, IPHONE_PORT } = require('./config');
 
 // USB直結固定のため探索は不要（互換のため空実装を残す）。
 function startDiscovery() { /* USB直結: 探索不要 */ }

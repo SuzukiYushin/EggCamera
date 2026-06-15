@@ -49,6 +49,12 @@ const CAPTURE_TIMEOUT_MS = parseInt(process.env.CAPTURE_TIMEOUT_MS || '25000', 1
 const SWIFT_HOST = process.env.SWIFT_HOST || 'localhost';
 const SWIFT_PORT = parseInt(process.env.SWIFT_PORT || '8082', 10);
 
+// ── iPhone 接続（USB設計）: iproxy が localhost:8080 を iPhone:8080 へ転送 ──
+// プレビュー/wake/死活確認はすべてこの1箇所を参照する（IPの直書きを禁止）。
+const IPHONE_HOST = process.env.IPHONE_HOST || '127.0.0.1';
+const IPHONE_PORT = parseInt(process.env.IPHONE_PORT || '8080', 10);
+const IPHONE_FRAME_URL = process.env.IPHONE_FRAME_URL || `http://${IPHONE_HOST}:${IPHONE_PORT}/frame`;
+
 // ── R2 config ──────────────────────────────────────────
 const R2_RETENTION_MS     = 24 * 60 * 60 * 1000; // 24時間保持
 const R2_CLEANUP_INTERVAL = 3 * 60 * 60 * 1000;  // 3時間ごとにまとめて削除
@@ -73,6 +79,7 @@ module.exports = {
     PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,
     SWIFT_HOST, SWIFT_PORT,
+    IPHONE_HOST, IPHONE_PORT, IPHONE_FRAME_URL,
     R2_RETENTION_MS, R2_CLEANUP_INTERVAL,
     R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL,
     PAGES_BASE_URL,

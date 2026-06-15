@@ -1,13 +1,13 @@
 const { execFile } = require('node:child_process');
 const path = require('node:path');
 
-const { ts } = require('./config');
+const { ts, IPHONE_FRAME_URL } = require('./config');
 const mode = require('./mode');
 const selftest = require('./selftest');
 
 const UID = process.getuid ? process.getuid() : 0;
 const IPHONE_DIR = path.resolve(__dirname, '../../EggCameraIPhone');
-const IPHONE_FRAME = process.env.IPHONE_FRAME_URL || 'http://192.168.10.109:8080/frame';
+const IPHONE_FRAME = IPHONE_FRAME_URL; // USB(iproxy)経由の 127.0.0.1:8080/frame（config一元）
 
 function sh(cmd, args, opts = {}) {
     return new Promise(resolve => {

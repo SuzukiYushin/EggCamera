@@ -7,8 +7,9 @@ const path = require('node:path');
 const REPO = path.resolve(__dirname, '..');
 const NODE_DIR = path.join(REPO, 'EggCameraNode');
 const IPHONE_DIR = path.join(REPO, 'EggCameraIPhone');
-const SERVER = 'http://localhost:3000';
-const IPHONE_FRAME = process.env.IPHONE_FRAME_URL || 'http://192.168.10.109:8080/frame';
+const SERVER = process.env.EGG_SERVER_URL || 'http://localhost:3000';
+// USB(iproxy)経由: iPhone:8080 は localhost:8080 に転送される（旧WiFi直IPは廃止）
+const IPHONE_FRAME = process.env.IPHONE_FRAME_URL || 'http://127.0.0.1:8080/frame';
 const WATCHDOG_URL = process.env.WATCHDOG_URL || '';
 const UID = process.getuid ? process.getuid() : null;
 
