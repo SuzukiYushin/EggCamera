@@ -131,11 +131,12 @@ async function restartMac() {
   await postMarker('SlackからEggCameraMacを再起動します。ユーザー操作はロック。撮影トリガ断は本操作由来で異常ではありません。');
   await launchctlKickstart('com.eggcamera.mac');
   await new Promise(r => setTimeout(r, 3000));
-  const ports = await sh('bash', ['-lc', "lsof -nP -iTCP:8081 -iTCP:8082 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN"]);
+  // 撮影に効くのはトリガ受信 :8082。:8081(旧アップロード受け)はUSB移行で不要なため判定に使わない。
+  const ports = await sh('bash', ['-lc', "lsof -nP -iTCP:8082 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN"]);
   const n = parseInt(ports.out.trim(), 10) || 0;
-  await postMarker(`EggCameraMac再起動完了 待受${n}ポート。`);
+  await postMarker(`EggCameraMac再起動完了 :8082待受=${n}。`);
   await startSelfTest('EggCameraMac再起動後');
-  return (n >= 2 ? '✅ EggCameraMac再起動OK（:8081/8082 待受）' : `⚠️ 待受ポート ${n}（2が正常）`) + LOCK_NOTE;
+  return (n >= 1 ? '✅ EggCameraMac再起動OK（:8082 トリガ待受）' : '⚠️ :8082 未待受') + LOCK_NOTE;
 }
 
 async function restartIphone() {

@@ -122,12 +122,14 @@ node_last_composite() {
     | tail -1 | sed 's/"text":"//;s/"//'
 }
 
-# DEPLOY-MARKER を Node ログに投稿
+# DEPLOY-MARKER を Node ログに投稿（監視が拾う [TEST] DEPLOY-MARKER 形式・トークン不要）
+# 旧実装は /api/admin/notify に {message} を投げており、APIは{text}必須のため常時400で
+# マーカーが成立せず監視が誤検知していた。bot と同じ /api/test-report に統一する。
 post_deploy_marker() {
   local msg="$1"
-  curl -sf -X POST "$NODE_URL/api/admin/notify" "${ADMIN_HDR[@]}" \
+  curl -sf -X POST "$NODE_URL/api/test-report" \
     -H "Content-Type: application/json" \
-    -d "{\"message\":\"[DEPLOY-MARKER] $msg\"}" \
+    -d "{\"level\":\"info\",\"text\":\"DEPLOY-MARKER(recover): $msg\"}" \
     -o /dev/null --max-time 10 || true
 }
 

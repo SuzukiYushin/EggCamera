@@ -39,9 +39,10 @@ async function restart(target) {
             marker('管理画面からEggCameraMacを再起動。');
             await kickstart('com.eggcamera.mac');
             await wait(3000);
-            const ports = await sh('bash', ['-lc', "lsof -nP -iTCP:8081 -iTCP:8082 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN"]);
+            // 撮影に効くトリガ受信 :8082 のみで判定（:8081 はUSB移行で不要）
+            const ports = await sh('bash', ['-lc', "lsof -nP -iTCP:8082 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN"]);
             selftest.run({ reason: 'EggCameraMac再起動後' }).catch(() => {});
-            return { immediate: false, message: `EggCameraMacを再起動しました（待受 ${parseInt(ports.out, 10) || 0} ポート）。自己診断を実行中です。` };
+            return { immediate: false, message: `EggCameraMacを再起動しました（:8082待受=${parseInt(ports.out, 10) || 0}）。自己診断を実行中です。` };
         }
         case 'iphone': {
             mode.startMaintenance({ reason: '管理画面: iPhoneアプリ再起動' });
