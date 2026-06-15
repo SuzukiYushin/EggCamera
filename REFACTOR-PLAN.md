@@ -74,3 +74,24 @@ adapters/
 ## iPhoneアプリの位置づけ
 - iOSの最適化スチルを使う限りアプリは必須（USBホストからの高品質スチル遠隔起動APIは無し）。
 - ただし **カメラをアダプタ化**しておけば、将来 **テザリング一眼(gphoto2)** に差し替えてアプリ/プロビジョニングを撤去できる。今回はアダプタ境界だけ用意し、実体はiPhoneのまま。
+
+---
+
+## Phase 2 完了・デプロイ追記（admin別プロセス）
+
+worktree で実装＋検証済み（:3100/:3101 で2プロセス起動→admin kill→core撮影パス無事を確認）。
+本番適用時の追加手順（明日の停止枠）:
+
+1. soak停止 ＋ DEPLOY-MARKER。
+2. `EggCameraNode/.env` に **REBOOT_PASSWORD** を設定（未設定だと再起動API=503）。
+3. `refactor/modular-resilience` を feature/backend-integration へマージ。
+4. admin常駐を登録:
+   `cp ops/launchd/com.eggcamera.admin.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.admin.plist`
+5. node(core) 再起動（kickstart）→ adminCore反映・/admin静的配信を停止。
+6. **管理画面URLが :3000/admin → :3001/admin に変わる**。Cloudflare Tunnel に :3001 のルートを追加し、`http://10.99.99.1:3001/admin?token=…` でアクセス。
+7. 検証: 撮影(:3000)動作、:3001/admin 表示、admin kill→core無事、`/egg status`（bot=:3001参照）、check-soak（:3001）。
+8. soak再開。
+
+注意:
+- ops消費側は env で admin先を指定可: bot=`EGG_ADMIN_URL`、check-soak/recover=`ADMIN_PORT`/`ADMIN_URL`（既定 :3001）。
+- 長期運用テスト拡張(content.js)は変更不要（chaos/metrics は core :3000 のまま）。
