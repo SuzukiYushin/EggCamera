@@ -17,6 +17,7 @@ const selftest    = require('./src/selftest');
 const sessionsRouter = require('./src/routes/sessions');
 const photosRouter   = require('./src/routes/photos');
 const adminRouter    = require('./src/routes/admin');
+const { errorBoundary, safeInterval, safeTimeout } = require('./src/safe');
 
 const app = express();
 app.use(express.json());
@@ -81,20 +82,24 @@ app.use((req, res) => {
     res.sendFile(path.join(STATIC_DIR, 'index.html'));
 });
 
+// ── エラーバウンダリ（必ず最後）: どのルートの例外もここで500化し、プロセス継続 ──
+app.use(errorBoundary);
+
 preview.startDiscovery();
 maintenance.start(); // 起動セルフチェック + raw/log保持 + ディスク監視
 cleanupOldR2Objects();
-setInterval(cleanupOldR2Objects, R2_CLEANUP_INTERVAL);
-setInterval(cleanupExpiredSessions, Math.min(SESSION_TTL_MS, 5 * 60 * 1000));
+// バックグラウンドジョブは safeInterval で包む（1ジョブの例外で全停止しない）
+safeInterval(cleanupOldR2Objects, R2_CLEANUP_INTERVAL, 'r2-cleanup');
+safeInterval(cleanupExpiredSessions, Math.min(SESSION_TTL_MS, 5 * 60 * 1000), 'session-cleanup');
 
 // ── 5分ごとに自プロセスのメモリ/負荷をログへ（リーク・フリーズ予兆の追跡） ──
 const os = require('node:os');
-setInterval(() => {
+safeInterval(() => {
     const m = process.memoryUsage();
     console.log(`[${ts()}] metrics: rss=${(m.rss / 1048576).toFixed(0)}MB ` +
         `heap=${(m.heapUsed / 1048576).toFixed(0)}MB load=${os.loadavg()[0].toFixed(2)} ` +
         `freemem=${(os.freemem() / 1073741824).toFixed(1)}GB`);
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000, 'metrics');
 
 // 想定外のクラッシュ要因は人力対応が要るので Slack 通知（ログに残してプロセスは継続）
 process.on('uncaughtException', err => {
@@ -113,7 +118,7 @@ const server = app.listen(PORT, () => {
     // Mac本体リブート等でbot自身が落ちた場合の保険: 起動時フラグがあればセルフテスト
     if (mode.get().runSelfTestOnBoot) {
         mode.clearSelfTestFlag();
-        setTimeout(() => selftest.run({ reason: '再起動後（起動時自動）' }).catch(() => {}), 8000);
+        safeTimeout(() => selftest.run({ reason: '再起動後（起動時自動）' }), 8000, 'boot-selftest');
     }
 });
 
