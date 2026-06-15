@@ -91,6 +91,8 @@
   let busy = false;
   let handled = {};
   let lastTickAt = Date.now();
+  // 管理画面テスト拡張が localStorage 経由でセットする一時停止フラグ
+  let adminBusy = !!localStorage.getItem('eggcamera-admin-busy');
   let reqCounts = { composite: 0, capture: 0, session: 0 };
   let costAlerted = {};
   let serverWasDown = false;
@@ -632,7 +634,7 @@
     lastTickAt = now;
 
     updateBadge(lastScreen);
-    if (!running || busy) return;
+    if (!running || busy || adminBusy) return;
     if (checkOverlay()) return;
 
     const screen = screenOf();
@@ -693,7 +695,22 @@
     });
   }
 
-  setInterval(tick, TICK_MS);
+  // 管理画面テスト拡張が localStorage を変更したときに一時停止/再開する
+  window.addEventListener('storage', e => {
+    if (e.key !== 'eggcamera-admin-busy') return;
+    const prev = adminBusy;
+    adminBusy = !!e.newValue;
+    if (adminBusy && !prev) log('テスト一時停止（管理画面操作中）');
+    if (!adminBusy && prev)  log('テスト再開（管理画面操作完了）');
+  });
+
+  // tick は service worker (background.js) 側の setInterval から 700ms ごとに届く。
+  // service worker はタブ throttling を受けないため 60 秒フリーズが解消される。
+  const _tickPort = chrome.runtime.connect({ name: 'eggtest-tick' });
+  _tickPort.onMessage.addListener(msg => { if (msg.type === 'tick') tick(); });
+  // service worker が意図せず停止した場合のフォールバック（通常は発生しない）
+  _tickPort.onDisconnect.addListener(() => { setInterval(tick, TICK_MS); });
+
   setInterval(healthCheck, 30_000);
   setInterval(reportSnapshot, 5 * 60_000);
 })();

@@ -8,6 +8,7 @@
 
   // 注入中のフォールト: {id, urlPattern(RegExp), method, mode, count}
   let faults = [];
+  let jsErrorTimer = null;
 
   window.addEventListener('message', e => {
     const d = e.data;
@@ -16,8 +17,14 @@
       faults = (d.faults || []).map(f => ({ ...f, urlPattern: new RegExp(f.urlPattern) }));
     } else if (d.cmd === 'clear') {
       faults = [];
+      clearTimeout(jsErrorTimer); // 持ち越したJSエラーが後のサイクルで発火しないように
+      jsErrorTimer = null;
     } else if (d.cmd === 'js-error') {
-      setTimeout(() => { throw new Error('injected_js_error (長期運用テスト)'); }, d.delayMs || 0);
+      jsErrorTimer = setTimeout(() => {
+        // 発火を通知してから投げる（content script 側の発火済み判定に使う）
+        window.postMessage({ source: 'eggtest-hook', type: 'fault-fired', id: 'js-error', url: '(js)' }, '*');
+        throw new Error('injected_js_error (長期運用テスト)');
+      }, d.delayMs || 0);
     }
   });
 

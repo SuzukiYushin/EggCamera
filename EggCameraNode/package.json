@@ -12,6 +12,7 @@
     "bonjour-service": "^1.4.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "puppeteer-core": "^25.1.0",
     "qrcode": "^1.5.4",
     "sharp": "^0.34.5"
   }

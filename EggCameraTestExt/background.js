@@ -45,3 +45,20 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   return true; // 非同期レスポンス
 });
+
+// タブがバックグラウンドになると setInterval(700ms) がChrome に60秒単位に間引かれる。
+// Service worker はタブのレンダラープロセスの外で動くため、この throttling を受けない。
+// content.js はポートを開いてメッセージを受け取り tick() を呼ぶ。
+const _tickPorts = new Set();
+
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== 'eggtest-tick') return;
+  _tickPorts.add(port);
+  port.onDisconnect.addListener(() => _tickPorts.delete(port));
+});
+
+setInterval(() => {
+  for (const port of _tickPorts) {
+    try { port.postMessage({ type: 'tick' }); } catch { _tickPorts.delete(port); }
+  }
+}, 700);

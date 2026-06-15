@@ -35,6 +35,14 @@ let package = Package(
                 "TriggerReceiverServer.swift",
                 "UploadReceiverServer.swift",
                 "CLI/main.swift"
+            ],
+            linkerSettings: [
+                .unsafeFlags([
+                    "-Xlinker", "-sectcreate",
+                    "-Xlinker", "__TEXT",
+                    "-Xlinker", "__info_plist",
+                    "-Xlinker", "Info.plist"
+                ])
             ]
         )
     ]

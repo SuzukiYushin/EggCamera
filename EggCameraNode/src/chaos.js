@@ -26,10 +26,16 @@ function arm(target, count = 1) {
     return true;
 }
 
+// 直近の発火履歴（最新10件）。テスト拡張が「注入なしでオーバーレイ」を実バグと
+// 断定する前に、armed済みカウントが消費済みの残留フォルト由来かを照会するのに使う。
+const recentFired = [];
+
 function consume(target) {
     if (!ENABLED) return false;
     if (armed[target] > 0) {
         armed[target]--;
+        recentFired.push({ target, at: Date.now() });
+        if (recentFired.length > 10) recentFired.shift();
         console.warn(`[${ts()}] CHAOS fired: ${target}`);
         return true;
     }
@@ -42,7 +48,7 @@ function reset() {
 }
 
 function status() {
-    return { enabled: ENABLED, ...armed };
+    return { enabled: ENABLED, ...armed, recentFired };
 }
 
 module.exports = { arm, consume, reset, status };

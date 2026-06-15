@@ -11,31 +11,47 @@
 		58FA115642AFDD8B561C7230 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ADE99EEA57722D9463DB171 /* CameraPreviewView.swift */; };
 		63A7F1FF8C2D81A1DA6540CC /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB0B4372E0EDFC781945A2E7 /* AppViewModel.swift */; };
 		65AACF624E81F412666E0003 /* PhotoLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB7221778EFCFA9433031C6 /* PhotoLibraryManager.swift */; };
+		7EF8A6D1EBDD4970EC74F48A /* CLI.md in Resources */ = {isa = PBXBuildFile; fileRef = 7D0749598AEC6A9EDED5A09B /* CLI.md */; };
 		843D3EFA6A5D72A2FF33E34B /* CaptureCommandServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A57FF10797EF33DBC6C6B67 /* CaptureCommandServer.swift */; };
+		AB9635FAB0ADBEB1B42E4CB8 /* com.eggcamera.iphone-refresh.plist in Resources */ = {isa = PBXBuildFile; fileRef = F8F46E8446BE699255EC0765 /* com.eggcamera.iphone-refresh.plist */; };
 		B1ACDB4E6302A4396F363D7F /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1923C943EAC229FA0C9B2C97 /* AppLogger.swift */; };
 		B2584209D6AE12EDCC6088DC /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93C32787391ADDBD4B47D36A /* ContentView.swift */; };
+		B2AAF9E32E5B7B3CE9FDF2F0 /* refresh-cron.sh in Resources */ = {isa = PBXBuildFile; fileRef = 37FCC0D138AD3B6DEB05320B /* refresh-cron.sh */; };
 		B5690FCFCAB4860C19A0CD5F /* CapturePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA48A401B5F4F8FD2DF01A97 /* CapturePipeline.swift */; };
 		C02EC799515C39DF2E857821 /* EggCameraApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432BA2F2DCF0BBF6D8242149 /* EggCameraApp.swift */; };
 		D0F531175BACD9BA0476CE16 /* CaptureModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66B465559B966C0D0C5621D /* CaptureModels.swift */; };
+		DD73C8977AFCEC33C0ABDB6A /* iphone.sh in Resources */ = {isa = PBXBuildFile; fileRef = 42C5FC623E4EEEB28A2E9407 /* iphone.sh */; };
 		EFEFC2EC3E1A527B72B209C5 /* TransferClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D64C8BCBC6A41CB3820EEC9 /* TransferClient.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		0825A6CCE34D4C3316D9FE65 /* EggCameraIPhone.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EggCameraIPhone.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0825A6CCE34D4C3316D9FE65 /* EggCameraIPhone.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EggCameraIPhone.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D64C8BCBC6A41CB3820EEC9 /* TransferClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransferClient.swift; sourceTree = "<group>"; };
 		1923C943EAC229FA0C9B2C97 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		1A57FF10797EF33DBC6C6B67 /* CaptureCommandServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureCommandServer.swift; sourceTree = "<group>"; };
+		37FCC0D138AD3B6DEB05320B /* refresh-cron.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "refresh-cron.sh"; sourceTree = "<group>"; };
 		3ADE99EEA57722D9463DB171 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		42C5FC623E4EEEB28A2E9407 /* iphone.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = iphone.sh; sourceTree = "<group>"; };
 		432BA2F2DCF0BBF6D8242149 /* EggCameraApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EggCameraApp.swift; sourceTree = "<group>"; };
 		457BCA62E8207D583955A168 /* CameraController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraController.swift; sourceTree = "<group>"; };
+		7D0749598AEC6A9EDED5A09B /* CLI.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLI.md; sourceTree = "<group>"; };
 		93C32787391ADDBD4B47D36A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		B66B465559B966C0D0C5621D /* CaptureModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureModels.swift; sourceTree = "<group>"; };
 		BBB7221778EFCFA9433031C6 /* PhotoLibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoLibraryManager.swift; sourceTree = "<group>"; };
 		CA48A401B5F4F8FD2DF01A97 /* CapturePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePipeline.swift; sourceTree = "<group>"; };
 		DB0B4372E0EDFC781945A2E7 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		F8F46E8446BE699255EC0765 /* com.eggcamera.iphone-refresh.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "com.eggcamera.iphone-refresh.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		415DBB6C74811EE18E0845CE /* launchd */ = {
+			isa = PBXGroup;
+			children = (
+				F8F46E8446BE699255EC0765 /* com.eggcamera.iphone-refresh.plist */,
+			);
+			path = launchd;
+			sourceTree = "<group>";
+		};
 		7BF12AB55270700025364633 /* EggCameraIPhone */ = {
 			isa = PBXGroup;
 			children = (
@@ -46,10 +62,14 @@
 				1A57FF10797EF33DBC6C6B67 /* CaptureCommandServer.swift */,
 				B66B465559B966C0D0C5621D /* CaptureModels.swift */,
 				CA48A401B5F4F8FD2DF01A97 /* CapturePipeline.swift */,
+				7D0749598AEC6A9EDED5A09B /* CLI.md */,
 				93C32787391ADDBD4B47D36A /* ContentView.swift */,
 				432BA2F2DCF0BBF6D8242149 /* EggCameraApp.swift */,
+				42C5FC623E4EEEB28A2E9407 /* iphone.sh */,
 				BBB7221778EFCFA9433031C6 /* PhotoLibraryManager.swift */,
+				37FCC0D138AD3B6DEB05320B /* refresh-cron.sh */,
 				0D64C8BCBC6A41CB3820EEC9 /* TransferClient.swift */,
+				415DBB6C74811EE18E0845CE /* launchd */,
 			);
 			name = EggCameraIPhone;
 			path = .;
@@ -67,6 +87,7 @@
 			isa = PBXGroup;
 			children = (
 				7BF12AB55270700025364633 /* EggCameraIPhone */,
+				415DBB6C74811EE18E0845CE /* launchd */,
 				8028E18AEA5321818CF44722 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -79,6 +100,7 @@
 			buildConfigurationList = 0199EAA5BB9FFBA05E84D6EA /* Build configuration list for PBXNativeTarget "EggCameraIPhone" */;
 			buildPhases = (
 				4C426612A9C329BE87E3C54D /* Sources */,
+				E2DFBCB2F27F0DBC88566BE7 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -124,6 +146,20 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		E2DFBCB2F27F0DBC88566BE7 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7EF8A6D1EBDD4970EC74F48A /* CLI.md in Resources */,
+				AB9635FAB0ADBEB1B42E4CB8 /* com.eggcamera.iphone-refresh.plist in Resources */,
+				DD73C8977AFCEC33C0ABDB6A /* iphone.sh in Resources */,
+				B2AAF9E32E5B7B3CE9FDF2F0 /* refresh-cron.sh in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		4C426612A9C329BE87E3C54D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -152,7 +188,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4U78CNU7WN;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -172,7 +207,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4U78CNU7WN;
 				INFOPLIST_FILE = Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
