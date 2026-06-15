@@ -16,7 +16,7 @@ const mode        = require('./src/mode');
 const selftest    = require('./src/selftest');
 const sessionsRouter = require('./src/routes/sessions');
 const photosRouter   = require('./src/routes/photos');
-const adminRouter    = require('./src/routes/admin');
+const adminCoreRouter = require('./src/routes/adminCore'); // 撮影coreに密結合する管理API(metrics/test-capture/chaos/selftest)のみ
 const { errorBoundary, safeInterval, safeTimeout } = require('./src/safe');
 
 const app = express();
@@ -24,7 +24,9 @@ app.use(express.json());
 
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/photos', photosRouter);
-app.use('/api/admin', adminRouter);
+// 管理APIのうち撮影coreに密結合する分だけ core が直接持つ（残りは admin:3001）。
+// 長期運用テスト拡張は従来どおり :3000/api/admin/{chaos,metrics} を直接叩ける。
+app.use('/api/admin', adminCoreRouter);
 
 // ── ユーザーUI向け公開API: 使用中フレーム一覧とクロップ設定 ──
 app.get('/api/frames', (req, res) => {
@@ -62,10 +64,7 @@ app.post('/api/test-report', (req, res) => {
 // フレーム画像本体（.trash はドットディレクトリなので配信されない）
 app.use('/frames', express.static(FRAMES_DIR));
 
-// ── 管理画面（同一LAN内のブラウザから /admin でアクセス） ──
-app.use('/admin', express.static(ADMIN_DIR, {
-    setHeaders: res => res.setHeader('Cache-Control', 'no-store'),
-}));
+// 管理画面(静的UI)は admin 別プロセス(:3001)が配信する（障害分離のため core では持たない）。
 
 // Serve the built kiosk UI, with an SPA fallback for client-side routes.
 // index.html must never be cached (it references content-hashed bundle

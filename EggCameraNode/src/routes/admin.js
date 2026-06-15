@@ -3,32 +3,23 @@ const os      = require('node:os');
 const path    = require('node:path');
 const express = require('express');
 
-const { DATA_DIR, FAILED_DIR, CAPTURE_TIMEOUT_MS, ADMIN_TOKEN, REBOOT_PASSWORD, ts } = require('../config');
+// 管理(運用)ルーター。admin別プロセス(:3001)で動く。撮影coreに密結合する
+// metrics/test-capture/chaos/selftest は adminCore.js(:3000) 側にあり、ここには無い
+// （admin-server.js が core へプロキシする）。
+const { DATA_DIR, FAILED_DIR, REBOOT_PASSWORD, ts } = require('../config');
+const adminAuth = require('./adminAuth');
 const { diagnose } = require('../diagnose');
 const ops = require('../ops');
-const { ensurePreviewJpeg } = require('../capture');
-const camera = require('../adapters/camera');
-const { registerPhoto } = require('../sessions');
 const { listFailedUploads, retryFailedUpload } = require('../composite');
 const frames   = require('../frames');
 const settings = require('../settings');
 const logger   = require('../logger');
-const chaos    = require('../chaos');
 const slack    = require('../slack');
 const mode     = require('../mode');
-const selftest = require('../selftest');
 
 const router = express.Router();
 router.use(express.json());
-
-// ADMIN_TOKEN を設定すると管理APIに認証が要る（未設定なら従来どおり素通り）。
-// ヘッダ X-Admin-Token か ?token= で渡す。
-router.use((req, res, next) => {
-    if (!ADMIN_TOKEN) return next();
-    const tok = req.get('X-Admin-Token') || req.query.token;
-    if (tok === ADMIN_TOKEN) return next();
-    res.status(401).json({ error: 'unauthorized' });
-});
+router.use(adminAuth);
 
 const HOME = os.homedir();
 
@@ -125,33 +116,7 @@ router.get('/disk', (req, res) => {
     });
 });
 
-// ── プロセス/マシンのメトリクス（メモリリーク・過負荷の監視用） ────────────
-router.get('/metrics', (req, res) => {
-    const m = process.memoryUsage();
-    res.json({
-        rssMB:      +(m.rss / 1048576).toFixed(1),
-        heapMB:     +(m.heapUsed / 1048576).toFixed(1),
-        uptimeSec:  Math.round(process.uptime()),
-        loadavg:    os.loadavg().map(n => +n.toFixed(2)),
-        freeMemMB:  Math.round(os.freemem() / 1048576),
-    });
-});
-
-// ── テスト撮影（セッション不要・1枚だけ撮ってプレビューURLを返す） ─────────
-router.post('/test-capture', async (req, res) => {
-    try {
-        const { rawPath } = await camera.capture(CAPTURE_TIMEOUT_MS);
-        const previewPath = await ensurePreviewJpeg(rawPath);
-        const photoId     = registerPhoto(rawPath, previewPath);
-        console.log(`[${ts()}] test capture ok → ${path.basename(rawPath)}`);
-        res.json({ photoId, url: `/api/photos/${photoId}` });
-    } catch (err) {
-        console.error(`[${ts()}] test capture failed: ${err.message}`);
-        const code = err.message === 'mac-unreachable' ? 502
-            : err.message === 'capture-timeout' ? 504 : 500;
-        res.status(code).json({ error: err.message });
-    }
-});
+// metrics / test-capture は adminCore.js(core:3000) 側。admin-server がプロキシする。
 
 // ── クロップ設定 ─────────────────────────────────────────────────────────
 router.get('/settings', (req, res) => res.json(settings.getSettings()));
@@ -163,17 +128,7 @@ router.get('/logs', (req, res) => {
     res.json(logger.getLogs(since));
 });
 
-// ── フォールトインジェクション（長期運用テスト用） ─────────────────────────
-// POST {target: 'capture'|'r2'|'qr', count} → 次の count 回だけわざと失敗させる
-router.post('/chaos', (req, res) => {
-    const { target, count } = req.body || {};
-    if (!chaos.arm(target, count || 1)) {
-        return res.status(400).json({ error: 'invalid_target' });
-    }
-    res.json(chaos.status());
-});
-router.get('/chaos', (req, res) => res.json(chaos.status()));
-router.delete('/chaos', (req, res) => { chaos.reset(); res.json(chaos.status()); });
+// chaos は adminCore.js(core:3000) 側（撮影パスが consume するため）。admin-server がプロキシ。
 
 // ── 失敗画像（1時間アップできなかったもの） ────────────────────────────────
 router.get('/failed', (req, res) => {
@@ -234,13 +189,7 @@ router.post('/maintenance/stop', (req, res) => {
     res.json(mode.stopMaintenance());
 });
 
-// 今すぐセルフテストを実行（node稼働中の再起動の後にBotが呼ぶ）。
-// 実行前にロックし、完了後もロックは維持（解除は /maintenance/stop）。
-router.post('/selftest', (req, res) => {
-    mode.startMaintenance({ reason: (req.body && req.body.reason) || 'selftest' });
-    res.json({ started: true });
-    selftest.run({ reason: (req.body && req.body.reason) || '' }).catch(() => {});
-});
+// selftest は adminCore.js(core:3000) 側（撮影パイプライン）。admin-server がプロキシ。
 
 // ── 再起動タブ: 診断＋パスワード保護の再起動 ─────────────────────────────
 // どの対象を再起動すべきかをログから推定

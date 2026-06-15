@@ -39,6 +39,8 @@ const REBOOT_PASSWORD = process.env.REBOOT_PASSWORD || '';
 
 // ── Server ─────────────────────────────────────────────
 const PORT       = parseInt(process.env.PORT || '3000', 10);
+// 管理(admin)を別プロセス(:3001)に分離。撮影core(:3000)が落ちない/落とさないための障害分離。
+const ADMIN_PORT = parseInt(process.env.ADMIN_PORT || '3001', 10);
 const STATIC_DIR = process.env.STATIC_DIR
     ? path.resolve(process.env.STATIC_DIR)
     : path.resolve(__dirname, '../../EggCameraUserUI/dist');
@@ -78,7 +80,7 @@ module.exports = {
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
     ADMIN_TOKEN, REBOOT_PASSWORD,
-    PORT, STATIC_DIR,
+    PORT, ADMIN_PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,
     SWIFT_HOST, SWIFT_PORT,
     IPHONE_HOST, IPHONE_PORT, IPHONE_FRAME_URL,
