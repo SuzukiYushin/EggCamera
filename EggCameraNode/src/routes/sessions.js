@@ -2,7 +2,8 @@ const express = require('express');
 const path    = require('node:path');
 
 const { CAPTURE_TIMEOUT_MS, COMPOSITED_DIR, R2_RETENTION_MS, ts } = require('../config');
-const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
+const { ensurePreviewJpeg } = require('../capture');
+const camera = require('../adapters/camera');
 const { saveComposite, uploadToR2, deferredUploadToR2, generateQRDataUrl } = require('../composite');
 const { createSession, getSession, touch, registerPhoto } = require('../sessions');
 const chaos = require('../chaos');
@@ -34,9 +35,7 @@ router.post('/:id/capture', async (req, res) => {
 
     try {
         if (chaos.consume('capture')) throw new Error('mac-unreachable');
-        const sinceMs = Date.now();
-        await sendTrigger();
-        const rawPath     = await waitForNewRawFile(sinceMs, CAPTURE_TIMEOUT_MS);
+        const { rawPath } = await camera.capture(CAPTURE_TIMEOUT_MS);
         const previewPath = await ensurePreviewJpeg(rawPath);
         const photoId      = registerPhoto(rawPath, previewPath);
         const photo        = { photoId, url: `/api/photos/${photoId}` };

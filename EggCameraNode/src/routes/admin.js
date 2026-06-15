@@ -6,7 +6,8 @@ const express = require('express');
 const { DATA_DIR, FAILED_DIR, CAPTURE_TIMEOUT_MS, ADMIN_TOKEN, REBOOT_PASSWORD, ts } = require('../config');
 const { diagnose } = require('../diagnose');
 const ops = require('../ops');
-const { sendTrigger, waitForNewRawFile, ensurePreviewJpeg } = require('../capture');
+const { ensurePreviewJpeg } = require('../capture');
+const camera = require('../adapters/camera');
 const { registerPhoto } = require('../sessions');
 const { listFailedUploads, retryFailedUpload } = require('../composite');
 const frames   = require('../frames');
@@ -139,9 +140,7 @@ router.get('/metrics', (req, res) => {
 // ── テスト撮影（セッション不要・1枚だけ撮ってプレビューURLを返す） ─────────
 router.post('/test-capture', async (req, res) => {
     try {
-        const sinceMs = Date.now();
-        await sendTrigger();
-        const rawPath     = await waitForNewRawFile(sinceMs, CAPTURE_TIMEOUT_MS);
+        const { rawPath } = await camera.capture(CAPTURE_TIMEOUT_MS);
         const previewPath = await ensurePreviewJpeg(rawPath);
         const photoId     = registerPhoto(rawPath, previewPath);
         console.log(`[${ts()}] test capture ok → ${path.basename(rawPath)}`);
