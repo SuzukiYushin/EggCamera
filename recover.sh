@@ -21,6 +21,7 @@ cd "$(dirname "$0")"
 
 # ── 設定 ─────────────────────────────────────────────────────────────────────
 NODE_URL="http://localhost:3000"
+ADMIN_URL="http://localhost:3001"   # 管理API(ログ等)は admin 別プロセス
 MAC_PORT=8082
 SWIFT_LOG="$(pwd)/data/logs/swift/app.log"
 RAW_DIR="$(pwd)/data/raw"
@@ -68,9 +69,9 @@ run() {
 # 診断関数
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Node server が :3000 で応答するか
+# Node server(core) が :3000 で応答するか（公開エンドポイントで判定。adminには依存しない）
 node_alive() {
-  curl -sf -o /dev/null --max-time 5 "${ADMIN_HDR[@]}" "$NODE_URL/api/admin/logs?limit=1"
+  curl -sf -o /dev/null --max-time 5 "$NODE_URL/api/mode"
 }
 
 # Mac Swift app が :8082 で POST に 202 を返すか
@@ -117,17 +118,19 @@ count_swift_pattern() {
 
 # Node ログから直近の composite 完了を取得
 node_last_composite() {
-  curl -s --max-time 5 "${ADMIN_HDR[@]}" "$NODE_URL/api/admin/logs?limit=200" 2>/dev/null \
+  curl -s --max-time 5 "${ADMIN_HDR[@]}" "$ADMIN_URL/api/admin/logs?limit=200" 2>/dev/null \
     | grep -o '"text":"[^"]*composite saved[^"]*"' \
     | tail -1 | sed 's/"text":"//;s/"//'
 }
 
-# DEPLOY-MARKER を Node ログに投稿
+# DEPLOY-MARKER を Node ログに投稿（監視が拾う [TEST] DEPLOY-MARKER 形式・トークン不要）
+# 旧実装は /api/admin/notify に {message} を投げており、APIは{text}必須のため常時400で
+# マーカーが成立せず監視が誤検知していた。bot と同じ /api/test-report に統一する。
 post_deploy_marker() {
   local msg="$1"
-  curl -sf -X POST "$NODE_URL/api/admin/notify" "${ADMIN_HDR[@]}" \
+  curl -sf -X POST "$NODE_URL/api/test-report" \
     -H "Content-Type: application/json" \
-    -d "{\"message\":\"[DEPLOY-MARKER] $msg\"}" \
+    -d "{\"level\":\"info\",\"text\":\"DEPLOY-MARKER(recover): $msg\"}" \
     -o /dev/null --max-time 10 || true
 }
 

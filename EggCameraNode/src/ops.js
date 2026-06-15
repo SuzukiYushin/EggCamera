@@ -1,13 +1,13 @@
 const { execFile } = require('node:child_process');
 const path = require('node:path');
 
-const { ts } = require('./config');
+const { ts, IPHONE_FRAME_URL } = require('./config');
 const mode = require('./mode');
 const selftest = require('./selftest');
 
 const UID = process.getuid ? process.getuid() : 0;
 const IPHONE_DIR = path.resolve(__dirname, '../../EggCameraIPhone');
-const IPHONE_FRAME = process.env.IPHONE_FRAME_URL || 'http://192.168.10.109:8080/frame';
+const IPHONE_FRAME = IPHONE_FRAME_URL; // USB(iproxy)経由の 127.0.0.1:8080/frame（config一元）
 
 function sh(cmd, args, opts = {}) {
     return new Promise(resolve => {
@@ -39,9 +39,10 @@ async function restart(target) {
             marker('管理画面からEggCameraMacを再起動。');
             await kickstart('com.eggcamera.mac');
             await wait(3000);
-            const ports = await sh('bash', ['-lc', "lsof -nP -iTCP:8081 -iTCP:8082 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN"]);
+            // 撮影に効くトリガ受信 :8082 のみで判定（:8081 はUSB移行で不要）
+            const ports = await sh('bash', ['-lc', "lsof -nP -iTCP:8082 -sTCP:LISTEN 2>/dev/null | grep -c LISTEN"]);
             selftest.run({ reason: 'EggCameraMac再起動後' }).catch(() => {});
-            return { immediate: false, message: `EggCameraMacを再起動しました（待受 ${parseInt(ports.out, 10) || 0} ポート）。自己診断を実行中です。` };
+            return { immediate: false, message: `EggCameraMacを再起動しました（:8082待受=${parseInt(ports.out, 10) || 0}）。自己診断を実行中です。` };
         }
         case 'iphone': {
             mode.startMaintenance({ reason: '管理画面: iPhoneアプリ再起動' });

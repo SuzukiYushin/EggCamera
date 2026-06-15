@@ -16,14 +16,17 @@ const mode        = require('./src/mode');
 const selftest    = require('./src/selftest');
 const sessionsRouter = require('./src/routes/sessions');
 const photosRouter   = require('./src/routes/photos');
-const adminRouter    = require('./src/routes/admin');
+const adminCoreRouter = require('./src/routes/adminCore'); // 撮影coreに密結合する管理API(metrics/test-capture/chaos/selftest)のみ
+const { errorBoundary, safeInterval, safeTimeout } = require('./src/safe');
 
 const app = express();
 app.use(express.json());
 
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/photos', photosRouter);
-app.use('/api/admin', adminRouter);
+// 管理APIのうち撮影coreに密結合する分だけ core が直接持つ（残りは admin:3001）。
+// 長期運用テスト拡張は従来どおり :3000/api/admin/{chaos,metrics} を直接叩ける。
+app.use('/api/admin', adminCoreRouter);
 
 // ── ユーザーUI向け公開API: 使用中フレーム一覧とクロップ設定 ──
 app.get('/api/frames', (req, res) => {
@@ -61,10 +64,7 @@ app.post('/api/test-report', (req, res) => {
 // フレーム画像本体（.trash はドットディレクトリなので配信されない）
 app.use('/frames', express.static(FRAMES_DIR));
 
-// ── 管理画面（同一LAN内のブラウザから /admin でアクセス） ──
-app.use('/admin', express.static(ADMIN_DIR, {
-    setHeaders: res => res.setHeader('Cache-Control', 'no-store'),
-}));
+// 管理画面(静的UI)は admin 別プロセス(:3001)が配信する（障害分離のため core では持たない）。
 
 // Serve the built kiosk UI, with an SPA fallback for client-side routes.
 // index.html must never be cached (it references content-hashed bundle
@@ -81,20 +81,24 @@ app.use((req, res) => {
     res.sendFile(path.join(STATIC_DIR, 'index.html'));
 });
 
+// ── エラーバウンダリ（必ず最後）: どのルートの例外もここで500化し、プロセス継続 ──
+app.use(errorBoundary);
+
 preview.startDiscovery();
 maintenance.start(); // 起動セルフチェック + raw/log保持 + ディスク監視
 cleanupOldR2Objects();
-setInterval(cleanupOldR2Objects, R2_CLEANUP_INTERVAL);
-setInterval(cleanupExpiredSessions, Math.min(SESSION_TTL_MS, 5 * 60 * 1000));
+// バックグラウンドジョブは safeInterval で包む（1ジョブの例外で全停止しない）
+safeInterval(cleanupOldR2Objects, R2_CLEANUP_INTERVAL, 'r2-cleanup');
+safeInterval(cleanupExpiredSessions, Math.min(SESSION_TTL_MS, 5 * 60 * 1000), 'session-cleanup');
 
 // ── 5分ごとに自プロセスのメモリ/負荷をログへ（リーク・フリーズ予兆の追跡） ──
 const os = require('node:os');
-setInterval(() => {
+safeInterval(() => {
     const m = process.memoryUsage();
     console.log(`[${ts()}] metrics: rss=${(m.rss / 1048576).toFixed(0)}MB ` +
         `heap=${(m.heapUsed / 1048576).toFixed(0)}MB load=${os.loadavg()[0].toFixed(2)} ` +
         `freemem=${(os.freemem() / 1073741824).toFixed(1)}GB`);
-}, 5 * 60 * 1000);
+}, 5 * 60 * 1000, 'metrics');
 
 // 想定外のクラッシュ要因は人力対応が要るので Slack 通知（ログに残してプロセスは継続）
 process.on('uncaughtException', err => {
@@ -113,7 +117,7 @@ const server = app.listen(PORT, () => {
     // Mac本体リブート等でbot自身が落ちた場合の保険: 起動時フラグがあればセルフテスト
     if (mode.get().runSelfTestOnBoot) {
         mode.clearSelfTestFlag();
-        setTimeout(() => selftest.run({ reason: '再起動後（起動時自動）' }).catch(() => {}), 8000);
+        safeTimeout(() => selftest.run({ reason: '再起動後（起動時自動）' }), 8000, 'boot-selftest');
     }
 });
 

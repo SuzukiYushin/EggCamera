@@ -3,6 +3,7 @@ const os   = require('node:os');
 const path = require('node:path');
 const sharp = require('sharp');
 const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const { NodeHttpHandler } = require('@smithy/node-http-handler');
 const QRCode = require('qrcode');
 
 const {
@@ -28,6 +29,10 @@ const r2 = new S3Client({
         accessKeyId:     R2_ACCESS_KEY_ID,
         secretAccessKey: R2_SECRET_ACCESS_KEY,
     },
+    maxAttempts: 3,
+    // ハングしたTCPで個々の send が無限ブロックしないよう上限を持たせる
+    // （cleanup/selftest 等の即時経路がタイムアウト無しで詰まるのを防ぐ）。
+    requestHandler: new NodeHttpHandler({ connectionTimeout: 5_000, requestTimeout: 30_000 }),
 });
 
 // ── Resolve a frame asset, falling back to the sample flame frame ─────────

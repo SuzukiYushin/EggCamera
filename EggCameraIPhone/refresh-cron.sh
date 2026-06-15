@@ -13,7 +13,8 @@ RENEW_WITHIN_DAYS=2
 
 # 長期運用テストの監視（別セッション）向け設定
 TEST_REPORT_URL="http://localhost:3000/api/test-report"
-IPHONE_FRAME_URL="${IPHONE_FRAME_URL:-http://192.168.10.109:8080/frame}"
+# USB(iproxy)経由: iPhone:8080 は localhost:8080 に転送される（旧WiFi直IPは廃止）
+IPHONE_FRAME_URL="${IPHONE_FRAME_URL:-http://127.0.0.1:8080/frame}"
 
 # 監視ログに DEPLOY-MARKER を投稿（このジョブによるアプリ再起動を「申し送り」扱いにさせる）
 post_marker() {

@@ -32,11 +32,15 @@ const DEFERRED_MAX_MS = 60 * 60 * 1000; // 1時間
 // 管理画面/管理APIの認証トークン（未設定なら認証なし＝従来どおり）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
-// 管理画面からの再起動操作に要求するパスワード
-const REBOOT_PASSWORD = process.env.REBOOT_PASSWORD || 'familiar1234';
+// 管理画面からの再起動操作に要求するパスワード。
+// セキュリティ上、既定値はコードに一切持たない（env .env のみ。人が手入力する想定）。
+// 未設定なら再起動APIは fail-closed で全拒否する（src/routes/admin.js 参照）。
+const REBOOT_PASSWORD = process.env.REBOOT_PASSWORD || '';
 
 // ── Server ─────────────────────────────────────────────
 const PORT       = parseInt(process.env.PORT || '3000', 10);
+// 管理(admin)を別プロセス(:3001)に分離。撮影core(:3000)が落ちない/落とさないための障害分離。
+const ADMIN_PORT = parseInt(process.env.ADMIN_PORT || '3001', 10);
 const STATIC_DIR = process.env.STATIC_DIR
     ? path.resolve(process.env.STATIC_DIR)
     : path.resolve(__dirname, '../../EggCameraUserUI/dist');
@@ -48,6 +52,12 @@ const CAPTURE_TIMEOUT_MS = parseInt(process.env.CAPTURE_TIMEOUT_MS || '25000', 1
 // ── Trigger config ─────────────────────────────────────
 const SWIFT_HOST = process.env.SWIFT_HOST || 'localhost';
 const SWIFT_PORT = parseInt(process.env.SWIFT_PORT || '8082', 10);
+
+// ── iPhone 接続（USB設計）: iproxy が localhost:8080 を iPhone:8080 へ転送 ──
+// プレビュー/wake/死活確認はすべてこの1箇所を参照する（IPの直書きを禁止）。
+const IPHONE_HOST = process.env.IPHONE_HOST || '127.0.0.1';
+const IPHONE_PORT = parseInt(process.env.IPHONE_PORT || '8080', 10);
+const IPHONE_FRAME_URL = process.env.IPHONE_FRAME_URL || `http://${IPHONE_HOST}:${IPHONE_PORT}/frame`;
 
 // ── R2 config ──────────────────────────────────────────
 const R2_RETENTION_MS     = 24 * 60 * 60 * 1000; // 24時間保持
@@ -70,9 +80,10 @@ module.exports = {
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
     ADMIN_TOKEN, REBOOT_PASSWORD,
-    PORT, STATIC_DIR,
+    PORT, ADMIN_PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,
     SWIFT_HOST, SWIFT_PORT,
+    IPHONE_HOST, IPHONE_PORT, IPHONE_FRAME_URL,
     R2_RETENTION_MS, R2_CLEANUP_INTERVAL,
     R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL,
     PAGES_BASE_URL,

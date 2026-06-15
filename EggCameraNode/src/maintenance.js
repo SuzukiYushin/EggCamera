@@ -8,6 +8,7 @@ const {
 } = require('./config');
 const { trimLocalDir } = require('./composite');
 const slack = require('./slack');
+const { safeInterval } = require('./safe');
 
 // data/raw のHEICとプレビューを保持枚数まで間引く（無制限増加を防ぐ）
 function trimRaw() {
@@ -60,8 +61,8 @@ function startupSelfCheck() {
 function start() {
     startupSelfCheck();
     const run = () => { trimRaw(); trimLogs(); checkDisk(); };
-    run();
-    setInterval(run, 30 * 60_000); // 30分ごと
+    try { run(); } catch (e) { console.error(`[${ts()}] maintenance run failed: ${e.message}`); }
+    safeInterval(run, 30 * 60_000, 'maintenance'); // 30分ごと（例外でプロセスを倒さない）
 }
 
 module.exports = { start, trimRaw, trimLogs, checkDisk, startupSelfCheck };
