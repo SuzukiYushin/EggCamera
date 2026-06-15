@@ -1,5 +1,5 @@
 {
-  "iphoneHost": null,
+  "iphoneHost": "127.0.0.1",
   "iphonePort": 8080,
   "callbackHost": null,
   "callbackPort": 8081,

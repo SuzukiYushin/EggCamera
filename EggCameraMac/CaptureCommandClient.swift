@@ -21,7 +21,7 @@ final class CaptureCommandClient {
                      port: Int,
                      callbackURL: String,
                      preferredWidth: Int?,
-                     preferredHeight: Int?) async throws {
+                     preferredHeight: Int?) async throws -> Data {
         let endpoint = try await resolveEndpoint(host: host, port: port)
 
         let command = CaptureCommand(requestID: UUID().uuidString,
@@ -42,7 +42,8 @@ final class CaptureCommandClient {
         var payload = Data(requestHeader.utf8)
         payload.append(body)
 
-        try await send(payload: payload, to: endpoint)
+        // USB(プル型): レスポンスボディ(UploadEnvelope JSON=写真)を受け取って返す。
+        return try await send(payload: payload, to: endpoint)
     }
 
     private func resolveEndpoint(host: String?, port: Int) async throws -> NWEndpoint {
@@ -86,20 +87,20 @@ final class CaptureCommandClient {
         }
     }
 
-    private func send(payload: Data, to endpoint: NWEndpoint) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+    private func send(payload: Data, to endpoint: NWEndpoint) async throws -> Data {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
             let connection = NWConnection(to: endpoint, using: .tcp)
             let state = ResumeState()
             var responseBuffer = Data()
 
-            @Sendable func finish(_ result: Result<Void, Error>) {
+            @Sendable func finish(_ result: Result<Data, Error>) {
                 guard state.tryResume() else { return }
                 connection.cancel()
                 continuation.resume(with: result)
             }
 
             func receive() {
-                connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { data, _, isComplete, error in
+                connection.receive(minimumIncompleteLength: 1, maximumLength: 1_048_576) { data, _, isComplete, error in
                     if let error {
                         finish(.failure(error))
                         return
@@ -110,6 +111,7 @@ final class CaptureCommandClient {
                     }
 
                     if isComplete {
+                        // 接続クローズまで読み切ったので、ヘッダ+ボディ全体が揃っている。
                         let separator = Data([0x0D, 0x0A, 0x0D, 0x0A])
                         guard let range = responseBuffer.range(of: separator) else {
                             finish(.failure(CommandClientError.invalidResponse))
@@ -118,8 +120,10 @@ final class CaptureCommandClient {
 
                         let header = String(data: responseBuffer[..<range.lowerBound], encoding: .utf8) ?? ""
                         let statusLine = header.components(separatedBy: "\r\n").first ?? ""
-                        if statusLine.contains("202") {
-                            finish(.success(()))
+                        // USB(プル型): 200 + UploadEnvelope(JSON=写真) を返す。ボディを取り出す。
+                        if statusLine.contains("200") {
+                            let bodyData = Data(responseBuffer[range.upperBound...])
+                            finish(.success(bodyData))
                         } else {
                             finish(.failure(CommandClientError.captureRejected))
                         }

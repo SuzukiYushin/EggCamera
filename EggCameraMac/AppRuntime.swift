@@ -73,26 +73,31 @@ final class AppRuntime {
         isSending = true
         defer { isSending = false }
 
-        let callbackURL = "http://\(configuration.resolvedCallbackHost):\(configuration.callbackPort)/upload"
-        logger.log("[\(triggerId)] Sending capture command callback=\(callbackURL)")
+        logger.log("[\(triggerId)] Sending capture command (USB pull) target=\(configuration.iphoneHost ?? "bonjour"):\(configuration.iphonePort)")
 
         do {
-            try await withThrowingTaskGroup(of: Void.self) { group in
+            // USB(プル型): /capture のレスポンスとして写真(UploadEnvelope JSON)を受け取る。
+            let envelopeData = try await withThrowingTaskGroup(of: Data.self) { group -> Data in
                 group.addTask {
                     try await self.commandClient.sendCapture(to: self.configuration.iphoneHost,
                                                             port: self.configuration.iphonePort,
-                                                            callbackURL: callbackURL,
+                                                            callbackURL: "",
                                                             preferredWidth: self.configuration.preferredWidth,
                                                             preferredHeight: self.configuration.preferredHeight)
                 }
                 group.addTask {
-                    try await Task.sleep(for: .seconds(15))
+                    try await Task.sleep(for: .seconds(20))
                     throw CaptureTimeoutError()
                 }
-                try await group.next()
+                let result = try await group.next()!
                 group.cancelAll()
+                return result
             }
-            logger.log("[\(triggerId)] Capture command accepted by iPhone")
+
+            // 受け取った写真を data/raw/ へ保存（旧 UploadReceiverServer と同じ処理）。
+            let envelope = try JSONDecoder.iso8601.decode(UploadEnvelope.self, from: envelopeData)
+            let photo = try store.save(envelope: envelope)
+            logger.log("[\(triggerId)] Capture saved id=\(envelope.metadata.requestID) \(envelope.metadata.pixelWidth)x\(envelope.metadata.pixelHeight) → \(photo.fileURL.lastPathComponent)")
         } catch is CaptureTimeoutError {
             logger.log("[\(triggerId)] Capture command timed out — resetting")
         } catch {

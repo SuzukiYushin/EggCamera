@@ -17,17 +17,17 @@ final class CaptureCommandServer {
     }
 
     func start() throws {
-        let params = NWParameters.tcp
-        params.includePeerToPeer = true
-        let listener = try NWListener(using: params, on: NWEndpoint.Port(rawValue: port)!)
-        listener.service = NWListener.Service(type: "_eggcamera._tcp")
+        // USB(usbmuxd/iproxy)経由で届くよう、ループバックを含む全インターフェースで
+        // 素のTCPを待受する。peer-to-peer/Bonjour広告は使わない（USB直結のため不要で、
+        // loopbackに非バインドとなり usbmuxd から繋がらない原因になる）。
+        let listener = try NWListener(using: .tcp, on: NWEndpoint.Port(rawValue: port)!)
         listener.newConnectionHandler = { [weak self] connection in
             self?.handle(connection)
         }
         listener.start(queue: queue)
         self.listener = listener
         Task { @MainActor in
-            self.logger?.log("Capture command server listening on :\(self.port)")
+            self.logger?.log("Capture command server listening on :\(self.port) (plain TCP / USB-reachable)")
         }
     }
 
@@ -99,14 +99,16 @@ final class CaptureCommandServer {
             return
         }
 
-        send(status: 202, message: "Accepted", on: connection)
+        // USB(プル型): 撮影完了まで待ち、写真(UploadEnvelope JSON)をこのレスポンスで返す。
         Task {
             do {
-                _ = try await self.pipeline.performCapture(command: command)
+                let payload = try await self.pipeline.performCapture(command: command)
+                self.sendJSON(payload, on: connection)
             } catch {
                 await MainActor.run {
                     self.logger?.log("Capture pipeline failed id=\(command.requestID) error=\(error.localizedDescription)")
                 }
+                self.send(status: 500, message: "Capture Failed", on: connection)
             }
         }
     }
@@ -136,6 +138,21 @@ final class CaptureCommandServer {
             "", ""
         ].joined(separator: "\r\n")
         connection.send(content: Data(header.utf8), completion: .contentProcessed { _ in
+            connection.cancel()
+        })
+    }
+
+    private func sendJSON(_ body: Data, on connection: NWConnection) {
+        let header = [
+            "HTTP/1.1 200 OK",
+            "Content-Type: application/json",
+            "Content-Length: \(body.count)",
+            "Connection: close",
+            "", ""
+        ].joined(separator: "\r\n")
+        var payload = Data(header.utf8)
+        payload.append(body)
+        connection.send(content: payload, completion: .contentProcessed { _ in
             connection.cancel()
         })
     }

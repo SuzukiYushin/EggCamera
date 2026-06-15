@@ -14,7 +14,9 @@ final class CapturePipeline {
         self.logger = logger
     }
 
-    func performCapture(command: CaptureCommand) async throws -> CaptureMetadata {
+    // USB(プル型): 撮影して UploadEnvelope(JSON) を返す。Mac は POST /capture の
+    // レスポンスとして写真を受け取る（旧: callbackURL への WiFi 逆POSTは廃止）。
+    func performCapture(command: CaptureCommand) async throws -> Data {
         let captureStartedAt = Date()
         await MainActor.run {
             logger?.log("Accepted capture request id=\(command.requestID) preferred=\(command.preferredWidth?.description ?? "-")x\(command.preferredHeight?.description ?? "-")")
@@ -41,15 +43,15 @@ final class CapturePipeline {
             fileSizeBytes: finalPhoto.data.count
         )
 
-        guard let callbackURL = URL(string: command.callbackURL) else {
-            throw PipelineError.invalidCallbackURL
-        }
+        let envelope = UploadEnvelope(metadata: metadata, imageBase64: finalPhoto.data.base64EncodedString())
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let body = try encoder.encode(envelope)
 
-        try await transferClient.upload(finalPhoto: finalPhoto, metadata: metadata, callbackURL: callbackURL)
         await MainActor.run {
-            logger?.log("Capture pipeline finished id=\(command.requestID) result=\(finalPhoto.pixelWidth)x\(finalPhoto.pixelHeight)")
+            logger?.log("Capture pipeline finished id=\(command.requestID) result=\(finalPhoto.pixelWidth)x\(finalPhoto.pixelHeight) bytes=\(finalPhoto.data.count)")
         }
-        return metadata
+        return body
     }
 
     private func makeFinalPhoto(from intermediate: CaptureIntermediate) -> FinalPhotoPayload {
