@@ -20,6 +20,7 @@ function sendTrigger() {
             port:     SWIFT_PORT,
             path:     '/capture',
             method:   'POST',
+            timeout:  5_000, // 接続できても応答しないMacで永久ブロックしないように
             headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
         }, (res) => {
             res.resume();
@@ -31,6 +32,7 @@ function sendTrigger() {
         });
 
         req.on('error', () => reject(new Error('mac-unreachable')));
+        req.on('timeout', () => req.destroy(new Error('mac-unreachable')));
         req.write(body);
         req.end();
     });
