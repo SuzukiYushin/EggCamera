@@ -32,8 +32,10 @@ const DEFERRED_MAX_MS = 60 * 60 * 1000; // 1時間
 // 管理画面/管理APIの認証トークン（未設定なら認証なし＝従来どおり）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
-// 管理画面からの再起動操作に要求するパスワード
-const REBOOT_PASSWORD = process.env.REBOOT_PASSWORD || 'familiar1234';
+// 管理画面からの再起動操作に要求するパスワード。
+// セキュリティ上、既定値はコードに一切持たない（env .env のみ。人が手入力する想定）。
+// 未設定なら再起動APIは fail-closed で全拒否する（src/routes/admin.js 参照）。
+const REBOOT_PASSWORD = process.env.REBOOT_PASSWORD || '';
 
 // ── Server ─────────────────────────────────────────────
 const PORT       = parseInt(process.env.PORT || '3000', 10);

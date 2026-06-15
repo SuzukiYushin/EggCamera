@@ -248,6 +248,11 @@ router.get('/diagnose', (req, res) => res.json(diagnose()));
 
 // 再起動実行（パスワード必須）。target = iphone|mac|node|iphone-reboot|iphone-refresh|mac-reboot
 router.post('/restart/:target', async (req, res) => {
+    // fail-closed: パスワード未設定(.envにREBOOT_PASSWORDが無い)なら一切受け付けない。
+    // 空文字一致による素通りを防ぐ（既定値はコードに持たない方針）。
+    if (!REBOOT_PASSWORD) {
+        return res.status(503).json({ error: 'reboot_password_not_configured' });
+    }
     if ((req.body && req.body.password) !== REBOOT_PASSWORD) {
         return res.status(401).json({ error: 'bad_password' });
     }
