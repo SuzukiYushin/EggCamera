@@ -7,7 +7,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const WINDOW_MIN = parseInt(process.argv[2] || '30', 10);
-const PORT = process.env.PORT || '3000';
+// ログ(/api/admin/logs)は admin 別プロセス(:3001)が配信する（core からファイル app.jsonl を読む）。
+const ADMIN_PORT = process.env.ADMIN_PORT || '3001';
 
 // 管理APIに ADMIN_TOKEN が設定されていればヘッダで渡す（同階層の ../.env から読む）。
 function readAdminToken() {
@@ -24,7 +25,7 @@ const ADMIN_TOKEN = readAdminToken();
   let logs;
   try {
     const headers = ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {};
-    const res = await fetch(`http://localhost:${PORT}/api/admin/logs?since=0`, { headers });
+    const res = await fetch(`http://localhost:${ADMIN_PORT}/api/admin/logs?since=0`, { headers });
     logs = await res.json();
   } catch (err) {
     console.log(`SERVER_UNREACHABLE: ${err.message}`);

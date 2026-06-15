@@ -8,6 +8,9 @@ const REPO = path.resolve(__dirname, '..');
 const NODE_DIR = path.join(REPO, 'EggCameraNode');
 const IPHONE_DIR = path.join(REPO, 'EggCameraIPhone');
 const SERVER = process.env.EGG_SERVER_URL || 'http://localhost:3000';
+// 管理APIは別プロセス(:3001)。admin が metrics/selftest 等を core へプロキシするので
+// /api/admin/* は全てこの ADMIN ベースに向ける（/ や /api/test-report は SERVER のまま）。
+const ADMIN = process.env.EGG_ADMIN_URL || 'http://localhost:3001';
 // USB(iproxy)経由: iPhone:8080 は localhost:8080 に転送される（旧WiFi直IPは廃止）
 const IPHONE_FRAME = process.env.IPHONE_FRAME_URL || 'http://127.0.0.1:8080/frame';
 const WATCHDOG_URL = process.env.WATCHDOG_URL || '';
@@ -55,18 +58,18 @@ async function postMarker(text) {
 
 // メンテナンス（ユーザー操作ロック）制御
 async function lockKiosk(reason, runSelfTestOnBoot = false) {
-  const url = `${SERVER}/api/admin/maintenance/start`;
+  const url = `${ADMIN}/api/admin/maintenance/start`;
   await sh('curl', ['-s', '-X', 'POST', url, ...adminHeader(url),
     '-H', 'Content-Type: application/json',
     '--data', JSON.stringify({ reason, runSelfTestOnBoot })]);
 }
 async function startSelfTest(reason) {
-  const url = `${SERVER}/api/admin/selftest`;
+  const url = `${ADMIN}/api/admin/selftest`;
   await sh('curl', ['-s', '-X', 'POST', url, ...adminHeader(url),
     '-H', 'Content-Type: application/json', '--data', JSON.stringify({ reason })]);
 }
 async function resumeKiosk() {
-  const url = `${SERVER}/api/admin/maintenance/stop`;
+  const url = `${ADMIN}/api/admin/maintenance/stop`;
   const r = await sh('curl', ['-s', '-X', 'POST', url, ...adminHeader(url)]);
   return r.ok ? '✅ ユーザー操作の受付を再開しました（通常運用へ）' : '⚠️ 解除に失敗。`/egg status` を確認してください';
 }
@@ -80,9 +83,9 @@ async function status() {
   const [nodeCode, iphoneCode, disk, failed, metrics] = await Promise.all([
     httpCode(SERVER + '/'),
     httpCode(IPHONE_FRAME),
-    httpJson(SERVER + '/api/admin/disk'),
-    httpJson(SERVER + '/api/admin/failed'),
-    httpJson(SERVER + '/api/admin/metrics'),
+    httpJson(ADMIN + '/api/admin/disk'),
+    httpJson(ADMIN + '/api/admin/failed'),
+    httpJson(ADMIN + '/api/admin/metrics'),
   ]);
   const gb = n => n != null ? (n / 1073741824).toFixed(1) + 'GB' : '?';
   const jobs = await sh('launchctl', ['list']);
@@ -193,7 +196,7 @@ async function refreshIphone() {
 }
 
 async function logs(n = 20) {
-  const arr = await httpJson(`${SERVER}/api/admin/logs?since=0`);
+  const arr = await httpJson(`${ADMIN}/api/admin/logs?since=0`);
   if (!Array.isArray(arr)) return 'ログ取得失敗';
   // 実害のあるエラーだけ（テストの統計スナップショットや申し送りマーカーは除外）
   const isReal = e =>
@@ -205,7 +208,7 @@ async function logs(n = 20) {
 }
 
 async function failedList() {
-  const arr = await httpJson(SERVER + '/api/admin/failed');
+  const arr = await httpJson(ADMIN + '/api/admin/failed');
   if (!Array.isArray(arr)) return '失敗画像の取得失敗';
   if (!arr.length) return '失敗画像はありません';
   return '*失敗画像 ' + arr.length + '件*\n' + arr.slice(0, 15).map(f => `• ${f.fileName}`).join('\n')
