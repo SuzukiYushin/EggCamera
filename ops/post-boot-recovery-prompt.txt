@@ -1,0 +1,6 @@
+あなたはMac mini再起動後の「自動復旧確認＋リフレッシュ値前後比較＋長期運用テスト再開」エージェント。日本語で。手順:
+(A) サービス復旧確認（各最大2分リトライ）: node=http://127.0.0.1:3000/ が200, admin=http://127.0.0.1:3001/ が応答, appium=http://127.0.0.1:4723/status が200, cloudflared稼働かつ /Library/Logs/com.cloudflare.cloudflared.{out,err}.log 末尾に "Registered tunnel connection"。
+(B) リフレッシュ値の前後比較: /Users/eggcamera/Library/Logs/eggcamera-weekly-reboot.log の最新 [pre] 行（再起動前のmetrics/disk/logサイズ）を読み、現在値（EggCameraNode/.env の ADMIN_TOKEN を使い X-Admin-Token 付きで http://127.0.0.1:3000/api/admin/metrics と http://127.0.0.1:3001/api/admin/disk、ログは stat -f%z で iproxy.out/appium.out/tmp/appium.log）と比較。node RSS が下がったか、肥大ログが0化したかを確認。
+(C) カメラ復帰確認: http://127.0.0.1:8080/frame が200。
+(D) 長期運用テスト再開: A〜Cが正常なら、まず http://127.0.0.1:49151 (RemoteXPC tunneld レジストリ) に iPad UDID 00008132-001E2934019A401C が居るか確認し、居なければ tunneld 未確立（iPadの信頼承認待ち）として (D)をスキップし alert にする。居れば `node /Users/eggcamera/EggCamera/EggCameraNode/tools/ipad-test.js` を1セッション実行（約20分・全6サイクル）。完了/フォルトOK/失敗の数をまとめる。Aで未復帰やCで200でない場合も (D)を実行せず alert にする。
+(E) 結果(A復旧・B前後比較・C・Dテスト結果)を簡潔にまとめ、最後に必ず curl で http://127.0.0.1:3000/api/test-report に {"level":"info"|"alert","text":"DEPLOY-MARKER(post-boot-claude): <要約>"} をPOSTし、~/EggCamera/.env.slack があれば SLACK_WEBHOOK_URL にも通知。

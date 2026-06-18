@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  RemoteXPC tunneld（無線 iPad / iOS17+）の root 常駐 LaunchDaemon。
+  これが無いと Mac 再起動後に Appium が iPad を認識できず iPad テストが開始不能になる。
+  （iPhone カメラの com.eggcamera.iproxy に相当する iPad 版の常駐サービス）
+
+  ※ root 必須・/Library/LaunchDaemons に置く必要があるため Claude では導入不可。
+     インストールは下記スクリプトを sudo で1回だけ実行する:
+
+       sudo /Users/eggcamera/EggCamera/ops/ipad/install-tunneld-daemon.sh
+
+     手動で行う場合:
+       sudo cp ops/launchd/com.eggcamera.tunneld.plist /Library/LaunchDaemons/
+       sudo chown root:wheel /Library/LaunchDaemons/com.eggcamera.tunneld.plist
+       sudo chmod 644       /Library/LaunchDaemons/com.eggcamera.tunneld.plist
+       sudo launchctl bootstrap system /Library/LaunchDaemons/com.eggcamera.tunneld.plist
+
+     状態確認:
+       sudo launchctl print system/com.eggcamera.tunneld | head
+       curl -s http://127.0.0.1:49151 | head   # tunneld レジストリ応答
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.tunneld</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/ipad/tunneld-daemon.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Library/Logs/com.eggcamera.tunneld.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Library/Logs/com.eggcamera.tunneld.err.log</string>
+</dict>
+</plist>
