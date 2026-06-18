@@ -8,6 +8,7 @@ set -u
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 LOG="$HOME/Library/Logs/eggcamera-weekly-reboot.log"
+IPAD_UDID="00008132-001E2934019A401C"
 TOKEN=$(grep -E "^ADMIN_TOKEN=" /Users/eggcamera/EggCamera/EggCameraNode/.env 2>/dev/null | cut -d= -f2)
 MARK="http://127.0.0.1:3000/api/test-report"
 sz() { stat -f%z "$1" 2>/dev/null || echo 0; }
@@ -36,7 +37,8 @@ echo "[pre] logs    = iproxy:$(sz "$HOME/Library/Logs/eggcamera-iproxy.out") app
 # iPadのCoreDevice再接続が遅いことがあるため、ゲートでも最大180秒リトライしてから判定。
 ipad_ok=0; iphone_ok=0
 for g in $(seq 1 36); do
-  [ "$ipad_ok" != 1 ] && xcrun devicectl list devices 2>/dev/null | grep "EggCameraのiPad" | grep -q connected && ipad_ok=1
+  # iPad検出は `list devices` がlaunchd環境で誤陰性のため UDID指定の device info(tunnelState) を使う
+  [ "$ipad_ok" != 1 ] && xcrun devicectl device info details --device "$IPAD_UDID" 2>/dev/null | grep -qiE "tunnelState:[[:space:]]*connected" && ipad_ok=1
   [ "$iphone_ok" != 1 ] && { fcode=$(curl -s -o /dev/null -m 5 -w "%{http_code}" http://127.0.0.1:8080/frame 2>/dev/null || echo 000); [ "$fcode" = 200 ] && iphone_ok=1; }
   [ "$ipad_ok" = 1 ] && [ "$iphone_ok" = 1 ] && break
   sleep 5
