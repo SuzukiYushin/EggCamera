@@ -31,12 +31,13 @@ Mac mini / iPhone「本体」の再起動は、通常の `/egg` とは**別の�
 | `/egg-reboot help` | 説明 |
 
 - `confirm` を付けないと実行されず確認文を返す。通常の不調は `/egg restart …` で対処すること。
-- **Mac mini本体の再起動には sudoers 設定が一度だけ必要**（NOPASSWD）:
+- **Mac mini本体の再起動には再起動ガードレールの設置が一度だけ必要**（祖先検査付きラッパーのみ NOPASSWD 許可）:
   ```
-  echo "eggcamera ALL=(root) NOPASSWD: /sbin/shutdown, /sbin/reboot" | sudo tee /etc/sudoers.d/eggcamera-reboot
-  sudo chmod 440 /etc/sudoers.d/eggcamera-reboot
+  sudo /Users/eggcamera/EggCamera/ops/install-reboot-guardrail.sh
   ```
-  未設定だと `/egg-reboot mac confirm` は権限エラーを返す（壊れはしない）。
+  これにより `/sbin/shutdown` 直叩きの NOPASSWD は廃止され、Claude Code/IDE 由来の自律的な
+  `sudo shutdown` はブロックされる（2026-06-18 の事故対策）。`/egg-reboot mac confirm` は
+  launchd 配下の bot から呼ばれるため許可される。未設置だと `/egg-reboot mac confirm` は権限エラーを返す（壊れはしない）。
 
 ## iPhone本体再起動の注意
 

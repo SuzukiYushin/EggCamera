@@ -1,0 +1,66 @@
+#!/bin/zsh
+# 週次・3台一括再起動（スクリプトベース／Claude非依存）。
+# 流れ: 前リフレッシュ値ログ → iPad再起動+Safari → iPhone再起動+カメラ復帰 →
+#        肥大ログtruncate → Mac mini再起動（最後・このスクリプトもここで終了）。
+# Mac復帰後の復旧確認・後リフレッシュ値は post-boot-verify / post-boot-claude（launchd）が自動実行。
+# 必要権限: iPad/iPhoneはdevicectl/cfgutil(sudo不要)、Macは /etc/sudoers.d/eggcamera-shutdown（パスワードレス）。
+set -u
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+LOG="$HOME/Library/Logs/eggcamera-weekly-reboot.log"
+TOKEN=$(grep -E "^ADMIN_TOKEN=" /Users/eggcamera/EggCamera/EggCameraNode/.env 2>/dev/null | cut -d= -f2)
+MARK="http://127.0.0.1:3000/api/test-report"
+sz() { stat -f%z "$1" 2>/dev/null || echo 0; }
+
+{
+echo "==== $(date '+%F %T') 週次3台再起動 開始 ===="
+
+# テスト実行中ならスキップ（RemoteXPC競合＋テスト中断回避、次回に持ち越し）
+if pgrep -f "ipad-test.js" >/dev/null 2>&1; then
+  echo "テストセッション実行中→今回はスキップ"; echo "==== end (skipped) ===="; exit 0
+fi
+
+# DEPLOY-MARKER
+curl -s -m 8 -X POST "$MARK" -H 'Content-Type: application/json' \
+  --data '{"level":"info","text":"DEPLOY-MARKER(weekly-reboot): 週次3台再起動開始。撮影断・無応答は本作業由来で異常ではない。"}' >/dev/null 2>&1
+
+# ── 前リフレッシュ値（再起動で解消される蓄積の記録）──
+echo "[pre] metrics = $(curl -s -m 5 -H "X-Admin-Token: $TOKEN" http://127.0.0.1:3000/api/admin/metrics 2>/dev/null)"
+echo "[pre] disk    = $(curl -s -m 5 -H "X-Admin-Token: $TOKEN" http://127.0.0.1:3001/api/admin/disk 2>/dev/null)"
+echo "[pre] logs    = iproxy:$(sz "$HOME/Library/Logs/eggcamera-iproxy.out") appium:$(sz "$HOME/Library/Logs/eggcamera-appium.out") tmpappium:$(sz /tmp/appium.log)"
+
+# ── iPad + iPhone 再起動（検証済みスクリプトを再利用）──
+/Users/eggcamera/EggCamera/ops/reboot-all-test.sh
+
+# ── ★ゲート: iPad/iPhoneの復帰を確認してからのみ Mac を再起動する ──
+# iPadのCoreDevice再接続が遅いことがあるため、ゲートでも最大180秒リトライしてから判定。
+ipad_ok=0; iphone_ok=0
+for g in $(seq 1 36); do
+  [ "$ipad_ok" != 1 ] && xcrun devicectl list devices 2>/dev/null | grep "EggCameraのiPad" | grep -q connected && ipad_ok=1
+  [ "$iphone_ok" != 1 ] && { fcode=$(curl -s -o /dev/null -m 5 -w "%{http_code}" http://127.0.0.1:8080/frame 2>/dev/null || echo 000); [ "$fcode" = 200 ] && iphone_ok=1; }
+  [ "$ipad_ok" = 1 ] && [ "$iphone_ok" = 1 ] && break
+  sleep 5
+done
+echo "[gate] iPad復帰=$ipad_ok / iPhoneカメラ(frame)=$iphone_ok"
+
+if [ "$ipad_ok" != 1 ] || [ "$iphone_ok" != 1 ]; then
+  echo "⚠ iPad/iPhone が未復帰 → Mac mini 再起動を中止（安全のため）"
+  curl -s -m 8 -X POST "$MARK" -H 'Content-Type: application/json' \
+    --data "{\"level\":\"alert\",\"text\":\"DEPLOY-MARKER(weekly-reboot): iPad復帰=$ipad_ok iPhone復帰=$iphone_ok のためMac再起動を中止。要確認。\"}" >/dev/null 2>&1
+  echo "==== $(date '+%F %T') 中止（iPad/iPhone未復帰） ===="
+  exit 1
+fi
+
+# ── 肥大ログを truncate（再起動では消えない）──
+for f in "$HOME/Library/Logs/eggcamera-iproxy.out" "$HOME/Library/Logs/eggcamera-appium.out" "/tmp/appium.log"; do
+  [ -f "$f" ] && : > "$f" && echo "[truncate] $f"
+done
+
+# ── Mac mini 再起動（iPad/iPhone復帰確認済みなので実行）──
+echo "==== $(date '+%F %T') iPad/iPhone復帰OK → Mac mini 再起動 → 復旧はpost-boot-verify/claudeが確認 ===="
+curl -s -m 8 -X POST "$MARK" -H 'Content-Type: application/json' \
+  --data '{"level":"info","text":"DEPLOY-MARKER(weekly-reboot): iPad/iPhone復帰確認済→Mac mini再起動。launchd自動復旧をpost-bootが確認する。"}' >/dev/null 2>&1
+sync
+# ガードレール経由で再起動（祖先検査付きラッパー）。weekly は launchd 配下なので許可される。
+sudo -n /Library/EggCamera/bin/eggcamera-safe-reboot
+} >> "$LOG" 2>&1

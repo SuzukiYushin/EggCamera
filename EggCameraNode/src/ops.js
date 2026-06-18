@@ -74,9 +74,10 @@ async function restart(target) {
         case 'mac-reboot': {
             mode.startMaintenance({ reason: '管理画面: Mac mini本体再起動', runSelfTestOnBoot: true });
             marker('管理画面からMac mini本体を再起動。復旧後に起動時自己診断。');
-            const r = await sh('sudo', ['-n', '/sbin/shutdown', '-r', 'now']);
+            // ガードレール経由で再起動（祖先検査付きラッパー）。admin(node) は launchd 配下なので許可される。
+            const r = await sh('sudo', ['-n', '/Library/EggCamera/bin/eggcamera-safe-reboot']);
             if (!r.ok) {
-                return { immediate: true, ok: false, message: 'Mac mini再起動の権限がありません。一度だけ sudoers 設定が必要です（ops/OPERATIONS.md 参照）。' };
+                return { immediate: true, ok: false, message: 'Mac mini再起動の権限がありません。一度だけ `sudo ops/install-reboot-guardrail.sh` でガードレールを設置してください。' };
             }
             return { immediate: true, message: 'Mac mini本体を再起動します。全サービス停止→自動復旧（数分）後に自己診断を実行します。' };
         }

@@ -1,0 +1,9 @@
+# EggCamera: Mac mini 再起動ガードレール（2026-06-18 導入）
+#
+# 直接の `/sbin/shutdown` NOPASSWD を廃止し、祖先プロセス検査付きラッパー
+# /Library/EggCamera/bin/eggcamera-safe-reboot 経由のみ NOPASSWD 許可する。
+# これにより Claude Code / IDE 由来の自律的な `sudo -n shutdown` をブロックする。
+# 人間は別エントリ (ALL) ALL によりパスワード付き sudo で従来どおり再起動可能。
+#
+# 設置: ops/install-reboot-guardrail.sh （visudo 検証付き）
+eggcamera ALL=(root) NOPASSWD: /Library/EggCamera/bin/eggcamera-safe-reboot

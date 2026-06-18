@@ -160,11 +160,12 @@ async function rebootMac() {
   // 本体が落ちるとbotも止まるので、起動時に自動セルフテストするフラグを立ててロック
   await lockKiosk('Mac mini本体再起動', true);
   await postMarker('SlackからMac mini本体を再起動します。ユーザー操作はロック。全サービス停止→自動復旧（autorestart→自動ログイン→launchd）後に自己診断を実行します。本操作由来で異常ではありません。');
-  // sudoers に NOPASSWD が無いと失敗する
-  const r = await sh('sudo', ['-n', '/sbin/shutdown', '-r', 'now']);
+  // ガードレール経由で再起動（祖先プロセス検査付きラッパー）。bot は launchd 配下なので許可される。
+  // sudoers に NOPASSWD（ラッパー）が無いと失敗する。
+  const r = await sh('sudo', ['-n', '/Library/EggCamera/bin/eggcamera-safe-reboot']);
   if (!r.ok) {
-    return '⚠️ Mac mini再起動の権限がありません。一度だけ以下を実行してください:\n'
-      + '```echo "eggcamera ALL=(root) NOPASSWD: /sbin/shutdown, /sbin/reboot" | sudo tee /etc/sudoers.d/eggcamera-reboot && sudo chmod 440 /etc/sudoers.d/eggcamera-reboot```';
+    return '⚠️ Mac mini再起動の権限がありません。一度だけガードレールを設置してください:\n'
+      + '```sudo /Users/eggcamera/EggCamera/ops/install-reboot-guardrail.sh```';
   }
   return ':arrows_counterclockwise: Mac mini本体を再起動します。数分後に自動復旧します（復旧後 `/egg status` で確認）。';
 }
