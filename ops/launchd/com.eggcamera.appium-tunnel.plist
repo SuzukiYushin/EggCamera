@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Appium公式 RemoteXPC トンネル(`appium driver run xcuitest tunnel-creation`)の root 常駐 LaunchDaemon。
+  iPad/iPhone を Appium に認識させる正規手段。誤った com.eggcamera.tunneld(pymobiledevice3)を置換する。
+
+  導入(古いtunneld撤去込み・sudo):
+    sudo /Users/eggcamera/EggCamera/ops/ipad/install-appium-tunnel-daemon.sh
+
+  ※ 導入前に、手動 foreground の `sudo appium driver run xcuitest tunnel-creation` が動いていれば
+     Ctrl-C で止める（:42314 競合回避）。
+  状態確認:
+    sudo launchctl print system/com.eggcamera.appium-tunnel | head
+    curl -s http://localhost:42314/remotexpc/tunnels | python3 -m json.tool
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.appium-tunnel</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/ipad/appium-tunnel-daemon.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>15</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Library/Logs/com.eggcamera.appium-tunnel.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Library/Logs/com.eggcamera.appium-tunnel.err.log</string>
+</dict>
+</plist>
