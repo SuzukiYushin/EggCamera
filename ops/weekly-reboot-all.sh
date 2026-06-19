@@ -16,8 +16,21 @@ sz() { stat -f%z "$1" 2>/dev/null || echo 0; }
 {
 echo "==== $(date '+%F %T') 週次3台再起動 開始 ===="
 
-# テスト実行中ならスキップ（RemoteXPC競合＋テスト中断回避、次回に持ち越し）
-if pgrep -f "ipad-test.js" >/dev/null 2>&1; then
+# テスト実行中ならスキップ（RemoteXPC競合＋テスト中断回避、次回に持ち越し）。
+# 注意: 単純な pgrep は post-boot復旧Claudeのプロンプト本文(多行)を誤検知する。
+# 実際の node …ipad-test.js だけを PID単位・claude除外・自己マッチ回避([i]) で判定。
+running_ipad_test() {
+  local pid cmd
+  for pid in $(pgrep -f '[i]pad-test\.js' 2>/dev/null); do
+    cmd=$(ps -o command= -p "$pid" 2>/dev/null | tr '\n' ' ')
+    case "$cmd" in
+      (*dangerously-skip-permissions*) continue ;;
+      (*node*ipad-test.js*) return 0 ;;
+    esac
+  done
+  return 1
+}
+if running_ipad_test; then
   echo "テストセッション実行中→今回はスキップ"; echo "==== end (skipped) ===="; exit 0
 fi
 

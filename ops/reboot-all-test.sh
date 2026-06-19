@@ -17,30 +17,34 @@ mark() { curl -s -m 8 -X POST "$MARK_URL" -H 'Content-Type: application/json' --
 echo "==== $(date '+%F %T') 3台再起動テスト（iPad→iPhone）開始 ===="
 mark "3台再起動テスト開始。iPad/iPhone/Mac再起動。一時的な撮影断・無応答は本テスト由来で異常ではありません。"
 
-# テスト用Appiumセッションが走っていないこと（RemoteXPC競合回避）
-if pgrep -f "ipad-test.js" >/dev/null 2>&1; then
-  echo "⚠ ipad-test.js 実行中。競合回避のため中止。"; exit 2
+# テスト用Appiumセッションが走っていないこと（RemoteXPC競合回避）。
+# 注意: 単純な `pgrep -f ipad-test.js` は post-boot復旧Claudeのプロンプト本文(多行)に
+# "ipad-test.js"/"node" が含まれて誤検知する。実際の node …ipad-test.js だけを
+# PID単位・claude(dangerously-skip-permissions)除外・自己マッチ回避([i]) で判定する。
+running_ipad_test() {
+  local pid cmd
+  for pid in $(pgrep -f '[i]pad-test\.js' 2>/dev/null); do
+    cmd=$(ps -o command= -p "$pid" 2>/dev/null | tr '\n' ' ')
+    case "$cmd" in
+      (*dangerously-skip-permissions*) continue ;;
+      (*node*ipad-test.js*) return 0 ;;
+    esac
+  done
+  return 1
+}
+if running_ipad_test; then
+  echo "⚠ node ipad-test.js 実行中。競合回避のため中止。"; exit 2
 fi
 
-# ───── 1) iPad ─────
-echo "[iPad] 再起動…"
-xcrun devicectl device reboot --device "$IPAD_UDID" && echo "[iPad] reboot送信OK" || echo "[iPad] reboot送信失敗"
-ipad_back=0
-# iPad は CoreDevice トンネルの再接続に4分以上かかることがある（180秒では不足）。
-# 最大420秒（7分）まで待つ。
-for i in $(seq 1 84); do
-  sleep 5
-  # iPad復帰検出: `list devices`はlaunchd環境で誤陰性(connected表示されず)になるため、
-  # `device reboot`同様にlaunchdでも確実に効く UDID指定の `device info` + tunnelState を使う。
-  if xcrun devicectl device info details --device "$IPAD_UDID" 2>/dev/null | grep -qiE "tunnelState:[[:space:]]*connected"; then
-    echo "[iPad] 復帰確認（${i}回ポーリング/$((i*5))秒）"; ipad_back=1; break
-  fi
-done
-[ "$ipad_back" = 1 ] || echo "[iPad] ⚠ 420秒以内に復帰未確認"
-sleep 10
-echo "[iPad] Safari起動（$URL）…"
-xcrun devicectl device process launch --device "$IPAD_UDID" com.apple.mobilesafari --payload-url "$URL" >/dev/null 2>&1 \
-  && echo "[iPad] Safari起動OK" || echo "[iPad] ⚠ Safari起動失敗"
+# ───── 1) iPad （WiFi再起動→Safari起動まで検証済みスクリプトに委譲）─────
+# devicectl reboot + tunnelState待ち + process launch を、本番(USB無し)で実証済みの
+# ipad-wifi-reboot.sh(WiFi再起動→Safari起動成功で完了判定)に置換。USB依存・偽陽性検知を排除。
+echo "[iPad] WiFi再起動+Safari起動（ipad-wifi-reboot.sh）…"
+if /Users/eggcamera/EggCamera/ops/ipad/ipad-wifi-reboot.sh; then
+  ipad_back=1
+else
+  ipad_back=0; echo "[iPad] ⚠ ipad-wifi-reboot.sh 失敗/未完了"
+fi
 
 # ───── 2) iPhone ─────
 echo "[iPhone] 再起動…（iphone.sh reboot = devicectl・修正済みでiPhone固定）"
