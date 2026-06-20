@@ -20,6 +20,11 @@ echo "==== $(date '+%F %T') iPad恒久setup 再起動後検証 ====" | tee -a "$
 
 echo "==== $(date '+%F %T') 復旧Claude(対話) 起動 ====" | tee -a "$LOG"
 PROMPT="$(cat "$PROMPT_FILE")"
+# 無人起動時に初回オンボーディング(テーマ選択画面)で固まるのを防ぐため、起動直前に
+# ~/.claude.json の hasCompletedOnboarding=true を保証する。これが無いと claude が
+# テーマ選択で停止し復旧不能になる(2026-06-20の再起動テストで発生)。VSCode拡張が
+# ~/.claude.json を上書きしてフラグを失う既知issue対策として毎回入れ直す。
+python3 -c "import json,os;p=os.path.expanduser('~/.claude.json');d=json.load(open(p)) if os.path.exists(p) else {};d['hasCompletedOnboarding']=True;d.setdefault('projects',{}).setdefault('/Users/eggcamera/EggCamera',{})['hasTrustDialogAccepted']=True;json.dump(d,open(p,'w'))" 2>/dev/null || true
 # 対話モード（-p なし）。自動復旧のため権限スキップ。初期プロンプトを投入。
 claude --dangerously-skip-permissions "$PROMPT"
 
