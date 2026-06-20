@@ -1,0 +1,6 @@
+#!/bin/zsh
+# EggCamera: appium-tunnel daemon を kickstart する専用ラッパー（NOPASSWD許可対象）。
+# Mac再起動後、iPadがWiFi再起動でusbmuxへ戻った後に daemon へ取り込ませるために使う
+# （daemonは起動時にしかusbmux列挙しないため、新規USB機の取込には再起動が要る）。
+# セキュリティ: 汎用 launchctl を NOPASSWD にせず、この1コマンドだけ許可する（最小権限）。
+exec /bin/launchctl kickstart -k system/com.eggcamera.appium-tunnel

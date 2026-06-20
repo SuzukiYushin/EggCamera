@@ -24,6 +24,14 @@ else
   echo "❌ 1) daemon が動いていない"; fails=$((fails+1)); note="$note daemon停止;"
 fi
 
+# ★iPadがusbmuxから脱落していたら、レジストリ/usbmux判定の前に自動復旧を試みる。
+#   WiFi再起動→usbmux再列挙→NOPASSWD kickstart→daemon取込（物理抜き差し不要）。
+#   NOPASSWDラッパー(ops/install-appium-kickstart-nopasswd.sh)導入済みなら無人で完了する。
+if ! idevice_id -l 2>/dev/null | grep -q "$IPAD"; then
+  echo "⚠ iPad usbmux脱落を検知 → 自動復旧を試行（WiFi再起動→kickstart, 最大~5分）"
+  /Users/eggcamera/EggCamera/ops/ipad/recover-ipad-usbmux.sh 2>&1 | sed 's/^/   /'
+fi
+
 # レジストリは起動直後だと遅れることがあるので最大40秒待つ
 echo "   レジストリ:42314 を待機(最大40s)…"
 reg=""

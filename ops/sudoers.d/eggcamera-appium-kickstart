@@ -1,0 +1,10 @@
+# EggCamera: appium-tunnel daemon kickstart の NOPASSWD 許可（2026-06-20 導入）。
+#
+# Mac再起動後、iPadがusbmuxから脱落→WiFi再起動でusbmux再列挙→daemonへ取り込ませる
+# 一連の自動復旧を「無人」で行えるようにするため。これが無いと kickstart がパスワード
+# 要求で止まり、再起動後のiPad自動復旧（ひいてはipad-test）が ALERT 止まりになる。
+#
+# セキュリティ: 汎用 /bin/launchctl を NOPASSWD にせず、kickstart 1コマンドのみを行う
+# 専用ラッパー /Library/EggCamera/bin/eggcamera-appium-kickstart だけを許可（最小権限）。
+# 設置: ops/install-appium-kickstart-nopasswd.sh （visudo 検証付き）
+eggcamera ALL=(root) NOPASSWD: /Library/EggCamera/bin/eggcamera-appium-kickstart
