@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './styles/global.css';
 import { LangProvider } from './LangContext';
 import { Start }        from './components/screens/Start';
@@ -54,6 +54,19 @@ export default function App() {
   const [fatal, setFatal]           = useState(false);
   const [maintenance, setMaintenance] = useState(false);
 
+  // createSession の世代管理。リロード直後のマウント生成と retake/restart の生成が
+  // 競合したとき、解決順が逆転して「古い session」を掴むのを防ぐ。常に最新要求だけ採用。
+  const sessionGen = useRef(0);
+  const newSession = () => {
+    const gen = ++sessionGen.current;
+    return createSession()
+      .then(({ sessionId }) => {
+        if (gen === sessionGen.current) setSessionId(sessionId); // 最新だけ採用
+        return sessionId;
+      })
+      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); return null; });
+  };
+
   // 想定外のエラーは全画面共通のお詫びオーバーレイ → 自動リロードでトップへ。
   // 原因はサーバログへ送って data/logs/ と管理画面で追えるようにする。
   useEffect(() => {
@@ -75,9 +88,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    createSession()
-      .then(({ sessionId }) => setSessionId(sessionId))
-      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); });
+    newSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 管理画面で設定が変更されたらページをリロード（SSE push）
+  useEffect(() => {
+    if (PROTO) return;
+    const es = new EventSource('/api/events');
+    es.addEventListener('settings-changed', () => location.reload());
+    return () => es.close();
   }, []);
 
   // メンテナンス状態を定期確認。再起動後の自己診断中は操作をロックし、
@@ -111,22 +131,28 @@ export default function App() {
   const retake = () => {
     setPhotos([]);
     setSelectedPhotoId(null);
-    createSession()
-      .then(({ sessionId }) => setSessionId(sessionId))
-      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); });
+    // 新session確定まで sessionId を null にし、Capture の撮影ボタンを抑止する
+    // （古いsessionで撮影 → 保存時に取り違える経路を構造的に塞ぐ）
+    setSessionId(null);
+    newSession();
     go('capture');
   };
 
   const goUpload = (blob: Blob) => {
-    if (sessionId && selectedPhotoId) {
+    // session が無い状態で保存に来たら黙って進めず即エラーに倒す
+    // （旧実装は無言で upload 画面へ進み、90秒待ってからエラーになっていた）
+    if (!sessionId) {
+      reportClientError('goUpload without sessionId');
+      setFatal(true);
+      return;
+    }
+    if (selectedPhotoId) {
       // メタデータ記録のみ。失敗しても合成画像のアップロードには影響しない
       selectPhoto(sessionId, { photoId: selectedPhotoId, nickname, days })
         .catch(err => console.error('selectPhoto failed', err));
     }
-    if (sessionId) {
-      uploadComposite(sessionId, blob)
-        .catch(err => { reportClientError(`uploadComposite failed: ${err}`); setFatal(true); });
-    }
+    uploadComposite(sessionId, blob)
+      .catch(err => { reportClientError(`uploadComposite failed: ${err}`); setFatal(true); });
     go('upload');
   };
 
@@ -136,9 +162,8 @@ export default function App() {
     setPhotos([]);
     setSelectedPhotoId(null);
     setResult(null);
-    createSession()
-      .then(({ sessionId }) => setSessionId(sessionId))
-      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); });
+    setSessionId(null);
+    newSession();
     go('start');
   };
 

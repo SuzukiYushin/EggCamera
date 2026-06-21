@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadDescription</key>
+			<string>EggCameraMac にローカルネットワークアクセスを許可します（iPhone への接続用）</string>
+			<key>PayloadDisplayName</key>
+			<string>EggCameraMac Privacy Preferences</string>
+			<key>PayloadIdentifier</key>
+			<string>com.eggcamera.pppc.localnetwork</string>
+			<key>PayloadOrganization</key>
+			<string>EggCamera</string>
+			<key>PayloadType</key>
+			<string>com.apple.TCC.configuration-profile-policy</string>
+			<key>PayloadUUID</key>
+			<string>A14D247C-50FA-41CA-B15E-4B59AC599EC9</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>Services</key>
+			<dict>
+				<key>LocalNetwork</key>
+				<array>
+					<dict>
+						<key>Allowed</key>
+						<true/>
+						<key>Identifier</key>
+						<string>com.eggcamera.mac</string>
+						<key>IdentifierType</key>
+						<string>bundleID</string>
+						<key>StaticCode</key>
+						<false/>
+					</dict>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>EggCameraMac のローカルネットワーク許可プロファイル</string>
+	<key>PayloadDisplayName</key>
+	<string>EggCameraMac Local Network Access</string>
+	<key>PayloadIdentifier</key>
+	<string>com.eggcamera.profile.localnetwork</string>
+	<key>PayloadOrganization</key>
+	<string>EggCamera</string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadScope</key>
+	<string>System</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>9C81E186-7ED7-4918-8D06-A099D025659D</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
