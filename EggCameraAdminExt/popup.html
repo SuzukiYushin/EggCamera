@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: system-ui, sans-serif; width: 320px; padding: 12px; margin: 0; font-size: 13px; background: #1a1a2e; color: #e0e0e0; }
+  h2 { margin: 0 0 10px; font-size: 15px; color: #a0c4ff; }
+  .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .status { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: bold; }
+  .status.running { background: #1b4332; color: #52b788; }
+  .status.stopped { background: #3a0f0f; color: #e07070; }
+  button { padding: 5px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  button.start  { background: #2d6a4f; color: #fff; }
+  button.stop   { background: #7f1d1d; color: #fff; }
+  .section { margin-top: 10px; }
+  label { font-size: 11px; color: #aaa; }
+  input[type=number] { width: 50px; padding: 3px 5px; background: #16213e; color: #e0e0e0; border: 1px solid #444; border-radius: 3px; }
+  .result { font-size: 11px; margin-top: 8px; padding: 6px; background: #16213e; border-radius: 4px; min-height: 30px; word-break: break-all; }
+  .result.error { border-left: 3px solid #e07070; }
+  .result.ok    { border-left: 3px solid #52b788; }
+  #log { font-size: 10px; font-family: monospace; background: #0d0d1a; padding: 6px; border-radius: 4px; height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h2>🛠 EggCamera 管理テスト</h2>
+
+<div class="row">
+  <span id="status" class="status stopped">停止中</span>
+  <button id="toggle" class="start">開始</button>
+</div>
+
+<div class="section">
+  <div class="row">
+    <label>実行間隔</label>
+    <input type="number" id="interval" value="10" min="1" max="60"> 分ごと
+  </div>
+</div>
+
+<div class="section">
+  <label>最終結果</label>
+  <div id="result" class="result">—</div>
+</div>
+
+<div id="log"></div>
+
+<script src="popup.js"></script>
+</body>
+</html>

@@ -592,9 +592,13 @@
   }
 
   let healthCount = 0;
+  const _hcStartedAt = Date.now();
   async function healthCheck() {
+    // ページリロード直後60秒はスキップ（fault injection → reload → 30s後の誤検知を防ぐ）
+    if (Date.now() - _hcStartedAt < 60_000) return;
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 5000);
+    // タイムアウトを10秒に延長（メモリ圧迫時の瞬間的な遅延で誤検知しないよう）
+    const t = setTimeout(() => ctrl.abort(), 10_000);
     try {
       const res = await adminFetch('/api/admin/metrics', { signal: ctrl.signal, cache: 'no-store' });
       if (!res.ok) throw new Error(`status ${res.status}`);
@@ -616,7 +620,7 @@
       if (!serverWasDown) {
         serverWasDown = true;
         bumpStat('serverDown');
-        log('▲ サーバ(Mac mini)が5秒以内に応答しない — フリーズ/過負荷の可能性');
+        log('▲ サーバ(Mac mini)が10秒以内に応答しない — フリーズ/過負荷の可能性');
       }
     } finally {
       clearTimeout(t);

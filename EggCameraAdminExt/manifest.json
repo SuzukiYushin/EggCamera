@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "EggCamera 管理画面テスト",
+  "version": "1.0.0",
+  "description": "EggCamera 管理画面を自動操作して動作確認を行います。操作中はメインテストを一時停止します。",
+  "permissions": ["storage"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html" },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://192.168.10.104/*",
+        "http://192.168.10.108/*",
+        "http://localhost/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
