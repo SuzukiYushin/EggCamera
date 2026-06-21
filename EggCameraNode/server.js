@@ -1,5 +1,6 @@
 const path    = require('node:path');
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 
 const { PORT, STATIC_DIR, FRAMES_DIR, ADMIN_DIR, R2_CLEANUP_INTERVAL, SESSION_TTL_MS, ts } = require('./src/config');
 const logger = require('./src/logger');
@@ -11,6 +12,7 @@ const slack = require('./src/slack');
 const frames   = require('./src/frames');
 const settings = require('./src/settings');
 const preview  = require('./src/preview');
+const sse      = require('./src/sse');
 const maintenance = require('./src/maintenance');
 const mode        = require('./src/mode');
 const selftest    = require('./src/selftest');
@@ -21,6 +23,29 @@ const { errorBoundary, safeInterval, safeTimeout } = require('./src/safe');
 
 const app = express();
 app.use(express.json());
+
+// ── レート制限 ───────────────────────────────────────────────────────────────
+// セッション作成: DoS対策（1IP あたり60秒に20回まで）
+const sessionLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 20,
+    standardHeaders: true, legacyHeaders: false,
+    handler: (req, res) => {
+        console.warn(`[${ts()}] rate-limit: sessions ${req.ip}`);
+        res.status(429).json({ error: 'too_many_requests' });
+    },
+});
+// 公開API全体: 1IP あたり60秒に200回まで
+const publicLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 200,
+    standardHeaders: true, legacyHeaders: false,
+    skip: (req) => req.path === '/api/events', // SSE は除外
+    handler: (req, res) => {
+        console.warn(`[${ts()}] rate-limit: public ${req.ip} ${req.path}`);
+        res.status(429).json({ error: 'too_many_requests' });
+    },
+});
+app.use('/api/sessions', sessionLimiter);
+app.use('/api', publicLimiter);
 
 app.use('/api/sessions', sessionsRouter);
 app.use('/api/photos', photosRouter);
@@ -33,6 +58,20 @@ app.get('/api/frames', (req, res) => {
     res.json(frames.listActiveFrames().map(f => ({ id: f.id, name: f.name, url: `/frames/${f.file}` })));
 });
 app.get('/api/settings', (req, res) => res.json(settings.getSettings()));
+
+// ── SSE: 管理画面の設定変更をiPadへリアルタイムプッシュ ──
+app.get('/api/events', (req, res) => sse.addClient(res));
+
+// ── 内部トリガー: admin プロセスが設定保存後にここを叩く（localhost のみ） ──
+app.post('/api/internal/reload-signal', (req, res) => {
+    if (req.socket.remoteAddress !== '127.0.0.1' && req.socket.remoteAddress !== '::1' &&
+        req.socket.remoteAddress !== '::ffff:127.0.0.1') {
+        return res.status(403).end();
+    }
+    sse.broadcast('settings-changed');
+    console.log(`[${ts()}] reload-signal broadcast to ${sse.clientCount()} SSE client(s)`);
+    res.json({ ok: true, clients: sse.clientCount() });
+});
 
 // ── ユーザーUIが参照する運用モード（メンテ中は操作ロック） ──
 app.get('/api/mode', (req, res) => res.json({ maintenance: mode.isMaintenance() }));

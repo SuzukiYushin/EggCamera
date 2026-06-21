@@ -2,6 +2,13 @@ const fs   = require('node:fs');
 const os   = require('node:os');
 const path = require('node:path');
 const sharp = require('sharp');
+// sharp(libvips) はデフォルトで最大50MBのネイティブキャッシュ＋CPUコア数ぶんの
+// ワーカースレッド(=アロケータarena断片化)を持ち、長期運用でRSSが単調増加する
+// （heapは安定なのにRSSだけ増える＝ネイティブ側リーク。実測 97→175→261MB）。
+// キャッシュ無効化＋並列度1でRSS滞留を抑える。本サーバは1枚ずつの逐次処理なので
+// concurrency=1でも実用上スループットに影響しない。
+sharp.cache(false);
+sharp.concurrency(1);
 const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
 const { NodeHttpHandler } = require('@smithy/node-http-handler');
 const QRCode = require('qrcode');

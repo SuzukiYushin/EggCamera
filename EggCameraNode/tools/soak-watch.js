@@ -36,8 +36,10 @@ function latestSnapshot() {
             return m ? parseInt(m[1], 10) : null;
         };
         const timeM = line.match(/^(\S+)/);
+        const time = timeM ? Date.parse(timeM[1]) : Date.now();
+        if (Date.now() - time > 4 * 60 * 60 * 1000) return null; // 4時間超の古いスナップは無視（テスト方式切替後の誤通知防止）
         return {
-            time: timeM ? Date.parse(timeM[1]) : Date.now(),
+            time,
             counts: {
                 'サイクル': num('サイクル'), 'DL失敗': num('失敗'),
                 '想定外': num('想定外'), 'コスト警告': num('コスト警告'),
@@ -58,10 +60,14 @@ const prev = loadState();
 const c = snap.counts;
 
 // 1) 監視カウンタが増えたら通知（想定外/コスト警告/サーバ無応答/停滞）
+// サーバ無応答・停滞は fault-injection ごとに +1 増える誤検知が多いため、
+// 10分以内に +3 以上増えた場合のみ通知する。
+const MIN_DELTA = { 'サーバ無応答': 3, '停滞': 3, '想定外': 1, 'コスト警告': 1 };
 const ups = [];
 for (const k of WATCH) {
     const now = c[k] ?? 0, was = prev.counts?.[k] ?? now;
-    if (now > was) ups.push(`${k} +${now - was}（計${now}）`);
+    const delta = now - was;
+    if (delta >= (MIN_DELTA[k] ?? 1)) ups.push(`${k} +${delta}（計${now}）`);
 }
 // DL失敗も増分監視
 {

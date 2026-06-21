@@ -4,6 +4,7 @@
 // - core密結合API（metrics/test-capture/chaos/selftest）と test-capture プレビュー(/api/photos)は core へプロキシ
 const http    = require('node:http');
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 
 const { ADMIN_PORT, PORT, ADMIN_DIR, FRAMES_DIR, ts } = require('./src/config');
 const logger = require('./src/logger');
@@ -13,6 +14,28 @@ const adminRouter = require('./src/routes/admin');
 const { errorBoundary } = require('./src/safe');
 
 const app = express();
+
+// ── 管理API レート制限 + 不審アクセス検知 ──────────────────────────────────
+// 認証失敗ログを残す（brute-force 検知用）
+app.use((req, res, next) => {
+    const onFinish = () => {
+        if (res.statusCode === 401) {
+            console.warn(`[${ts()}] ⚠ admin 認証失敗: ${req.ip} ${req.method} ${req.path}`);
+        }
+    };
+    res.on('finish', onFinish);
+    next();
+});
+// 1IP あたり60秒に60回まで
+const adminLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 60,
+    standardHeaders: true, legacyHeaders: false,
+    handler: (req, res) => {
+        console.warn(`[${ts()}] ⚠ rate-limit: admin ${req.ip} ${req.path}`);
+        res.status(429).json({ error: 'too_many_requests' });
+    },
+});
+app.use(adminLimiter);
 
 // core(:3000) へそのまま中継（ヘッダ=トークン含む・ボディはストリーム）
 function proxyToCore(req, res) {

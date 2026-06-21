@@ -6,7 +6,8 @@ const express = require('express');
 // 管理(運用)ルーター。admin別プロセス(:3001)で動く。撮影coreに密結合する
 // metrics/test-capture/chaos/selftest は adminCore.js(:3000) 側にあり、ここには無い
 // （admin-server.js が core へプロキシする）。
-const { DATA_DIR, FAILED_DIR, REBOOT_PASSWORD, ts } = require('../config');
+const http = require('node:http');
+const { DATA_DIR, FAILED_DIR, REBOOT_PASSWORD, PORT, ts } = require('../config');
 const adminAuth = require('./adminAuth');
 const { diagnose } = require('../diagnose');
 const ops = require('../ops');
@@ -120,7 +121,14 @@ router.get('/disk', (req, res) => {
 
 // ── クロップ設定 ─────────────────────────────────────────────────────────
 router.get('/settings', (req, res) => res.json(settings.getSettings()));
-router.put('/settings', (req, res) => res.json(settings.saveSettings(req.body)));
+router.put('/settings', (req, res) => {
+    const saved = settings.saveSettings(req.body);
+    // 設定変更を iPad Safari へリアルタイムプッシュ（SSE経由で core に通知）
+    const req2 = http.request({ host: '127.0.0.1', port: PORT, path: '/api/internal/reload-signal', method: 'POST' });
+    req2.on('error', () => {});
+    req2.end();
+    res.json(saved);
+});
 
 // ── ログ（リングバッファ） ────────────────────────────────────────────────
 router.get('/logs', (req, res) => {
