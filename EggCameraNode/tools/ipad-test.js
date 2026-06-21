@@ -105,7 +105,7 @@ function getJson(urlStr) {
         ).on('error', reject);
     });
 }
-const notifySlack = (t) => postJson(`${ADMIN_BASE}/api/admin/notify`, { text: t, kind: 'alert' }).catch(() => {});
+const notifySlack = (t, action = 'investigate') => postJson(`${ADMIN_BASE}/api/admin/notify`, { text: t, kind: 'alert', action }).catch(() => {});
 const testReport  = (level, text) => postJson(`${SERVER_BASE}/api/test-report`, { level, text }).catch(() => {});
 function saveScreenshot(browser, label) {
     fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });

@@ -25,18 +25,27 @@ post_marker() { # level text
     --data "$(printf '{"level":"%s","text":"DEPLOY-MARKER(hourly-test): %s"}' "$1" "$2")" >/dev/null 2>&1
 }
 
-notify_slack() { # text (alert時のみ)
+# アクション種別タグ（受信者が「何をすべきか」を一目で判断できるよう先頭に出す）
+slack_tag() { # action(none/fix/restart/investigate) → タグ文字列
+  case "$1" in
+    none)    echo ":white_check_mark: *通知：対処不要*" ;;
+    fix)     echo ":wrench: *要修正：コード/設定を確認*" ;;
+    restart) echo ":electric_plug: *要再起動／物理操作*" ;;
+    *)       echo ":mag: *要調査：原因を確認*" ;;
+  esac
+}
+notify_slack() { # action text
   [ -f "$SLACK_ENV" ] || return 0
   local url; url=$(grep -E '^SLACK_WEBHOOK_URL=' "$SLACK_ENV" | head -1 | cut -d= -f2- | tr -d '"'\'' ')
   [ -n "$url" ] || return 0
   curl -s -m 8 -X POST -H 'Content-Type: application/json' \
-    --data "$(printf '{"text":":rotating_light: *hourly-test* %s"}' "$1")" "$url" >/dev/null 2>&1
+    --data "$(printf '{"text":"%s\n*hourly-test* %s"}' "$(slack_tag "$1")" "$2")" "$url" >/dev/null 2>&1
 }
 
-skip() { # level text  — 実行せず終了
-  log "SKIP($1): $2"
-  post_marker "$1" "$2"
-  [ "$1" = "alert" ] && notify_slack "$2"
+skip() { # level action text  — 実行せず終了
+  log "SKIP($1): $3"
+  post_marker "$1" "$3"
+  [ "$1" = "alert" ] && notify_slack "$2" "$3"
   exit 0
 }
 
@@ -50,20 +59,20 @@ skip() { # level text  — 実行せず終了
 #       なり node 判定が外れる(本物の多重起動も検出できなくなる)。
 # → command(フル)の第1トークン=実行ファイルの basename が node のプロセスだけを数える。
 if ps -axww -o command= | awk '{n=split($1,a,"/")} a[n]=="node" && index($0,"tools/ipad-test.js")>0 {found=1} END{exit found?0:1}'; then
-  skip info "前セッションが走行中のためスキップ(重複起動防止)"
+  skip info none "前セッションが走行中のためスキップ(重複起動防止)"
 fi
 
 # ── 1) メンテナンス中はスキップ(週次再起動/メンテと衝突させない) ──
 mode=$(curl -s -m 5 http://127.0.0.1:3000/api/mode 2>/dev/null)
 if echo "$mode" | grep -q '"maintenance":true'; then
-  skip info "メンテナンスモード中のためスキップ"
+  skip info none "メンテナンスモード中のためスキップ"
 fi
 
 # ── 2) サービス前提: node:3000 と appium:4723 が応答するか ──
 ncode=$(curl -s -o /dev/null -w '%{http_code}' -m 5 http://127.0.0.1:3000/ 2>/dev/null)
 acode=$(curl -s -o /dev/null -w '%{http_code}' -m 5 http://127.0.0.1:4723/status 2>/dev/null)
 if [ "$ncode" != "200" ] || [ "$acode" != "200" ]; then
-  skip alert "サービス未復帰でスキップ(node=$ncode appium=$acode)"
+  skip alert restart "サービス未復帰でスキップ(node=$ncode appium=$acode)"
 fi
 
 # ── 3) iPad が Appium公式トンネルレジストリ:42314 に居るか。落ちていたら自動復旧を試行 ──
@@ -79,7 +88,7 @@ if ! echo "$reg" | grep -q "$IPAD"; then
   done
 fi
 if ! echo "$reg" | grep -q "$IPAD"; then
-  skip alert "iPadがトンネルレジストリ:42314に居ない(usbmux脱落の可能性, 自動復旧失敗)→要USB-C抜き差し"
+  skip alert restart "iPadがトンネルレジストリ:42314に居ない(usbmux脱落の可能性, 自動復旧失敗)→要USB-C抜き差し"
 fi
 
 # ── 4) 実行 ──
@@ -94,7 +103,7 @@ rc=$?
 summary_line=$(grep 'セッション完了:' "$RUN_LOG" | tail -1)
 if [ -z "$summary_line" ]; then
   txt="異常終了(rc=$rc, セッション完了行なし)。末尾: $(tail -1 "$RUN_LOG" 2>/dev/null | cut -c1-120)"
-  log "$txt"; post_marker alert "$txt"; notify_slack "$txt"; exit 0
+  log "$txt"; post_marker alert "$txt"; notify_slack investigate "$txt"; exit 0
 fi
 
 # 「=== セッション完了: 完了4 フォルトOK0 スキップ0 失敗2 / 6サイクル ===」から数値抽出
@@ -103,7 +112,7 @@ counts=$(echo "$summary_line" | sed -E 's/.*完了/完了/; s/ ===.*//')
 log "完了: $counts (rc=$rc)"
 if [ "${fails:-0}" -gt 0 ] || [ "$rc" -ne 0 ]; then
   txt="毎時テスト完走(要確認): $counts"
-  post_marker alert "$txt"; notify_slack "$txt"
+  post_marker alert "$txt"; notify_slack investigate "$txt"
 else
   post_marker info "毎時テスト正常完走: $counts"
 fi

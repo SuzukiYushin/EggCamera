@@ -36,7 +36,7 @@ function checkDisk() {
             const gb = (free / 1024 / 1024 / 1024).toFixed(1);
             console.warn(`[${ts()}] low disk: ${gb}GB free`);
             slack.notify(`ディスク空きが ${gb}GB を切りました。撮影が止まる前に整理してください。`,
-                { level: 'alert', key: 'low-disk', throttleMs: 60 * 60_000 });
+                { level: 'alert', action: 'restart', key: 'low-disk', throttleMs: 60 * 60_000 });
         }
     });
 }
@@ -50,7 +50,7 @@ function startupSelfCheck() {
     if (missing.length) {
         const msg = `起動時チェック: 必須設定が未設定です → ${missing.join(', ')}。アップロードが失敗します。`;
         console.error(`[${ts()}] ${msg}`);
-        slack.notify(msg, { level: 'alert', key: 'startup-config', throttleMs: 60 * 60_000 });
+        slack.notify(msg, { level: 'alert', action: 'fix', key: 'startup-config', throttleMs: 60 * 60_000 });
         return false;
     }
     console.log(`[${ts()}] startup self-check OK`);

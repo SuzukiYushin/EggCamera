@@ -21,8 +21,20 @@ const HOST = (() => { try { return os.hostname(); } catch { return 'mac-mini'; }
 
 const ICON = { warn: ':warning:', alert: ':rotating_light:', info: ':information_source:', fix: ':white_check_mark:' };
 
-// notify(text, { level, key, throttleMs })
-function notify(text, { level = 'warn', key = null, throttleMs = 0 } = {}) {
+// アクション種別タグ — 受信者が「何をすべきか」を一目で判断できるよう先頭行に出す。
+//   none=対処不要 / fix=コード・設定の修正 / restart=再起動や物理操作 / investigate=原因調査
+const ACTION_TAG = {
+    none:        ':white_check_mark: *通知：対処不要*',
+    fix:         ':wrench: *要修正：コード/設定を確認*',
+    restart:     ':electric_plug: *要再起動／物理操作*',
+    investigate: ':mag: *要調査：原因を確認*',
+};
+// action 未指定時に level から補完するデフォルト。
+const LEVEL_DEFAULT_ACTION = { info: 'none', fix: 'none', warn: 'investigate', alert: 'investigate' };
+
+// notify(text, { level, action, key, throttleMs })
+//   action を明示すると先頭タグが決まる。未指定なら level から補完。
+function notify(text, { level = 'warn', action = null, key = null, throttleMs = 0 } = {}) {
     if (key && throttleMs > 0) {
         const last = lastSentAt.get(key) || 0;
         if (Date.now() - last < throttleMs) return false;
@@ -31,7 +43,8 @@ function notify(text, { level = 'warn', key = null, throttleMs = 0 } = {}) {
     const url = webhookUrl();
     if (!url) { console.warn(`[${ts()}] Slack未設定のため通知スキップ: ${text.slice(0, 80)}`); return false; }
 
-    const body = JSON.stringify({ text: `${ICON[level] || ''} *EggCamera* (${HOST})\n${text}` });
+    const tag = ACTION_TAG[action] || ACTION_TAG[LEVEL_DEFAULT_ACTION[level]] || ACTION_TAG.investigate;
+    const body = JSON.stringify({ text: `${tag}\n${ICON[level] || ''} *EggCamera* (${HOST})\n${text}` });
     try {
         const u = new URL(url);
         const req = https.request({

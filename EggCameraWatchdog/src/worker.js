@@ -25,7 +25,7 @@ export default {
       // 復旧したら通知して状態を戻す
       const state = await env.WATCHDOG.get(KEY_STATE);
       if (state === 'alerted') {
-        await notify(env, ':white_check_mark: Mac mini からのハートビートが回復しました。', 'good');
+        await notify(env, ':white_check_mark: *通知：対処不要*\nMac mini からのハートビートが回復しました。', 'good');
         await env.WATCHDOG.put(KEY_STATE, 'ok');
       }
       return new Response('ok');
@@ -47,7 +47,7 @@ export default {
       if (age > STALE_MS && state !== 'alerted') {
         const min = Math.round(age / 60000);
         await notify(env,
-          `:rotating_light: *EggCamera 死活監視*\nMac mini からのハートビートが ${min} 分途絶えています。`
+          `:electric_plug: *要再起動／物理操作*\n:rotating_light: *EggCamera 死活監視*\nMac mini からのハートビートが ${min} 分途絶えています。`
           + `サーバ/電源/ネットワークを確認してください。`, 'danger');
         await env.WATCHDOG.put(KEY_STATE, 'alerted');
       }

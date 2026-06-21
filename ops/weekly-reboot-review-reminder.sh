@@ -33,7 +33,7 @@ curl -s -m 8 -X POST "$MARK" -H 'Content-Type: application/json' \
 if [ -f "$SLACK_ENV" ]; then
   url=$(grep -E '^SLACK_WEBHOOK_URL=' "$SLACK_ENV" | head -1 | cut -d= -f2- | tr -d '"'\'' ')
   [ -n "$url" ] && curl -s -m 8 -X POST -H 'Content-Type: application/json' \
-    --data "$(printf '{"text":":calendar: *weekly-reboot 戻し判断リマインダー*\n%s"}' "$TEXT")" "$url" >/dev/null 2>&1
+    --data "$(printf '{"text":":white_check_mark: *通知：対処不要*\n:calendar: *weekly-reboot 戻し判断リマインダー*\n%s"}' "$TEXT")" "$url" >/dev/null 2>&1
 fi
 
 # ── 一回限り化: plist を .fired にして次回ブートで読み込ませない ──

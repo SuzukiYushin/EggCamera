@@ -175,12 +175,14 @@ router.delete('/failed/:file', (req, res) => {
 });
 
 // ── Slack 通知（監視ループ/エージェントからのバグ修正・人力対応報告用） ───
-// POST {text, kind?: 'fix'|'warn'|'alert'|'info'}
+// POST {text, kind?: 'fix'|'warn'|'alert'|'info', action?: 'none'|'fix'|'restart'|'investigate'}
+//   kind=重要度アイコン, action=先頭のアクション種別タグ(何をすべきか)
 router.post('/notify', (req, res) => {
-    const { text, kind } = req.body || {};
+    const { text, kind, action } = req.body || {};
     if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text_required' });
     const level = ['fix', 'warn', 'alert', 'info'].includes(kind) ? kind : 'info';
-    const sent = slack.notify(text.slice(0, 1500), { level });
+    const act = ['none', 'fix', 'restart', 'investigate'].includes(action) ? action : null;
+    const sent = slack.notify(text.slice(0, 1500), { level, action: act });
     res.json({ ok: true, sent });
 });
 

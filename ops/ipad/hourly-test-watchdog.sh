@@ -25,12 +25,12 @@ post_marker() { # level text
   curl -s -m 8 -X POST http://127.0.0.1:3000/api/test-report -H 'Content-Type: application/json' \
     --data "$(printf '{"level":"%s","text":"DEPLOY-MARKER(hourly-watchdog): %s"}' "$1" "$2")" >/dev/null 2>&1
 }
-notify_slack() { # text
+notify_slack() { # text（watchdogの通知は常に「要調査：原因を確認」=まずログ/launchd状態を見る）
   [ -f "$SLACK_ENV" ] || return 0
   local url; url=$(grep -E '^SLACK_WEBHOOK_URL=' "$SLACK_ENV" | head -1 | cut -d= -f2- | tr -d '"'\'' ')
   [ -n "$url" ] || return 0
   curl -s -m 8 -X POST -H 'Content-Type: application/json' \
-    --data "$(printf '{"text":":rotating_light: *hourly-watchdog* %s"}' "$1")" "$url" >/dev/null 2>&1
+    --data "$(printf '{"text":":mag: *要調査：原因を確認*\n*hourly-watchdog* %s"}' "$1")" "$url" >/dev/null 2>&1
 }
 alert() { # text
   log "ALERT: $1"; post_marker alert "$1"; notify_slack "$1"

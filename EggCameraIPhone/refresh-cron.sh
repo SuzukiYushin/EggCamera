@@ -38,14 +38,23 @@ verify_iphone_up() {
 
 # Slack 通知（Webhook URL は ~/EggCamera/.env.slack に置く・git管理外）
 #   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/XXX/YYY/ZZZ
-notify_slack() {
-  local msg="$1"
+# アクション種別タグ（受信者が「何をすべきか」を一目で判断できるよう先頭に出す）
+slack_tag() { # action(none/fix/restart/investigate)
+  case "$1" in
+    none)    echo ":white_check_mark: *通知：対処不要*" ;;
+    fix)     echo ":wrench: *要修正：コード/設定を確認*" ;;
+    restart) echo ":electric_plug: *要再起動／物理操作*" ;;
+    *)       echo ":mag: *要調査：原因を確認*" ;;
+  esac
+}
+notify_slack() { # action msg
+  local action="$1" msg="$2"
   local url=""
   [[ -f "$HOME/EggCamera/.env.slack" ]] && url=$(grep -m1 '^SLACK_WEBHOOK_URL=' "$HOME/EggCamera/.env.slack" | cut -d= -f2-)
   [[ -z "$url" ]] && { echo "（Slack未設定のため通知スキップ）"; return; }
   local host; host=$(scutil --get ComputerName 2>/dev/null || hostname)
   curl -sS -m 10 -X POST -H 'Content-type: application/json' \
-    --data "{\"text\":\":warning: *EggCamera iPhone署名* (${host})\n${msg}\"}" "$url" >/dev/null \
+    --data "{\"text\":\"$(slack_tag "$action")\n:warning: *EggCamera iPhone署名* (${host})\n${msg}\"}" "$url" >/dev/null \
     && echo "Slack通知 送信" || echo "Slack通知 失敗"
 }
 
@@ -72,7 +81,7 @@ profile_expiry_epoch() {
     post_marker "iPhoneアプリを再ビルド・再インストール・再起動します（プロファイル無し→再生成）。数サイクルのcapture_timeout/プレビュー断は本作業由来で異常ではありません。"
     did_redeploy=1
     if ./iphone.sh refresh; then echo "refresh OK"
-    else echo "refresh FAILED"; notify_slack "プロファイルが見つからず再生成にも失敗しました。アプリが起動しない恐れ。Xcodeでサインイン状態を確認してください。"; fi
+    else echo "refresh FAILED"; notify_slack fix "プロファイルが見つからず再生成にも失敗しました。アプリが起動しない恐れ。Xcodeでサインイン状態を確認してください。"; fi
   else
     days_left=$(( (exp - now) / 86400 ))
     echo "プロファイル失効まで ${days_left} 日"
@@ -84,19 +93,19 @@ profile_expiry_epoch() {
         echo "refresh OK"
         newexp=$(profile_expiry_epoch)
         if (( newexp <= now )); then
-          notify_slack "プロビジョニングが失効し、自動更新できませんでした。手動でXcodeを開いて更新してください。"
+          notify_slack fix "プロビジョニングが失効し、自動更新できませんでした。手動でXcodeを開いて更新してください。"
         elif (( newexp - now <= RENEW_WITHIN_DAYS * 86400 )); then
           echo "（注意）失効日が更新されていない可能性。次回再試行。"
         fi
       else
         echo "refresh FAILED"
-        notify_slack "プロビジョニングの自動更新に失敗しました（残り ${days_left} 日）。期限切れでアプリが止まる前にXcodeで更新してください。"
+        notify_slack fix "プロビジョニングの自動更新に失敗しました（残り ${days_left} 日）。期限切れでアプリが止まる前にXcodeで更新してください。"
       fi
     else
       echo "余裕あり → restart（起動確認のみ）"
       post_marker "iPhoneアプリの起動確認のため再起動します（プロファイルは有効）。一時的なプレビュー断は本作業由来で異常ではありません。"
       did_redeploy=1
-      ./iphone.sh restart && echo "restart OK" || { echo "restart FAILED"; notify_slack "アプリの起動確認に失敗しました。iPhoneの接続/状態を確認してください。"; }
+      ./iphone.sh restart && echo "restart OK" || { echo "restart FAILED"; notify_slack restart "アプリの起動確認に失敗しました。iPhoneの接続/状態を確認してください。"; }
     fi
   fi
 
@@ -106,13 +115,13 @@ profile_expiry_epoch() {
       post_marker "iPhone再デプロイ完了。:8080/frame=200 で復旧確認済み。以降は正常稼働。"
     else
       post_marker "iPhone再デプロイ後、:8080/frame が200に戻りません。撮影系が止まっている可能性。要確認。"
-      notify_slack "iPhone再デプロイ後にアプリが :8080 を返しません。撮影が止まっている可能性があります。"
+      notify_slack restart "iPhone再デプロイ後にアプリが :8080 を返しません。撮影が止まっている可能性があります。"
     fi
   fi
 
   finalexp=$(profile_expiry_epoch)
   if (( finalexp != 0 && finalexp <= now )); then
-    notify_slack "プロビジョニングが失効中です。アプリが起動できない可能性があります。"
+    notify_slack fix "プロビジョニングが失効中です。アプリが起動できない可能性があります。"
   fi
   echo "==== end ===="
 } >> "$LOG" 2>&1
