@@ -25,11 +25,15 @@ BUNDLE_ID='com.siggaze.eggcamera'
 DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-4U78CNU7WN}"
 
 # ── 接続デバイスを自動検出 ───────────────────────────────
-# devicectl 用の識別子（install/launch）と xcodebuild 用の UDID（build）を取る
+# devicectl 用の識別子（install/launch）と xcodebuild 用の UDID（build）を取る。
+# ★必ず iPhone を選ぶ: テスト用 iPad(EggCameraのiPad) も同時接続されており、
+#   無条件に「最初の connected」を取ると iPad を掴んでしまう（reboot/refresh が誤爆）。
+#   名前/機種に "iPhone" を含む行だけに絞る。
 detect_device() {
   CORE_ID="${DEVICE_CORE_ID:-$(xcrun devicectl list devices 2>/dev/null \
-    | awk -F'  +' '/connected/ {print $3; exit}')}"
+    | awk -F'  +' '/connected/ && /iPhone/ {print $3; exit}')}"
   BUILD_UDID="${DEVICE_UDID:-$(xcrun xctrace list devices 2>/dev/null \
+    | grep -i 'iPhone' \
     | sed -n 's/.*(\([0-9A-Fa-f]\{8\}-[0-9A-Fa-f]\{16\}\))$/\1/p' | head -1)}"
   if [[ -z "${CORE_ID:-}" ]]; then
     echo "ERROR: 接続中のiPhoneが見つかりません。USB接続とロック解除を確認してください。" >&2
@@ -55,8 +59,22 @@ cmd_build() {
 
 cmd_install() {
   detect_device
-  echo "▶ インストール → $CORE_ID"
-  xcrun devicectl device install app --device "$CORE_ID" "$APP"
+  # ★監督下デバイスには cfgutil で「管理対象アプリ」として配信する。
+  #   devicectl(sideload) だと監督化の恩恵を受けられず、再起動後に開発者証明書の
+  #   手動信頼が必要になり、カメラが自動復帰しない（2026-06-18の障害）。
+  #   cfgutil 経由（管理対象）なら手動信頼不要＝再起動耐性あり。検証済み。
+  local CFG=/usr/local/bin/cfgutil ECID=""
+  if [[ -x "$CFG" ]]; then
+    ECID=$("$CFG" list 2>/dev/null | grep -i 'Type: iPhone' | grep -oE 'ECID: [0-9A-Fx]+' | head -1 | awk '{print $2}')
+  fi
+  if [[ -n "$ECID" ]]; then
+    echo "▶ インストール（cfgutil・管理対象/監督下） → ECID $ECID"
+    "$CFG" --ecid "$ECID" install-app "$APP"
+  else
+    echo "⚠ cfgutil/ECID取得不可 → devicectl フォールバック（再起動後に手動信頼が要る場合あり）" >&2
+    echo "▶ インストール（devicectl） → $CORE_ID"
+    xcrun devicectl device install app --device "$CORE_ID" "$APP"
+  fi
 }
 
 cmd_launch() {

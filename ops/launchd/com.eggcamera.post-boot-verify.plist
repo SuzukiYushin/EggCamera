@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac再起動後の自動復旧確認。ログイン直後(RunAtLoad)に1回走り、サービス復帰を記録する。
+  インストール（sudo不要・LaunchAgent）:
+    cp ops/launchd/com.eggcamera.post-boot-verify.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.post-boot-verify.plist
+  ※ RunAtLoad=true なので bootstrap した瞬間にも1回走る（動作確認になる）。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.post-boot-verify</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/post-boot-verify.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-post-boot-verify.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-post-boot-verify.err</string>
+</dict>
+</plist>

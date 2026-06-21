@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  一回限りリマインダー: 2026-06-24 16:30 に weekly-reboot-review-reminder.sh を実行し、
+  「日次再起動テスト試用後、weekly-reboot を週次に戻すか」判断を Slack ＋ test-report に通知。
+  スクリプトが発火後に自分の plist を .fired にリネーム → 次の日次再起動で launchd から外れる。
+  16:30 = 15:00再起動テスト後のバッファ時(16時は毎時テスト無し)で衝突なし。
+  インストール:
+    cp ops/launchd/com.eggcamera.weekly-reboot-review.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.weekly-reboot-review.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.eggcamera.weekly-reboot-review</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/weekly-reboot-review-reminder.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/eggcamera/EggCamera</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Month</key><integer>6</integer>
+    <key>Day</key><integer>24</integer>
+    <key>Hour</key><integer>16</integer>
+    <key>Minute</key><integer>30</integer>
+  </dict>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/eggcamera/Library/Logs/eggcamera-reboot-review.out</string>
+  <key>StandardErrorPath</key><string>/Users/eggcamera/Library/Logs/eggcamera-reboot-review.out</string>
+</dict>
+</plist>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Mac再起動後に Claude をヘッドレス自動起動して復旧確認させる。
+  インストール（sudo不要・LaunchAgent）:
+    cp ops/launchd/com.eggcamera.post-boot-claude.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.post-boot-claude.plist
+  ※ RunAtLoad=true。bootstrap した瞬間にも1回走る（90秒後にClaudeが起動し動作確認になる）。
+  ※ 簡易版 post-boot-verify.sh（Slack即時）と併用。こちらは Claude による richer な確認。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.post-boot-claude</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/post-boot-claude.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-post-boot-claude.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-post-boot-claude.err</string>
+</dict>
+</plist>

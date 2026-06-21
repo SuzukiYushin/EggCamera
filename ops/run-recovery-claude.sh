@@ -26,7 +26,12 @@ PROMPT="$(cat "$PROMPT_FILE")"
 # ~/.claude.json を上書きしてフラグを失う既知issue対策として毎回入れ直す。
 python3 -c "import json,os;p=os.path.expanduser('~/.claude.json');d=json.load(open(p)) if os.path.exists(p) else {};d['hasCompletedOnboarding']=True;d.setdefault('projects',{}).setdefault('/Users/eggcamera/EggCamera',{})['hasTrustDialogAccepted']=True;json.dump(d,open(p,'w'))" 2>/dev/null || true
 # 対話モード（-p なし）。自動復旧のため権限スキップ。初期プロンプトを投入。
-claude --dangerously-skip-permissions "$PROMPT"
+# --remote-control: 再起動後にこの復旧セッションを claude.ai/code・モバイルアプリから
+#   遠隔操作できるようにする（セッション名 eggcamera-postboot で固定）。Remote Control は
+#   ローカルプロセス依存のため、遠隔操作可能なのは この claude が生きている間
+#   （= 復旧A〜E ＋ ipad-test の完走、概ね20分強）のみ。終了後（exec zsh）も遠隔操作したい
+#   場合は手動で `claude --remote-control` を再実行する（teleportとは併用不可）。
+claude --remote-control "eggcamera-postboot" --dangerously-skip-permissions "$PROMPT"
 
 echo ""
 echo "==== $(date '+%F %T') 復旧Claude 終了。続けるには: claude --continue ====" | tee -a "$LOG"

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  週次メンテ（iPad再起動+Safari再開+ログtruncate）。
+  devicectl は GUI ログイン中のユーザーセッションで動かす必要があるため LaunchAgent。
+  毎週日曜 4:00（iPhone refresh は毎日 4:30、時間をずらす）。
+  インストール:
+    cp ops/launchd/com.eggcamera.weekly-maintenance.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.weekly-maintenance.plist
+  （sudo 不要・LaunchAgent）
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.weekly-maintenance</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/weekly-maintenance.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>0</integer>
+    <key>Hour</key><integer>4</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-weekly-maint.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-weekly-maint.err</string>
+</dict>
+</plist>

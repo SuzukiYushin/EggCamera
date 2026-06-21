@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  週次・3台一括再起動（iPad→iPhone→Mac）。スクリプトベース／Claude非依存。
+  毎週 木曜(Weekday=4) 21:35。今日(2026-06-18=木)の動作テストを兼ねる。曜日/時刻は後で調整可。
+  インストール（sudo不要・LaunchAgent。Mac再起動はスクリプト内のパスワードレスsudo）:
+    cp ops/launchd/com.eggcamera.weekly-reboot.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.weekly-reboot.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.weekly-reboot</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/weekly-reboot-all.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Weekday</key><integer>4</integer>
+    <key>Hour</key><integer>21</integer>
+    <key>Minute</key><integer>50</integer>
+  </dict>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-weekly-reboot.out</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-weekly-reboot.err</string>
+</dict>
+</plist>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  日次・再起動テスト（3台フル: iPad→iPhone→Mac mini）。スクリプトベース／Claude非依存。
+  毎日 AM3:00 と 15:00 に weekly-reboot-all.sh を実行:
+    前リフレッシュ値ログ → iPad再起動+Safari → iPhone再起動+カメラ復帰 →
+    iPad/iPhone復帰ゲート → 肥大ログtruncate → Mac mini再起動。
+  Mac復帰後の復旧確認・後リフレッシュ値は post-boot-verify / post-boot-claude(launchd)が自動実行。
+  Mac再起動は eggcamera-safe-reboot 経由(祖先DENYリスト方式、launchd配下はALLOW)。
+  ※スケジュール窓: 6サイクル毎時テストは 0-2,5-14,17-23時。3時/15時=再起動テスト、4時/16時=復旧バッファ。
+  インストール:
+    cp ops/launchd/com.eggcamera.reboot-test.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.reboot-test.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.eggcamera.reboot-test</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/weekly-reboot-all.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
+    <dict><key>Hour</key><integer>15</integer><key>Minute</key><integer>0</integer></dict>
+  </array>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/eggcamera/Library/Logs/eggcamera-reboot-test.out</string>
+  <key>StandardErrorPath</key><string>/Users/eggcamera/Library/Logs/eggcamera-reboot-test.err</string>
+</dict>
+</plist>
