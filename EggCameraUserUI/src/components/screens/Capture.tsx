@@ -130,6 +130,9 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
   const [flashKey, setFlashKey] = useState(0);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const [started, setStarted] = useState(false);
+  // 連打の即時ガード。started(state)は再描画後にしか反映されず、撮影ボタンを高速連打すると
+  // 再描画前に shoot() が複数走って余計なシャッターが鳴る。ref は同期で即反映されるので隙が無い。
+  const startedRef = useRef(false);
 
   const canShoot = !!sessionId && !started && photos.length < MAX_SHOTS;
 
@@ -145,7 +148,8 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
   };
 
   const shoot = async () => {
-    if (!canShoot || !sessionId) return;
+    if (startedRef.current || !canShoot || !sessionId) return; // refで即時に二重起動を塞ぐ
+    startedRef.current = true;
     setStarted(true);
 
     const acc = [...photos];

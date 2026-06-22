@@ -18,6 +18,7 @@ function createSession() {
         id,
         status: 'idle',
         photos: [],
+        inFlight: 0, // 撮影中(await camera.capture 待ち)の枚数。3枚キャップを枚数+inFlightで同期判定するため
         selectedPhotoId: undefined,
         nickname: undefined,
         days: undefined,

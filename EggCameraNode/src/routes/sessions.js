@@ -28,7 +28,13 @@ router.get('/:id', (req, res) => {
 router.post('/:id/capture', async (req, res) => {
     const session = getSession(req.params.id);
     if (!session) return res.status(404).json({ error: 'session_not_found' });
-    if (session.photos.length >= 3) return res.status(400).json({ error: 'max_shots_reached' });
+    // 確定枚数＋撮影中(in-flight)で頭打ち判定。length だけだと await camera.capture() をまたぐ間に
+    // 複数リクエストが >=3 チェックを同時通過し、連打時に4枚目のシャッターが漏れる。
+    // Nodeは単一スレッドなので「判定→inFlight++」はawait前に同期実行され、ここで枠を予約してレースを塞ぐ。
+    if (session.photos.length + session.inFlight >= 3) {
+        return res.status(400).json({ error: 'max_shots_reached' });
+    }
+    session.inFlight += 1;
 
     touch(session);
     session.status = 'capturing';
@@ -53,6 +59,8 @@ router.post('/:id/capture', async (req, res) => {
         }
         console.error(`[${ts()}] capture failed: ${err.message}`);
         return res.status(500).json({ error: 'capture_failed' });
+    } finally {
+        session.inFlight -= 1; // 成否に関わらず予約を解放
     }
 });
 
