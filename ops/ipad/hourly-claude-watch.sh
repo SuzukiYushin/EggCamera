@@ -24,9 +24,14 @@ echo "==== $(date '+%F %T') hourly-claude-watch 起動 ====" >> "$LOG"
 #   ・第1トークンの実行ファイル basename が zsh （= 本物はシェルが直接スクリプトを実行。claudeは basename≠zsh で除外）
 #   ・第2トークンのスクリプト basename が hourly-claude-watch.sh （`zsh -c '…'` のツール実行は第2=-c で除外）
 #   ・自分自身($$)は除外
-others=$(ps -axww -o pid=,command= 2>/dev/null | awk -v self="$$" '
-  $1==self {next}
-  { ni=split($2,ia,"/"); ns=split($3,sa,"/");
+# 自分自身($$)に加え、直接の子プロセス(PPID==$$)も除外する。理由: 下の `$(ps|awk)` の
+# コマンド置換は zsh のサブシェルを fork し、それは exec 前まで本スクリプトと同じ argv
+# (/bin/zsh …/hourly-claude-watch.sh)を持つため、basename 判定だと自分の子サブシェルに自己マッチして
+# しまう(2026-06-23観測: $$除外だけでは漏れて毎回スキップ)。本物の別実行は launchd の子=PPID≠$$ なので
+# この除外で取り逃さない。
+others=$(ps -axww -o pid=,ppid=,command= 2>/dev/null | awk -v self="$$" '
+  $1==self || $2==self {next}
+  { ni=split($3,ia,"/"); ns=split($4,sa,"/");
     if (ia[ni]=="zsh" && sa[ns]=="hourly-claude-watch.sh") print $1 }')
 if [ -n "$others" ]; then
   echo "[$(date '+%T')] 既に実行中(pids: $others)につき今回はスキップ" >> "$LOG"
