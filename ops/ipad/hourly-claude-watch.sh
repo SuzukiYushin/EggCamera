@@ -17,13 +17,20 @@ cd /Users/eggcamera/EggCamera || exit 1
 echo "==== $(date '+%F %T') hourly-claude-watch 起動 ====" >> "$LOG"
 
 # 多重起動防止（前回が MAX_SEC 超で生きていたら今回はスキップ）
-if pgrep -f 'hourly-claude-watch[.]sh' | grep -qv "^$$\$"; then
-  # 自分以外に同名スクリプトが走っていれば二重起動とみなしスキップ
-  others=$(pgrep -f 'hourly-claude-watch[.]sh' | grep -v "^$$\$")
-  if [ -n "$others" ]; then
-    echo "[$(date '+%T')] 既に実行中(pids: $others)につき今回はスキップ" >> "$LOG"
-    exit 0
-  fi
+# 【重要】旧実装 `pgrep -f 'hourly-claude-watch[.]sh'` は、起動引数(プロンプト)にこのパス文字列を
+# 含む別プロセス、特に復旧Claude(`claude --remote-control … <このパスを含むプロンプト>`)に誤マッチし、
+# 常駐Claudeが居る限り毎回スキップ＝無音で点検停止する事故を起こした(2026-06-23に6時間停止を観測)。
+# 毎時テスト側(hourly-ipad-test.sh)と同じく「実行ファイルの種別」で判定する:
+#   ・第1トークンの実行ファイル basename が zsh （= 本物はシェルが直接スクリプトを実行。claudeは basename≠zsh で除外）
+#   ・第2トークンのスクリプト basename が hourly-claude-watch.sh （`zsh -c '…'` のツール実行は第2=-c で除外）
+#   ・自分自身($$)は除外
+others=$(ps -axww -o pid=,command= 2>/dev/null | awk -v self="$$" '
+  $1==self {next}
+  { ni=split($2,ia,"/"); ns=split($3,sa,"/");
+    if (ia[ni]=="zsh" && sa[ns]=="hourly-claude-watch.sh") print $1 }')
+if [ -n "$others" ]; then
+  echo "[$(date '+%T')] 既に実行中(pids: $others)につき今回はスキップ" >> "$LOG"
+  exit 0
 fi
 
 # 無人起動時に初回オンボーディング(テーマ選択)で固まるのを防ぐ（VSCode拡張が
