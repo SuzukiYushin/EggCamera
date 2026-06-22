@@ -187,6 +187,17 @@ async function runCycle(browser, cycleNum) {
 
     await harness.clearServerFaults();
     await harness.clearClientFaults(browser); // 前サイクルの未発火クライアントフォルト漏れを防止
+
+    // 保険: サイクル冒頭で既にエラーオーバーレイが残っているのは、前サイクル末「はじめに戻る」
+    // (restart→newSession→createSession) が前サイクルのフォルトを踏んだ残留であって、本サイクルの
+    // 異常ではない（ErrorOverlay は10秒で自動リロードする＝アプリは正常に自己回復する）。
+    // 放置すると本サイクルの 撮影 後に「想定外オーバーレイ」として誤検知される（C4フォルト→C5カスケード）。
+    // リロードで clean な TOP から開始して掃除する（サーバ側「残留サーバフォルトを掃除」と同思想）。
+    if (await harness.checkOverlay(browser)) {
+        log(`${label} 前サイクル末フォルトの残留オーバーレイを掃除（リロードで復帰）`);
+        await withTimeout(resetPage(browser), 30000, 'reset-stale-overlay').catch(() => {});
+    }
+
     const plan        = harness.buildPlan();
     const faultLabels = plan.faults.map(f => f.label).join(' + ');
     log(`${label} 計画: goBack=${plan.goBack} fault=${faultLabels || 'なし'} quirk=${plan.quirk || 'なし'}`);
@@ -322,6 +333,25 @@ async function runCycle(browser, cycleNum) {
     if (thanksCheck !== 'OK') throw new Error(`Thanks画面未到達: ${thanksCheck}`);
     await tap('//button[text()="はじめに戻る"]');
     log(`${label} Thanks画面OK → TOP戻り`);
+
+    // 「はじめに戻る」(restart) は start-screen で次セッションを作成する(newSession→createSession)。
+    // 「セッション作成API失敗」等の expectOverlay クライアントフォルトは、撮影/保存では createSession を
+    // 呼ばないためフロー中に発火せず、ここで初めて発火しうる。発火を放置すると ErrorOverlay が残り、
+    // 次サイクル冒頭で「想定外オーバーレイ」として誤検知される（C4フォルト→C5カスケードの真因）。
+    // 本サイクルのフォルト検証が成立したものとして fault-ok で確定し、次サイクルに残さない
+    // （fault-ok は main 側で resetPage(リロード) され、フックごと残フォルトが破棄される）。
+    if (plan.faults.some(f => f.kind === 'client' && f.expectOverlay)) {
+        let trailingOverlay = false;
+        for (let i = 0; i < 4; i++) { // createSession は即時。最大~8秒で十分（自動リロード10秒より前）
+            if (await harness.checkOverlay(browser)) { trailingOverlay = true; break; }
+            await sleep(2000);
+        }
+        if (trailingOverlay) {
+            log(`${label} ★ フォルト後オーバーレイ確認OK（TOP復帰時のセッション再作成）(${faultLabels})`);
+            await testReport('info', `[iPad-TEST] ${label} フォルト検証OK(TOP復帰時): ${faultLabels} → オーバーレイ確認`);
+            return 'fault-ok';
+        }
+    }
 
     // Phase 4: DL検証 + 管理ログ確認
     const { httpCode, dlSize, qrId, hdd } = runPhase4();
