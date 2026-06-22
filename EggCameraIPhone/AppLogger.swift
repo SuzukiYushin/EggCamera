@@ -29,5 +29,7 @@ final class AppLogger: ObservableObject {
             }
         }
         print("[EggCameraIPhone] \(message)")
+        // print はデバイスのsyslog(idevicesyslog)に乗らないため、NSLogでも出して遠隔から追えるようにする。
+        NSLog("[EggCameraIPhone] %@", message)
     }
 }

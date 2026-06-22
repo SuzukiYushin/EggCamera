@@ -166,6 +166,7 @@ final class CameraController: NSObject {
                     return
                 }
                 self.scheduleIdleStopLocked()
+                self.applyBestPhotoFormatLocked() // 撮影ごとに最高画質を保証(12MP固定を自己修復)
 
                 let candidate = self.chooseCandidate(preferredWidth: preferredWidth, preferredHeight: preferredHeight)
                 let settings = self.makePhotoSettings(candidate: candidate)
@@ -181,9 +182,11 @@ final class CameraController: NSObject {
                 }
 
                 self.store(delegate: delegate)
+                let outMax = self.describe(self.photoOutput.maxPhotoDimensions)
+                let setMax = self.describe(settings.maxPhotoDimensions)
                 self.photoOutput.capturePhoto(with: settings, delegate: delegate)
                 Task { @MainActor in
-                    self.logger?.log("capturePhoto fired selected=\(self.describe(candidate?.dimensions)) deferredEnabled=\(candidate?.autoDeferredEnabled == true)")
+                    self.logger?.log("capturePhoto fired selected=\(self.describe(candidate?.dimensions)) settingsMax=\(setMax) outputMax=\(outMax) deferredEnabled=\(candidate?.autoDeferredEnabled == true)")
                 }
             }
         }
@@ -227,14 +230,43 @@ final class CameraController: NSObject {
             }
         }
 
-        if let format = device.formats.max(by: { maxArea($0) < maxArea($1) }) {
-            try device.lockForConfiguration()
-            device.activeFormat = format
-            device.unlockForConfiguration()
-        }
+        applyBestPhotoFormatLocked()
+    }
 
+    // 最高画質(最大の写真エリア)のフォーマットを activeFormat に設定し、photoOutput.maxPhotoDimensions も合わせる。
+    // 既に最高画質なら何もしない(冪等)。撮影のたびに呼ぶことで、カメラ起動直後にまだ48MPフォーマットが
+    // 列挙されていない一瞬に初回設定が走って12MPを掴んだまま固定される問題を、次の撮影で自己修復する。
+    // (sessionQueue 上で呼ぶこと)
+    private func applyBestPhotoFormatLocked() {
+        guard let device else { return }
+        guard let best = device.formats.max(by: { maxArea($0) < maxArea($1) }) else { return }
+        // 真因(2026-06-23): activeFormat は48MP対応(photo dims{4032,8064})でも、撮影上限を握る
+        // photoOutput.maxPhotoDimensions が12MPに固定されると48MPで撮れない。さらにこの値や activeFormat の
+        // 変更は session.beginConfiguration()/commitConfiguration() の中で行わないと反映されない。
+        let needFormatSwitch = maxArea(device.activeFormat) < maxArea(best)
+        let curLargest = device.activeFormat.supportedMaxPhotoDimensions.max(by: { area($0) < area($1) })
+        let needDimsBump = curLargest.map { area(photoOutput.maxPhotoDimensions) < area($0) } ?? false
+        guard needFormatSwitch || needDimsBump else { return } // 既に最高画質なら何もしない(冪等・無駄な再構成を避ける)
+
+        session.beginConfiguration()
+        if needFormatSwitch {
+            do {
+                try device.lockForConfiguration()
+                device.activeFormat = best
+                device.unlockForConfiguration()
+            } catch {
+                Task { @MainActor in self.logger?.log("activeFormat lock失敗: \(error.localizedDescription)") }
+            }
+        }
         if let largest = device.activeFormat.supportedMaxPhotoDimensions.max(by: { area($0) < area($1) }) {
             photoOutput.maxPhotoDimensions = largest
+        }
+        session.commitConfiguration()
+
+        let lg = device.activeFormat.supportedMaxPhotoDimensions.max(by: { area($0) < area($1) })
+            .map { "\($0.width)x\($0.height)" } ?? "-"
+        Task { @MainActor in
+            self.logger?.log("最高画質を適用(自己修復): maxPhotoDimensions=\(lg) switchedFormat=\(needFormatSwitch)")
         }
     }
 
