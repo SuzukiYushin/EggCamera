@@ -4,3 +4,7 @@
 (C) カメラ復帰確認: http://127.0.0.1:8080/frame が200。
 (D) 長期運用テスト再開: A〜Cが正常なら、まず http://127.0.0.1:42314/remotexpc/tunnels (Appium公式トンネルレジストリ, com.eggcamera.appium-tunnel daemon) に iPad UDID 00008132-001E2934019A401C が居るか確認。居なければ iPad が usbmux から脱落している可能性が高い（対処: iPadのUSB-Cを抜き差し → `sudo launchctl kickstart -k system/com.eggcamera.appium-tunnel`）として (D)をスキップし alert にする。居れば `node /Users/eggcamera/EggCamera/EggCameraNode/tools/ipad-test.js` を1セッション実行（約20分・全6サイクル。keepalive＋セッション再生成で堅牢化済みなので、途中フォルトがあっても完走を待つ）。完了/フォルトOK/失敗の数をまとめる。なお本スクリプト起動直前に ops/ipad/verify-after-reboot.sh が自動実行され、その結果マーカーが既に投稿されている。Aで未復帰やCで200でない場合も (D)を実行せず alert にする。
 (E) 結果(A復旧・B前後比較・C・Dテスト結果)を簡潔にまとめ、最後に必ず curl で http://127.0.0.1:3000/api/test-report に {"level":"info"|"alert","text":"DEPLOY-MARKER(post-boot-claude): <要約>"} をPOSTし、~/EggCamera/.env.slack があれば SLACK_WEBHOOK_URL にも通知。
+(F) 「毎時:50のClaude自己点検」監視を再確立する（再起動でセッション(/loop・tmux)が落ちるため、本タスクが毎回これを張り直す。launchd の shell watchdog=com.eggcamera.hourly-test-watchdog とは別レイヤの「Claudeによる判断＋能動通知」層）。A〜E 完了後に毎時:50で以下を点検する常駐ループ（/loop もしくは ScheduleWakeup）を確立すること:
+  点検項目: ① /Users/eggcamera/Library/Logs/eggcamera-hourly-test-watchdog.log の直近枠が OK か（失敗/全滅・連続ALERTが出ていないか）② node metrics(RSS肥大・無限ループ)・disk・通信量(R2/DL量)・電力・データ量 ③ /api/preview 系の取得頻度と iPhone:8080 への負荷（高頻度ポーリングの再燃監視）。
+  ★最重要: あなた(人間)の確認・判断が必要な事象を検知したら、その瞬間に必ず PushNotification(アプリ通知)を出すこと。プロンプト内で確認を問うだけにせず、必ずアプリ通知を発火させる。異常は /api/test-report(alert) と Slack にも投稿。正常時はログのみ（通知スパム回避）。
+  ※ より堅牢にするなら、この点検を launchd ジョブ com.eggcamera.hourly-claude-watch(毎時:50, claude -p) として常設してもよい（再起動耐性が上がる）。

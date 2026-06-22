@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IPad } from '../IPad';
 import { useLang } from '../../LangContext';
 import { capturePhoto, ApiError, PROTO } from '../../api';
@@ -27,16 +27,39 @@ const shotBurst = () => makeBurst({
   dist: [225, 270], size: [30, 36], duration: [600, 300], delayMax: 60, jitterDeg: 18,
 });
 
-// ── iPhoneのリアルタイム映像（約8fpsでフレームをポーリング） ──────
+// ── iPhoneのリアルタイム映像 ───────────────────────────────────────
+// 既定は MJPEG ストリーム(/api/preview/stream)を <img> で直接表示する（1接続=高頻度
+// ポーリング不要）。MJPEG 非対応ブラウザ(iOS Safari 等)では単写真ポーリングへ自動で
+// フォールバックする。フォールバック先の /api/preview/frame も node 側キャッシュを返すため、
+// どちらでも iPhone:8080 への取得は node の単一ループ1本に集約される（高頻度の直撃を避ける）。
 // 取得できない間は同梱イラストにフォールバックし、自動で再接続を試みる。
-const PREVIEW_INTERVAL_MS = 125;
+const PREVIEW_INTERVAL_MS = 333; // poll フォールバックは ~3fps に抑制（MJPEG非対応時のみ使用）
 const PREVIEW_RETRY_MS = 1500;
+const STREAM_LOAD_TIMEOUT_MS = 2500; // この間に1枚も表示されなければ MJPEG 非対応とみなし poll へ
+
+const COVER_STYLE = {
+  position: 'absolute' as const, inset: 0,
+  width: '100%', height: '100%',
+  objectFit: 'cover' as const, display: 'block',
+};
 
 function LiveCameraView() {
+  // 'stream' = MJPEG / 'poll' = 単写真ポーリング(MJPEG非対応の fallback)
+  const [mode, setMode] = useState<'stream' | 'poll'>('stream');
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
+  const streamLoaded = useRef(false);
 
+  // MJPEG が規定時間内に1枚も表示されなければ poll へ切替（iOS Safari 等の非対応対策）
   useEffect(() => {
-    if (PROTO) return; // プロトタイプはイラストの仮画像のみ（ポーリングしない）
+    if (PROTO || mode !== 'stream') return;
+    streamLoaded.current = false;
+    const t = setTimeout(() => { if (!streamLoaded.current) setMode('poll'); }, STREAM_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [mode]);
+
+  // poll フォールバック（/api/preview/frame は node 側キャッシュ＝iPhone へ直撃しない）
+  useEffect(() => {
+    if (PROTO || mode !== 'poll') return;
     let cancelled = false;
     let prevUrl: string | null = null;
     const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -69,23 +92,25 @@ function LiveCameraView() {
       cancelled = true;
       if (prevUrl) URL.revokeObjectURL(prevUrl);
     };
-  }, []);
+  }, [mode]);
 
-  if (frameUrl) {
+  if (!PROTO && mode === 'stream') {
     return (
       <img
-        src={frameUrl}
+        src="/api/preview/stream"
         alt="camera preview"
-        style={{
-          position: 'absolute', inset: 0,
-          width: '100%', height: '100%',
-          objectFit: 'cover', display: 'block',
-        }}
+        onLoad={() => { streamLoaded.current = true; }}
+        onError={() => setMode('poll')}
+        style={COVER_STYLE}
       />
     );
   }
 
-  // フォールバック（iPhone未接続・プレビュー取得失敗時）
+  if (!PROTO && mode === 'poll' && frameUrl) {
+    return <img src={frameUrl} alt="camera preview" style={COVER_STYLE} />;
+  }
+
+  // フォールバック（プロトタイプ / iPhone未接続・プレビュー取得失敗時）
   return (
     <img
       src={babyImg}

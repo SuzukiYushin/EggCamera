@@ -1,6 +1,7 @@
 const path    = require('node:path');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = rateLimit; // IPv6 を /56 に正規化するヘルパ（per-IP キーの IPv6 対策）
 
 const { PORT, STATIC_DIR, FRAMES_DIR, ADMIN_DIR, R2_CLEANUP_INTERVAL, SESSION_TTL_MS, ts } = require('./src/config');
 const logger = require('./src/logger');
@@ -26,25 +27,57 @@ app.use(express.json());
 
 // ── レート制限 ───────────────────────────────────────────────────────────────
 // セッション作成: DoS対策（1IP あたり60秒に20回まで）
+// ── レート制限のキー（per-IP 化） ──
+// cloudflared トンネル経由では接続元が常に 127.0.0.1 になり、req.ip だと全インターネット
+// 流入が1バケツに合算される（per-IP にならない＝正常時は詰まりやすく、攻撃には弱い）。
+// Cloudflare が付与する CF-Connecting-IP（トンネル経由なら詐称困難）を鍵にして per-IP 化する。
+// ローカル直叩き（テスト/同一LANのiPad）は CF ヘッダが無いので req.ip にフォールバック。
+const clientIp = (req) =>
+    ipKeyGenerator(String(req.headers['cf-connecting-ip'] || req.ip || req.socket?.remoteAddress || 'unknown'));
+// 自前でキーを生成するため、express-rate-limit のプロキシ系バリデーションは無効化する。
+const RL_VALIDATE = { trustProxy: false, xForwardedForHeader: false };
+
 const sessionLimiter = rateLimit({
     windowMs: 60 * 1000, max: 20,
     standardHeaders: true, legacyHeaders: false,
+    keyGenerator: clientIp, validate: RL_VALIDATE,
     handler: (req, res) => {
-        console.warn(`[${ts()}] rate-limit: sessions ${req.ip}`);
+        console.warn(`[${ts()}] rate-limit: sessions ${clientIp(req)}`);
         res.status(429).json({ error: 'too_many_requests' });
     },
 });
-// 公開API全体: 1IP あたり60秒に200回まで
+
+// プレビューは高頻度だが低コスト（node 側キャッシュ・読み取り専用）。公開上限から「除外」して
+// 穴にするのではなく、専用の緩い上限でバウンドする（DoS 保護を残しつつ 3〜8fps では詰まらない）。
+// MJPEG(/preview/stream) は1接続=1リクエスト、フォールバックの単写真(/preview/frame)は ~3fps。
+const previewLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 600,
+    standardHeaders: true, legacyHeaders: false,
+    keyGenerator: clientIp, validate: RL_VALIDATE,
+    handler: (req, res) => {
+        console.warn(`[${ts()}] rate-limit: preview ${clientIp(req)} ${req.path}`);
+        res.status(429).json({ error: 'too_many_requests' });
+    },
+});
+
+// 公開API全体: 1IP あたり60秒に200回まで（重い/状態変更系の DoS 対策）。
+// プレビュー(/preview/*)は previewLimiter が別枠でバウンドするので、ここでは二重計上を避けるため
+// skip する（= 保護ゼロではなく別枠で保護）。一方で /client-log（ログ書き込み＝肥大リスク）と
+// /events(SSE)・/mode は 1接続/低頻度で 200回内に収まるため、あえて除外せず本上限で保護する。
+// 注: app.use('/api', ...) 配下では req.path はマウント相対（'/preview/frame' 等）になる。
+const PREVIEW_SKIP = ['/preview/stream', '/preview/frame', '/preview/wake'];
 const publicLimiter = rateLimit({
     windowMs: 60 * 1000, max: 200,
     standardHeaders: true, legacyHeaders: false,
-    skip: (req) => req.path === '/api/events', // SSE は除外
+    keyGenerator: clientIp, validate: RL_VALIDATE,
+    skip: (req) => PREVIEW_SKIP.includes(req.path),
     handler: (req, res) => {
-        console.warn(`[${ts()}] rate-limit: public ${req.ip} ${req.path}`);
+        console.warn(`[${ts()}] rate-limit: public ${clientIp(req)} ${req.path}`);
         res.status(429).json({ error: 'too_many_requests' });
     },
 });
 app.use('/api/sessions', sessionLimiter);
+app.use('/api/preview', previewLimiter);
 app.use('/api', publicLimiter);
 
 app.use('/api/sessions', sessionsRouter);
@@ -76,7 +109,11 @@ app.post('/api/internal/reload-signal', (req, res) => {
 // ── ユーザーUIが参照する運用モード（メンテ中は操作ロック） ──
 app.get('/api/mode', (req, res) => res.json({ maintenance: mode.isMaintenance() }));
 
-// ── iPhone ライブプレビュー（Bonjourで発見した iPhone:8080/frame を中継） ──
+// ── iPhone ライブプレビュー ──
+// stream: MJPEG(multipart/x-mixed-replace)。node 側の単一取得ループを全クライアントへ fan-out。
+// frame : 単写真(後方互換 / MJPEG非対応ブラウザの fallback)。同じ取得ループのキャッシュを返す。
+// どちらも iPhone:8080 への取得は単一ループ1本に集約される（視聴者数と無関係に一定）。
+app.get('/api/preview/stream', (req, res) => preview.streamFrames(req, res));
 app.get('/api/preview/frame', (req, res) => preview.proxyFrame(req, res));
 
 // ── iPhone カメラ先行起動（iPad のスタート押下時に呼ぶ。撮影ページの待ち時間軽減） ──
