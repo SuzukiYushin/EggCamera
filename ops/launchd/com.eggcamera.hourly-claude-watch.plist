@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  毎時:50に Claude(claude -p) で運用監視を実行する常設ジョブ。
+  shell watchdog(com.eggcamera.hourly-test-watchdog, :50) とは別レイヤの「Claudeによる総合点検」。
+  インストール（sudo不要・LaunchAgent）:
+    cp ops/launchd/com.eggcamera.hourly-claude-watch.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.hourly-claude-watch.plist
+  単発テスト: launchctl kickstart -k gui/$(id -u)/com.eggcamera.hourly-claude-watch
+  対象時: 0,1,2,5-14,17-23（毎時テスト/watchdog と一致。3,4,15,16時は再起動枠等のため除外）。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.eggcamera.hourly-claude-watch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/ipad/hourly-claude-watch.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/eggcamera/EggCamera/EggCameraNode</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>0</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>1</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>5</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>6</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>7</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>10</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>11</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>12</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>14</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>17</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>18</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>19</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>20</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>21</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>22</integer><key>Minute</key><integer>50</integer></dict>
+    <dict><key>Hour</key><integer>23</integer><key>Minute</key><integer>50</integer></dict>
+  </array>
+  <key>RunAtLoad</key>
+  <false/>
+  <key>StandardOutPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-hourly-claude-watch-launchd.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/eggcamera/Library/Logs/eggcamera-hourly-claude-watch-launchd.log</string>
+</dict>
+</plist>
