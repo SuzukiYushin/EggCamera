@@ -28,5 +28,9 @@ final class AppLogger {
             }
         }
         print("[EggCameraMac] \(message)")
+        // 非TTYのstdout(launchdのeggcamera-mac.out)はlibcのフルバッファで、~8KB溜まるまで
+        // フラッシュされず観測が大きく遅れる。各ログ行を即時フラッシュして遅延なく追えるようにする。
+        // （setvbufは初期化順の都合で効かなかったため、ここで確実にflushする）
+        fflush(stdout)
     }
 }
