@@ -10,6 +10,6 @@
 
 判定と通知:
 - ★毎回必ず「実行ハートビート」を残す: 点検が済んだら curl で http://127.0.0.1:3000/api/test-report に、正常時は {"level":"info","text":"WATCH(:50) OK: <1行サマリ>"} を、異常時は {"level":"alert","text":"WATCH(:50) 要確認: <症状と推定原因を1行で>"} を必ず POST する。これにより「:50監視が実行された」ことが毎回 test-report に残り、無音＝未実行 と誤解されない（正常時も実行痕跡が残る）。
-- 異常時は上記 alert に加えて、/Users/eggcamera/EggCamera/.env.slack の SLACK_WEBHOOK_URL があればそこへも同じ要約を通知する（正常時は Slack には出さない＝スパム防止）。
+- 異常時は上記 alert に加えて、/Users/eggcamera/EggCamera/.env.slack の SLACK_WEBHOOK_URL があればそこへも通知する（正常時は Slack には出さない＝スパム防止）。Slack の文面は必ず先頭に固定タグを付け、プログラム点検(hourly-watchdog)と一目で区別できるようにする。具体的には text を ":robot_face: *[Claude点検] claude-watch(:50)* — 要確認: <症状と推定原因を1行で>" の1行（改行を入れない＝JSONを壊さない）にする。
 - ★人間の確認・判断・物理対処（USB抜き差し/再起動可否など）が要る事象は、必ず通知文に「要確認」と明記する。
 最後に1〜3行で点検結果サマリ（異常なしなら「異常なし」とだけ）を述べて終了する。深追いせず、上記の点検が済んだら速やかに終了すること。

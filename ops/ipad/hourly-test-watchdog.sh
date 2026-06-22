@@ -30,7 +30,7 @@ notify_slack() { # text（watchdogの通知は常に「要調査：原因を確�
   local url; url=$(grep -E '^SLACK_WEBHOOK_URL=' "$SLACK_ENV" | head -1 | cut -d= -f2- | tr -d '"'\'' ')
   [ -n "$url" ] || return 0
   curl -s -m 8 -X POST -H 'Content-Type: application/json' \
-    --data "$(printf '{"text":":mag: *要調査：原因を確認*\n*hourly-watchdog* %s"}' "$1")" "$url" >/dev/null 2>&1
+    --data "$(printf '{"text":":mag: *[プログラム点検] hourly-watchdog* — 要調査：原因を確認: %s"}' "$1")" "$url" >/dev/null 2>&1
 }
 alert() { # text
   log "ALERT: $1"; post_marker alert "$1"; notify_slack "$1"
