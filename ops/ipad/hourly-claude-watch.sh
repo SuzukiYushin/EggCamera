@@ -11,7 +11,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PAT
 LOG="$HOME/Library/Logs/eggcamera-hourly-claude-watch.log"
 CLAUDE="/opt/homebrew/bin/claude"
 PROMPT_FILE="/Users/eggcamera/EggCamera/ops/hourly-claude-watch-prompt.txt"
-MAX_SEC=300   # 暴走/長考の保険。これを超えたら強制終了する。
+MAX_SEC=600   # 暴走/長考の保険。これを超えたら強制終了する。深掘り調査(実測値・不変条件の裏取り)のため300→600に拡大。
 cd /Users/eggcamera/EggCamera || exit 1
 
 echo "==== $(date '+%F %T') hourly-claude-watch 起動 ====" >> "$LOG"
