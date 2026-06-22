@@ -18,6 +18,7 @@
 　・**6枚・9枚**は撮りなおしなら正常。毎時テストログ(eggcamera-hourly-test-launchd.log 等)の該当サイクルに goBack/撮りなおし があったか裏取りし、無いのに6枚なら異常。
 　・**3枚未満**=撮影失敗/タイムアウト。
 　あわせて "Sending capture command [t-N]" と "Capture saved" の対応、"skipped because a request is already in flight"（連打の痕跡。多発は連打レースの兆候）、"capture command timed out"（撮影タイムアウト）の有無も確認。data/raw/*.heic の直近mtimeクラスタでも裏取りする。
+(A2) 撮影解像度の不変条件【無音劣化の検知】: 正常は **8064x6048(48MP)**。app.log の "Capture saved … WxH" の WxH を直近で確認し、**4032x3024(12MP) など半減/低下していたら要確認**（最終JPGは4000x6000へアップスケールされ表面上は同じ＝完全に無音だが入力画素が1/4に劣化。2026-06-23に EggCameraMac の連続再起動を契機に発生、iPhoneの熱スロットリング or カメラ初期化フォールバック疑い）。劣化していたら、いつから(変化点の時刻)・継続中か・回復したかを述べる。回復は iPhone が冷えれば自然復帰の見込みだが、継続するなら iPhone CameraController のフォーマット選択(コールドスタート時のrace)を要修正として人間へ。
 (B) パイプライン整合: 完了セッション数 ≒ 合成数 ≒ R2アップロード数 ≒ QR生成数 のはず。eggcamera-node.out の "composite saved" / "R2 uploaded" / "QR generated" の各件数、data/composited/*.jpg の直近生成数を突き合わせ、**取りこぼし・重複・孤児ファイル**がないか。"deferred upload"（R2再送キュー）が溜まり続けていないか。
 (C) エラー/再試行の隠れた痕跡: 「テストは通ったが裏で再試行・タイムアウト・5xx・想定外が出ていた」を拾う。直近1時間で eggcamera-node.out / .err、data/logs/swift/app.log、eggcamera-mac.err を grep（capture-timeout / 502 / 504 / mac-unreachable / retry / 再送 / 想定外 / ERROR / "[CLIENT:" ）。フォルト注入サイクルが"期待どおり"オーバーレイ→fault-ok になったか（C5型のカスケード誤検知や、逆に発火取りこぼしがないか）。
 (D) 実測値のベースライン比較: 今1時間の値が普段とズレていないか。目安) 毎時テスト=6サイクル → 撮影≈18枚(+撮りなおし分)、合成≈6。RSSの1時間での増加（リーク兆候）、data/raw・data/composited のファイル数/合計サイズの増分、通信量。絶対閾値だけでなく**傾向・外れ値**を見る。
