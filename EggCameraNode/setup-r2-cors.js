@@ -1,4 +1,6 @@
-require('dotenv').config();
+// CWD に依存せず、このスクリプト自身の隣の .env を確実に読む
+// （リポジトリ root から `node EggCameraNode/setup-r2-cors.js` と叩いても動くように）
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const { S3Client, PutBucketCorsCommand, GetBucketCorsCommand } = require('@aws-sdk/client-s3');
 

@@ -1,14 +1,15 @@
 name = "eggcamera-watchdog"
 main = "src/worker.js"
 compatibility_date = "2026-06-01"
+# トップレベルに置く（[[kv_namespaces]] の下に書くとその表の一部と解釈され警告になる）
+workers_dev = true
 
 # 5分ごとに死活チェック（Cloudflare側で独立実行）
 [triggers]
 crons = ["*/5 * * * *"]
 
-# KV: デプロイ前に `wrangler kv namespace create WATCHDOG` で id を作り、ここに貼る
+# KV: 新アカウント e6037 の WATCHDOG 名前空間（2026-06-23 アカウント移行で再作成）。
+# 旧アカウント ba88(siggaze.0000) の id は 37c18b3baca349178e03e532fe3533d6 だった。
 [[kv_namespaces]]
 binding = "WATCHDOG"
-id = "37c18b3baca349178e03e532fe3533d6"
-
-workers_dev = true
+id = "a07739df6a104a4bab4a75bb93bdcf64"

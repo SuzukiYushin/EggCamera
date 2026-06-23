@@ -1,6 +1,6 @@
 // R2 公開ベースURLは Pages の環境変数 R2_PUBLIC_BASE_URL で設定する
 // （Cloudflare Pages → Settings → Environment variables）。未設定時のみ従来値にフォールバック。
-const R2_BASE_FALLBACK = 'https://pub-c35d182b845942f3b26d0ed65d668e0d.r2.dev';
+const R2_BASE_FALLBACK = 'https://pub-94ba5595a94f43218182ab46368c5e40.r2.dev';
 
 export async function onRequestGet(context) {
     const R2_BASE = context.env?.R2_PUBLIC_BASE_URL || R2_BASE_FALLBACK;
