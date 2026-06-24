@@ -18,14 +18,15 @@
 　・**6枚・9枚**は撮りなおしなら正常。毎時テストログ(eggcamera-hourly-test-launchd.log 等)の該当サイクルに goBack/撮りなおし があったか裏取りし、無いのに6枚なら異常。
 　・**3枚未満**=撮影失敗/タイムアウト。
 　あわせて "Sending capture command [t-N]" と "Capture saved" の対応、"skipped because a request is already in flight"（連打の痕跡。多発は連打レースの兆候）、"capture command timed out"（撮影タイムアウト）の有無も確認。data/raw/*.heic の直近mtimeクラスタでも裏取りする。
-(A2) 撮影解像度の不変条件【無音劣化の検知】: 正常は **8064x6048(48MP)**。app.log の "Capture saved … WxH" の WxH を直近で確認し、**4032x3024(12MP) など半減/低下していたら要確認**（最終JPGは4000x6000へアップスケールされ表面上は同じ＝完全に無音だが入力画素が1/4に劣化。2026-06-23に EggCameraMac の連続再起動を契機に発生、iPhoneの熱スロットリング or カメラ初期化フォールバック疑い）。劣化していたら、いつから(変化点の時刻)・継続中か・回復したかを述べる。回復は iPhone が冷えれば自然復帰の見込みだが、継続するなら iPhone CameraController のフォーマット選択(コールドスタート時のrace)を要修正として人間へ。
+(A2) 撮影解像度の条件【真因確定済=低照度ビニング】: 通常は **8064x6048(48MP)**、12MPは **4032x3024**。**真因(2026-06-25 実機ログ+iOS CMCaptureログで確定)**: アプリは毎回正しく48MPを要求している（app.log "capturePhoto fired settingsMax=8064x6048 outputMax=8064x6048"）が、**iOSがシーンの低照度を見て自動的に12MPピクセルビニングで配信している**（低照度ノイズ低減のiOS既定動作）。**コードバグでもcold-start raceでもなく、完全アプリ再起動でも暗いままなら48MPに戻らない＝照明依存**。従来の「CameraControllerフォーマット選択race／要コード修正」という診断は**誤りなので踏襲しない**。
+　・**切り分け**: 12MPを観測したら **プレビュー映像(`curl http://127.0.0.1:8080/frame`)の明るさ**を見る。暗ければ＝低照度ビニング＝**正常（iOSの適応動作・要対処なし。夜間/消灯時の毎時テストは12MPで当然）**。**明るい/十分な照明なのに12MPなら真の異常**として要確認（その時だけ人へ）。営業時間帯（客が使う＝照明あり）に12MPが出るかが本質。いつから/継続/プレビュー輝度 を述べる。恒久対処は**運用（営業時間帯のキオスク照明確保）**で、コード修正ではない。
 (B) パイプライン整合: 完了セッション数 ≒ 合成数 ≒ R2アップロード数 ≒ QR生成数 のはず。eggcamera-node.out の "composite saved" / "R2 uploaded" / "QR generated" の各件数、data/composited/*.jpg の直近生成数を突き合わせ、**取りこぼし・重複・孤児ファイル**がないか。"deferred upload"（R2再送キュー）が溜まり続けていないか。
 (C) エラー/再試行の隠れた痕跡: 「テストは通ったが裏で再試行・タイムアウト・5xx・想定外が出ていた」を拾う。直近1時間で eggcamera-node.out / .err、data/logs/swift/app.log、eggcamera-mac.err を grep（capture-timeout / 502 / 504 / mac-unreachable / retry / 再送 / 想定外 / ERROR / "[CLIENT:" ）。フォルト注入サイクルが"期待どおり"オーバーレイ→fault-ok になったか（C5型のカスケード誤検知や、逆に発火取りこぼしがないか）。
 (D) 実測値のベースライン比較: 今1時間の値が普段とズレていないか。目安) 毎時テスト=6サイクル → 撮影≈18枚(+撮りなおし分)、合成≈6。RSSの1時間での増加（リーク兆候）、data/raw・data/composited のファイル数/合計サイズの増分、通信量。絶対閾値だけでなく**傾向・外れ値**を見る。
 (E) タイミング/挙動の異常: サイクル所要時間、撮影間隔、プレビュー/セッションの再生成・再起動回数、ログのフラッシュ停止（観測性の異常）などが普段と違わないか。
 (F) 横断的整合: 上の各ソース（毎時テストログ / nodeログ / Macログ app.log / data成果物 / metrics）が互いに矛盾しないか。1ソースだけ見て"正常"と判断しない。
 (G) コスト/課金の監視【料金発生の早期検知】: `node EggCameraNode/tools/check-r2-cost.js`（読み取り専用・S3 API。R2のオブジェクト数/総容量/最古/概算コスト/無料枠を表示し、▲時 exit 1）を実行する。**R2無料枠=ストレージ10GB・Class A(PUT)100万/月・Class B(GET)1000万/月・egress無料**。基準: ストレージ<1GB($0/月)・最古<24時間（24時間リテンション+自動cleanupで上限固定）・PUT≈900/日(無料枠の3%未満)。**ストレージが無料枠に接近(>8GB) / オブジェクト数や容量の異常な増加 / 最古が24時間を大きく超える(cleanup停止=削除されず溜まる) / deferred upload(R2再送)の滞留 は課金/異常の兆候**として要確認。nodeログに "R2ストレージが…GBに達しました（無料枠10GB）" の課金警告（composite.js, 6時間毎）が出ていないかも確認。Cloudflare Pagesは無料枠が広く通常問題にならないが、配信(DL)回数が異常に多くないかも一応見る。料金が発生し得る兆候は軽微でも必ず alert で人間へ。
-(H) 温度/熱の監視【撮影解像度劣化の先行指標】: 5分毎サンプラ(com.eggcamera.thermal-sampler, ops/thermal-probe.sh)が ~/Library/Logs/eggcamera-thermal.log に `iPhone_temp / mac_therm / load / last_capture` を記録している。直近1時間の **iPhone温度の現在値とピーク** を確認: 目安 〜38℃=正常、**40℃台=注意、43℃以上=高温(iOSが48MP→12MPに制限する恐れ)で要確認**。mac_therm が WARN なら Mac側スロットリングで要確認。サンプラのログが更新されていない(停止)のも観測性異常として要確認。**重要な相関判定**: 撮影解像度が12MPに劣化しているのに iPhone温度が正常(<38℃)なら、それは熱ではなく iPhone CameraController のコールドスタート時フォーマット選択の問題＝冷却では直らずコード修正が必要、と切り分けて報告する(2026-06-23の事例)。
+(H) 温度/熱の監視【撮影解像度劣化の先行指標】: 5分毎サンプラ(com.eggcamera.thermal-sampler, ops/thermal-probe.sh)が ~/Library/Logs/eggcamera-thermal.log に `iPhone_temp / mac_therm / load / last_capture` を記録している。直近1時間の **iPhone温度の現在値とピーク** を確認: 目安 〜38℃=正常、**40℃台=注意、43℃以上=高温(iOSが48MP→12MPに制限する恐れ)で要確認**。mac_therm が WARN なら Mac側スロットリングで要確認。サンプラのログが更新されていない(停止)のも観測性異常として要確認。**重要な相関判定(2026-06-25 是正)**: 12MPで iPhone温度が正常(<38℃)なら、熱でもコードでもなく **(A2)の低照度ビニング** をまず疑う＝プレビュー輝度を確認し、暗ければ正常(対処不要)。明るいのに12MPの時だけ真の異常として人へ。43℃以上の高温時は熱由来の制限もあり得るので温度も併記。
 
 進め方: まず表面(1)〜(5)で大枠→深掘り(A)〜(F)を実データで確認。ズレ・異常の兆候があれば、その1点を根本原因まで掘ってから通知する。全体を時間内（数分）に収めること。時間が尽きそうなら、その時点までの結果で**必ずハートビートを出してから終了**する（途中killで無音にしない）。
 
@@ -39,7 +40,7 @@
 - 直したら必ず再プローブ（test-capture が photoId を返すか）で成否を確認。直れば info で「自動復旧した」と明記して報告、直らなければ alert で人へ。
 
 既知で安全な自動修正リスト:
-(1) **iPhone撮影の in-flight スタック / capture_timeout**（毎時テスト全滅／app.log に "Capture skipped because a request is already in flight" 多発／test-capture が photoId を返さない＝ frame:8080 は200でもカメラ状態がスタック）→ `EggCameraIPhone/iphone.sh restart`（アプリ再launch・ビルド無し）で in-flight をリセット。**注意**: test-capture が完全に無応答なら撮影層でなく node 停止等の別系統 → iPhone を触らず alert。復旧の初回1枚は12MP(コールドstart)になり得るが数枚で48MPへ戻るのが正常、戻らなければ (H) の切り分けで報告。
+(1) **iPhone撮影の in-flight スタック / capture_timeout**（毎時テスト全滅／app.log に "Capture skipped because a request is already in flight" 多発／test-capture が photoId を返さない＝ frame:8080 は200でもカメラ状態がスタック）→ `EggCameraIPhone/iphone.sh restart`（アプリ再launch・ビルド無し）で in-flight をリセット。**注意**: test-capture が完全に無応答なら撮影層でなく node 停止等の別系統 → iPhone を触らず alert。撮影復旧後の解像度が12MPでも、低照度なら (A2) のとおり正常（iphone.sh restart で48MPには戻らない＝照明依存）なので、それ自体は復旧失敗扱いにしない。
 
 判断に迷うもの・リストに無いものは、自動で直さず「要確認」で人へ渡す（見落とすより投げる）。
 
