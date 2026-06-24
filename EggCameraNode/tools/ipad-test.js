@@ -285,8 +285,31 @@ async function runCycle(browser, cycleNum) {
     }
 
     await tap('//button[text()="決定"]');
-    await sleep(2000); // 決定タップ後のページ遷移（→step5）を待つ
     log(`${label} 決定タップ`);
+
+    // プレビュー(step5)で「この写真を保存する」が押下可能になるまで待つ。
+    // サーバ合成フロー(serverCompose)ではプレビュー入場時にサーバ合成(数秒)が走り、
+    // その間ボタンは「保存中…」で無効＝この文言は出ない。固定sleepだと合成が長引いた時に
+    // 未出現タップで誤失敗するため、準備完了を待ってからタップする（旧canvasフローでは即時出現）。
+    // 途中でオーバーレイ(フォルト等)が出たら後段と同じ判定に委ねる。
+    let saveReady = false, overlayInPreview = false;
+    for (let i = 0; i < 10; i++) {
+        await sleep(2000);
+        if ((await btns()).includes('この写真を保存する')) { saveReady = true; break; }
+        if (await harness.checkOverlay(browser)) { overlayInPreview = true; break; }
+    }
+    if (overlayInPreview) {
+        if (plan.faults.some(f => f.expectOverlay)) {
+            log(`${label} ★ フォルト後オーバーレイ確認OK（プレビュー）(${faultLabels})`);
+            await testReport('info', `[iPad-TEST] ${label} フォルト検証OK: ${faultLabels} → オーバーレイ確認`);
+            return 'fault-ok';
+        }
+        await saveScreenshot(browser, `unexpected-overlay-preview-c${cycleNum}`);
+        await testReport('alert', `▲ [iPad-TEST] ${label} 想定外オーバーレイ(プレビュー) fault=${faultLabels || 'なし'}`);
+        await notifySlack(`▲ iPad Safari テスト ${label} 想定外オーバーレイ(プレビュー)`);
+        throw new Error('想定外オーバーレイ（プレビュー）');
+    }
+    if (!saveReady) throw new Error('保存ボタンが押下可能にならなかった（プレビュー合成タイムアウト）');
 
     if (plan.quirk === 'double-click') {
         log(`${label} ◇ QUIRK: 保存ボタン二度押し`);
