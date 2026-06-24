@@ -5,6 +5,7 @@ import { useLang } from '../../LangContext';
 import { getFrames, getCropSettings } from '../../api';
 import type { CropSettings } from '../../api';
 import { ParticleEl, makeBurst, type Burst } from '../ParticleBurst';
+import { reportClientError } from '../../clientLog';
 import frameA from '../../assets/photo_frameA.png';
 import frameB from '../../assets/photo_frameB.png';
 import frameC from '../../assets/photo_frameC.png';
@@ -62,6 +63,8 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
   const [frameSrc, setFrameSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState<CropSettings>(DEFAULT_CROP);
   const [ready, setReady] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [exportFailed, setExportFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scale = useFitScale();
@@ -191,14 +194,32 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
     return () => { cancelled = true; };
   }, [photoUrl, frameSrc, crop, nickname, daysText, scale]);
 
-  const handleSave = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const exportCanvas = (canvas: HTMLCanvasElement): Promise<Blob | null> =>
     // PNGだと写真によっては20MB超になりアップロードが413で失敗するためJPEGで書き出す
-    // （サーバ側でも最終的にJPEG q95 に変換しているので品質影響なし）
-    canvas.toBlob(blob => {
-      if (blob) onNext(blob);
-    }, 'image/jpeg', 0.95);
+    // （サーバ側でも最終的にJPEG q95 に変換しているので品質影響なし）。
+    new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+
+  const handleSave = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || saving) return;
+    setSaving(true);
+    setExportFailed(false);
+
+    // iPad Safari は高解像度canvas（48MP写真→約4032x6048≒24Mpx, RGBA約97MB）の
+    // JPEGエンコードでメモリ圧により toBlob が null を返すことがある。これを握りつぶすと
+    // 決定タップ後に onNext（アップロード）が一切呼ばれず、合成・QR遷移しないまま固まる。
+    // 無音にせず数回バックオフ・リトライ（メモリ回復待ち）し、それでも駄目ならサーバへ
+    // 記録してユーザーに再試行を促す。
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      const blob = await exportCanvas(canvas);
+      if (blob) { onNext(blob); return; }
+      reportClientError(
+        `canvas.toBlob returned null (attempt ${attempt}/4, ${canvas.width}x${canvas.height})`,
+      );
+      await new Promise(r => setTimeout(r, 250 * attempt));
+    }
+    setSaving(false);
+    setExportFailed(true);
   };
 
   return (
@@ -245,7 +266,17 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
         </div>
 
         <div style={{ flexShrink: 0, marginTop: 14 }}>
-          <button className="btn-primary" onClick={handleSave} disabled={!ready}>{T.preview.save}</button>
+          {exportFailed && (
+            <div data-ui="export-error" style={{
+              marginBottom: 10, textAlign: 'center', color: '#FF4E50',
+              fontSize: 14, fontWeight: 700,
+            }}>
+              {T.preview.exportError}
+            </div>
+          )}
+          <button className="btn-primary" onClick={handleSave} disabled={!ready || saving}>
+            {saving ? T.preview.saving : T.preview.save}
+          </button>
         </div>
       </Page>
     </IPad>

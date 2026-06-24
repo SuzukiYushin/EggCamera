@@ -52,6 +52,8 @@ export const translations = {
       heading: '写真が完成したよ！',
       subheading: '大切な今日の思い出に。',
       save: 'この写真を保存する',
+      saving: '保存中…',
+      exportError: 'うまく保存できませんでした。もう一度ボタンを押してね。',
       daysSinceBirth: (days: number) => `${days}days\nsince birth`,
     },
     uploading: {
@@ -133,6 +135,8 @@ export const translations = {
       heading: "Your photo is ready!",
       subheading: 'A memory to keep forever.',
       save: 'Save this photo',
+      saving: 'Saving…',
+      exportError: 'Could not save. Please tap the button again.',
       daysSinceBirth: (days: number) => `${days} days since birth`,
     },
     uploading: {
