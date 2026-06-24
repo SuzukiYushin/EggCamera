@@ -40,7 +40,7 @@ async function req(path, init = {}) {
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
-    for (const id of ['frames', 'photo', 'failed', 'logs']) {
+    for (const id of ['frames', 'photo', 'failed', 'restart', 'logs']) {
       $(`#tab-${id}`).hidden = btn.dataset.tab !== id;
     }
     if (btn.dataset.tab === 'logs') startLogPolling(); else stopLogPolling();
