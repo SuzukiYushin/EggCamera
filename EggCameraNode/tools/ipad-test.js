@@ -48,6 +48,9 @@ function readEnv(key) {
     return '';
 }
 const ADMIN_TOKEN = readEnv('ADMIN_TOKEN');
+// DL検証は本番と同じ PAGES_BASE_URL(.env) を使う。旧ドメインをハードコードしない
+// （Cloudflare移行で eggcamera.pages.dev → eggcamera-53k.pages.dev に変わり偽陽性DL失敗が出たため）。
+const PAGES_BASE_URL = readEnv('PAGES_BASE_URL') || 'https://eggcamera-53k.pages.dev';
 
 // ── ユーティリティ ──────────────────────────────────────────────────────────
 const ts    = () => new Date().toISOString();
@@ -458,7 +461,7 @@ function runPhase4() {
     const r = execSync(`
         QR_ID=$(curl -s "http://localhost:3001/api/admin/logs?lines=5" -H "X-Admin-Token: ${ADMIN_TOKEN}" \\
             | python3 -c "import sys,json; lines=[d for d in json.load(sys.stdin) if 'QR generated' in d['text']]; print(lines[-1]['text'].split('id=')[-1].strip()) if lines else print('')")
-        DL=$(curl -sL -o /dev/null -w "%{http_code} %{size_download}" "https://eggcamera.pages.dev/image/\${QR_ID}.jpg")
+        DL=$(curl -sL -o /dev/null -w "%{http_code} %{size_download}" "${PAGES_BASE_URL}/image/\${QR_ID}.jpg")
         HDD=$(curl -s "http://localhost:3001/api/admin/disk" -H "X-Admin-Token: ${ADMIN_TOKEN}" \\
             | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'{d[\\"freeBytes\\"]//1024//1024//1024}GB')")
         echo "\$(echo \$DL | cut -d' ' -f1) \$(echo \$DL | cut -d' ' -f2) \$QR_ID \$HDD"
