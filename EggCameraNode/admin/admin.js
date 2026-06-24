@@ -44,7 +44,7 @@ document.querySelectorAll('.tab').forEach(btn => {
       $(`#tab-${id}`).hidden = btn.dataset.tab !== id;
     }
     if (btn.dataset.tab === 'logs') startLogPolling(); else stopLogPolling();
-    if (btn.dataset.tab === 'failed') loadFailed();
+    if (btn.dataset.tab === 'failed') { loadFailed(); startJobsPolling(); } else stopJobsPolling();
     if (btn.dataset.tab === 'restart') loadRestart();
   });
 });
@@ -350,6 +350,57 @@ async function refreshFailedCount() {
   if (items.length) { badge.textContent = items.length; badge.hidden = false; }
   else badge.hidden = true;
 }
+
+/* ── サーバ合成ジョブ（処理中・要確認）。数秒ごとにポーリングしてリアルタイム表示 ── */
+const JOB_STATUS_LABELS = {
+  queued:           '待機中',
+  composing:        '合成中',
+  composite_failed: '合成失敗（再試行中）',
+  uploading:        'アップロード中',
+  upload_failed:    'アップロード失敗（再試行中）',
+  done:             '完了',
+};
+async function loadJobs() {
+  const grid = $('#jobs-grid');
+  if (!grid) return;
+  const items = await api.get('/jobs').catch(() => []);
+  $('#jobs-empty').style.display = items.length ? 'none' : '';
+  grid.innerHTML = '';
+  for (const it of items) {
+    const captured = new Date(it.capturedAt).toLocaleString('ja-JP');
+    const label = JOB_STATUS_LABELS[it.status] || it.status;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <img class="thumb" src="${withToken(it.imageUrl)}" alt="" style="aspect-ratio:2/3;object-fit:cover;">
+      <div class="name"></div>
+      <div class="failed-when job-status"></div>
+      <div class="failed-when job-meta"></div>
+      <div class="failed-actions">
+        <a class="badge active" download>ダウンロード</a>
+      </div>`;
+    card.querySelector('.name').textContent = it.fileName;
+    const st = card.querySelector('.job-status');
+    st.textContent = `状態: ${label}${it.lastError ? `（${it.lastError}）` : ''}`;
+    st.style.color = it.status === 'done' ? '#1a7f37'
+      : (it.status === 'composite_failed' || it.status === 'upload_failed') ? '#FF4E50' : '';
+    const meta = card.querySelector('.job-meta');
+    meta.textContent = `撮影: ${captured}` + (it.uploadedAt ? ` / 完了: ${new Date(it.uploadedAt).toLocaleString('ja-JP')}` : '');
+    card.querySelector('a.badge').href = withToken(`${it.imageUrl}?download=1`);
+    if (it.qrDataUrl) {
+      const qr = document.createElement('img');
+      qr.src = it.qrDataUrl;
+      qr.alt = 'DL QR';
+      qr.title = 'ダウンロード用QR（お客様に提示）';
+      qr.style.cssText = 'width:84px;height:84px;margin-top:6px;border-radius:6px;background:#fff;';
+      card.appendChild(qr);
+    }
+    grid.appendChild(card);
+  }
+}
+let jobsTimer = null;
+function startJobsPolling() { if (jobsTimer) return; loadJobs(); jobsTimer = setInterval(loadJobs, 3000); }
+function stopJobsPolling()  { clearInterval(jobsTimer); jobsTimer = null; }
 
 /* ── 再起動タブ ─────────────────────────── */
 const RESTART_LABELS = {

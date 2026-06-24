@@ -14,7 +14,7 @@
 const fs   = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { JOBS_DIR, ts } = require('./config');
+const { JOBS_DIR, DEFERRED_MAX_MS, ts } = require('./config');
 
 fs.mkdirSync(JOBS_DIR, { recursive: true });
 
@@ -123,7 +123,19 @@ function sourcePathOf(job) {
     return fs.existsSync(p) ? p : null;
 }
 
+// ── 管理画面の「要確認」ジョブ一覧（読み取り専用） ──────────────────────────
+// 1時間内に完了しない/失敗中のジョブ＋既に滞留表面化したジョブ（完了済も解決確認用に残す）。
+// 未確定(composed_pending)は対象外。新しい順。
+function listAdminJobs() {
+    const now = Date.now();
+    return listJobs()
+        .filter(j => j.status !== 'composed_pending')
+        .filter(j => j.listedFailedAt
+            || (j.status !== 'done' && now - (j.confirmedAt || j.createdAt) >= DEFERRED_MAX_MS))
+        .sort((a, b) => (b.confirmedAt || b.createdAt) - (a.confirmedAt || a.createdAt));
+}
+
 module.exports = {
-    createJob, readJob, updateJob, listJobs, deleteJob,
+    createJob, readJob, updateJob, listJobs, listAdminJobs, deleteJob,
     jobDir, compositePath, sourcePathOf, newId,
 };

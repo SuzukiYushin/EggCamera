@@ -12,6 +12,7 @@ const adminAuth = require('./adminAuth');
 const { diagnose } = require('../diagnose');
 const ops = require('../ops');
 const { listFailedUploads, retryFailedUpload } = require('../composite');
+const jobsStore = require('../jobs');
 const frames   = require('../frames');
 const settings = require('../settings');
 const logger   = require('../logger');
@@ -172,6 +173,34 @@ router.delete('/failed/:file', (req, res) => {
     const p = path.join(FAILED_DIR, path.basename(req.params.file));
     try { fs.rmSync(p); res.json({ ok: true }); }
     catch { res.status(404).json({ error: 'not_found' }); }
+});
+
+// ── サーバ合成ジョブ（処理中/失敗で要確認のもの） ─────────────────────────
+// 撮影日時・現在ステータス・DL用QR・手動DLリンクを返す。フロントは数秒間隔で
+// ポーリングしてリアルタイム表示する（合成失敗/アップロード中/完了 の遷移が見える）。
+router.get('/jobs', (req, res) => {
+    res.json(jobsStore.listAdminJobs().map(j => ({
+        jobId:       j.jobId,
+        fileName:    j.fileName,
+        capturedAt:  j.capturedAt,
+        status:      j.status,
+        lastError:   j.lastError,
+        confirmedAt: j.confirmedAt,
+        uploadedAt:  j.uploadedAt,
+        qrDataUrl:   j.result && j.result.qrDataUrl   || null,
+        downloadUrl: j.result && j.result.downloadUrl || null,
+        imageUrl:    `/api/admin/jobs/${j.jobId}/image`,
+    })));
+});
+
+// 合成画像本体（管理画面のサムネ表示＆手動ダウンロード）。
+router.get('/jobs/:id/image', (req, res) => {
+    const id  = path.basename(req.params.id); // パストラバーサル防止
+    const job = jobsStore.readJob(id);
+    const p   = jobsStore.compositePath(id);
+    if (!job || !fs.existsSync(p)) return res.status(404).json({ error: 'not_found' });
+    if (req.query.download) res.set('Content-Disposition', `attachment; filename="${job.fileName}"`);
+    res.sendFile(p);
 });
 
 // ── Slack 通知（監視ループ/エージェントからのバグ修正・人力対応報告用） ───
