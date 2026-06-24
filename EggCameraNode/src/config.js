@@ -32,6 +32,12 @@ const DEFERRED_MAX_MS = 60 * 60 * 1000; // 1時間
 // 管理画面/管理APIの認証トークン（未設定なら認証なし＝従来どおり）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
+// 管理画面の Basic 認証（ブラウザのログインダイアログ）。
+// user=ADMIN_USER（既定 admin）/ pass=ADMIN_PASSWORD（未設定なら ADMIN_TOKEN を流用）。
+// 既存の X-Admin-Token ヘッダ / ?token= はテスト・iPad 用に後方互換で残す。
+const ADMIN_USER     = process.env.ADMIN_USER || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ADMIN_TOKEN;
+
 // 管理画面からの再起動操作に要求するパスワード。
 // セキュリティ上、既定値はコードに一切持たない（env .env のみ。人が手入力する想定）。
 // 未設定なら再起動APIは fail-closed で全拒否する（src/routes/admin.js 参照）。
@@ -79,7 +85,7 @@ module.exports = {
     FRAMES_DIR, FLAME_PATH,
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
-    ADMIN_TOKEN, REBOOT_PASSWORD,
+    ADMIN_TOKEN, ADMIN_USER, ADMIN_PASSWORD, REBOOT_PASSWORD,
     PORT, ADMIN_PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,
     SWIFT_HOST, SWIFT_PORT,

@@ -11,6 +11,7 @@ const logger = require('./src/logger');
 logger.install('admin'); // app.jsonl は core が書く。adminは読むだけ（writer指定しない）。
 
 const adminRouter = require('./src/routes/admin');
+const adminAuth = require('./src/routes/adminAuth');
 const { errorBoundary } = require('./src/safe');
 
 const app = express();
@@ -60,8 +61,8 @@ app.use('/api/admin', adminRouter);
 // フレーム画像（共有ファイル。管理画面のサムネ表示用）
 app.use('/frames', express.static(FRAMES_DIR));
 
-// 管理画面の静的UI
-app.use('/admin', express.static(ADMIN_DIR, {
+// 管理画面の静的UI（Basic認証で保護＝開いた瞬間にブラウザのログインダイアログ）
+app.use('/admin', adminAuth, express.static(ADMIN_DIR, {
     setHeaders: res => res.setHeader('Cache-Control', 'no-store'),
 }));
 

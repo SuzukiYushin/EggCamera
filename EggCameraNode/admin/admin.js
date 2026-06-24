@@ -8,10 +8,13 @@ const ADMIN_TOKEN = (() => {
   if (p) localStorage.setItem('adminToken', p);
   return localStorage.getItem('adminToken') || '';
 })();
-// img/aタグ用にトークンをクエリで付ける
+// img/aタグ用。Basic認証ではブラウザが認証後の全リクエスト（画像含む）へ自動で
+// Authorization ヘッダーを付けるため、トークンをURLに出さない。
+// （?token= でブートストラップした場合の後方互換のみ付与）
 function withToken(url) {
-  if (!ADMIN_TOKEN) return url;
-  return url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(ADMIN_TOKEN);
+  const boot = new URLSearchParams(location.search).get('token');
+  if (!boot) return url;
+  return url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(boot);
 }
 
 const api = {
@@ -24,7 +27,7 @@ const api = {
 async function req(path, init = {}) {
   if (ADMIN_TOKEN) init.headers = { ...(init.headers || {}), 'X-Admin-Token': ADMIN_TOKEN };
   const res = await fetch(`/api/admin${path}`, init);
-  if (res.status === 401) throw new Error('unauthorized（?token=… を付けて開いてください）');
+  if (res.status === 401) throw new Error('unauthorized（再読み込みしてログインし直してください）');
   if (!res.ok) {
     let code = `http_${res.status}`;
     try { const j = await res.json(); if (j.error) code = j.error; } catch {}
