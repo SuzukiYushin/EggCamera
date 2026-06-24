@@ -1,0 +1,113 @@
+import { useState, useEffect, useCallback } from 'react';
+import { IPad } from '../IPad';
+import { Page } from '../Page';
+import { useLang } from '../../LangContext';
+import { composePreview, confirmComposite } from '../../api';
+import type { SessionResult } from '../../api';
+import { reportClientError } from '../../clientLog';
+
+// サーバ側合成フロー版のプレビュー画面。
+// 入場時にサーバへ合成を依頼し、返ってきた完成画像のサムネをそのまま表示する
+// （= 真の WYSIWYG）。決定タップでジョブを確定し、QR を受け取って次へ。
+// クライアント canvas / toBlob は一切使わないため、iPad Safari のメモリ制限と無縁。
+interface Props {
+  sessionId: string | null;
+  photoId: string | null;
+  nickname: string;
+  days: number;
+  onConfirmed: (result: SessionResult) => void;
+  onError: () => void;
+}
+
+type Phase = 'composing' | 'ready' | 'confirming' | 'error';
+
+export function FinalPreviewServer({ sessionId, photoId, nickname, days, onConfirmed, onError }: Props) {
+  const { T } = useLang();
+  const daysText = days > 0 ? T.preview.daysSinceBirth(days) : '';
+
+  const [phase, setPhase] = useState<Phase>('composing');
+  const [thumb, setThumb] = useState<string | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+
+  // サーバへ合成依頼（マウント時＋失敗リトライ時）
+  const runCompose = useCallback(() => {
+    if (!sessionId || !photoId) { onError(); return; }
+    setPhase('composing');
+    composePreview(sessionId, { photoId, nickname, daysText, days })
+      .then(({ jobId, thumbDataUrl }) => {
+        setJobId(jobId);
+        setThumb(thumbDataUrl);
+        setPhase('ready');
+      })
+      .catch(err => {
+        reportClientError(`composePreview failed: ${err}`);
+        setPhase('error');
+      });
+  }, [sessionId, photoId, nickname, daysText, days, onError]);
+
+  useEffect(() => { runCompose(); }, [runCompose]);
+
+  const handleConfirm = () => {
+    if (phase !== 'ready' || !sessionId || !jobId) return;
+    setPhase('confirming');
+    confirmComposite(sessionId, jobId)
+      .then(({ downloadUrl, qrDataUrl, expiresAt }) => {
+        onConfirmed({ downloadUrl, qrDataUrl, expiresAt });
+      })
+      .catch(err => {
+        reportClientError(`confirmComposite failed: ${err}`);
+        setPhase('error');
+      });
+  };
+
+  const busy = phase === 'composing' || phase === 'confirming';
+
+  return (
+    <IPad step={5} totalSteps={7} animKey="preview">
+      <Page data-section="preview-screen" style={{ paddingTop: 50, paddingBottom: 28 }}>
+
+        <div data-ui="preview-header" style={{ marginBottom: 0, flexShrink: 0, textAlign: 'center' }}>
+          <div className="t-eyebrow" style={{ marginBottom: 40, marginLeft: 0, textAlign: 'left' }}>{T.preview.step}</div>
+          <div className="t-heading" style={{ display: 'inline-block', marginBottom: 0 }}>{T.preview.heading}</div>
+        </div>
+
+        <div data-ui="photo-composite" style={{
+          flex: 1, minHeight: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32,
+          position: 'relative',
+        }}>
+          <div style={{
+            position: 'relative', aspectRatio: '2/3', height: '90%',
+            borderRadius: 4, overflow: 'hidden',
+            background: 'rgba(0,0,0,0.05)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            animation: thumb ? 'cameraGlow 4.4s ease-in-out infinite' : 'none',
+          }}>
+            {thumb
+              ? <img src={thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              : <div className="t-eyebrow" style={{ opacity: 0.6 }}>
+                  {T.preview.saving}
+                </div>}
+          </div>
+        </div>
+
+        <div style={{ flexShrink: 0, marginTop: 14 }}>
+          {phase === 'error' && (
+            <div data-ui="compose-error" style={{
+              marginBottom: 10, textAlign: 'center', color: '#FF4E50', fontSize: 14, fontWeight: 700,
+            }}>
+              {T.preview.exportError}
+            </div>
+          )}
+          {phase === 'error'
+            ? <button className="btn-primary" onClick={() => (thumb && jobId ? handleConfirm() : runCompose())}>
+                {T.preview.save}
+              </button>
+            : <button className="btn-primary" onClick={handleConfirm} disabled={phase !== 'ready'}>
+                {busy ? T.preview.saving : T.preview.save}
+              </button>}
+        </div>
+      </Page>
+    </IPad>
+  );
+}

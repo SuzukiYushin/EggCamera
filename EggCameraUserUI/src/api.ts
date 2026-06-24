@@ -121,9 +121,40 @@ export function getCropSettings(): Promise<{ crop: CropSettings }> {
 }
 
 // 運用モード。メンテナンス中はキオスクの操作をロックする。
-export function getMode(): Promise<{ maintenance: boolean }> {
+// serverCompose=true ならサーバ側合成フロー(/compose・/confirm)を使う。
+export function getMode(): Promise<{ maintenance: boolean; serverCompose?: boolean }> {
   if (PROTO) return Promise.resolve({ maintenance: false });
   return request('/mode');
+}
+
+// ── サーバ側合成フロー ───────────────────────────────────────────────────
+export interface ComposePreview {
+  jobId: string;
+  fileName: string;
+  capturedAt: number;
+  thumbDataUrl: string;
+}
+
+// プレビュー入場時: サーバで最終画像を原寸合成し、表示用サムネ(dataURL)を受け取る。
+export function composePreview(
+  sessionId: string,
+  params: { photoId: string; nickname: string; daysText: string; days: number },
+): Promise<ComposePreview> {
+  return request(`/sessions/${sessionId}/compose`, {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+// 決定タップ: 合成ジョブを確定→アップロード worker へ。QR は即返る（アップロード非依存）。
+export function confirmComposite(
+  sessionId: string,
+  jobId: string,
+): Promise<{ status: string } & SessionResult> {
+  return request(`/sessions/${sessionId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify({ jobId }),
+  });
 }
 
 // Uploads the client-composited final image (photo + frame + name/days, baked

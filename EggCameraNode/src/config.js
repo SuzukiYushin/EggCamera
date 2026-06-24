@@ -37,6 +37,11 @@ const JOB_PENDING_TTL_MS = 30 * 60 * 1000; // 30分
 // アップロード/合成が成功するまでの再試行バックオフ（上限5分・無期限リトライ）。
 const JOB_RETRY_DELAYS_MS = [0, 3_000, 10_000, 30_000, 60_000, 120_000, 300_000];
 
+// サーバ側合成フロー(/compose・/confirm)を有効化するフラグ。
+// 未設定(=0)ならクライアントは従来の canvas 合成(/composite)を使う。
+// 切替/ロールバックは .env のこの値＋再起動だけで行える（クライアント再ビルド不要）。
+const SERVER_COMPOSITE = process.env.SERVER_COMPOSITE === '1';
+
 // 管理画面/管理APIの認証トークン（未設定なら認証なし＝従来どおり）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 
@@ -94,6 +99,7 @@ module.exports = {
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
     JOB_PENDING_TTL_MS, JOB_RETRY_DELAYS_MS,
+    SERVER_COMPOSITE,
     ADMIN_TOKEN, ADMIN_USER, ADMIN_PASSWORD, REBOOT_PASSWORD,
     PORT, ADMIN_PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,

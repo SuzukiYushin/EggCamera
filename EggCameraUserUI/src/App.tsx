@@ -7,6 +7,7 @@ import { Birthday }     from './components/screens/Birthday';
 import { Capture }      from './components/screens/Capture';
 import { PhotoSelect }  from './components/screens/PhotoSelect';
 import { FinalPreview } from './components/screens/FinalPreview';
+import { FinalPreviewServer } from './components/screens/FinalPreviewServer';
 import { Uploading }    from './components/screens/Uploading';
 import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
@@ -53,6 +54,8 @@ export default function App() {
   const [result, setResult]         = useState<SessionResult | null>(null);
   const [fatal, setFatal]           = useState(false);
   const [maintenance, setMaintenance] = useState(false);
+  // サーバ側合成フローを使うか（/api/mode の serverCompose で切替。既定=旧canvas合成）
+  const [serverCompose, setServerCompose] = useState(false);
 
   // createSession の世代管理。リロード直後のマウント生成と retake/restart の生成が
   // 競合したとき、解決順が逆転して「古い session」を掴むのを防ぐ。常に最新要求だけ採用。
@@ -107,8 +110,9 @@ export default function App() {
     let prev = false;
     const check = () => {
       getMode()
-        .then(({ maintenance: m }) => {
+        .then(({ maintenance: m, serverCompose: sc }) => {
           setMaintenance(m);
+          setServerCompose(!!sc);
           if (prev && !m) { restart(); } // 解除された瞬間にトップへ
           prev = m;
         })
@@ -187,7 +191,12 @@ export default function App() {
       {screen === 'bday'     && <Birthday    nickname={nickname} onNext={goCapture} onSkip={() => goCapture(0)} />}
       {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={() => setFatal(true)} />}
       {screen === 'photosel' && <PhotoSelect photos={photos} onNext={photoId => { setSelectedPhotoId(photoId); go('preview'); }} onBack={retake} />}
-      {screen === 'preview'  && <FinalPreview nickname={nickname} days={days} photoUrl={selectedPhoto?.url ?? ''} onNext={goUpload} />}
+      {screen === 'preview'  && (serverCompose
+        ? <FinalPreviewServer
+            sessionId={sessionId} photoId={selectedPhotoId} nickname={nickname} days={days}
+            onConfirmed={result => { setResult(result); go('qr'); }}
+            onError={() => setFatal(true)} />
+        : <FinalPreview nickname={nickname} days={days} photoUrl={selectedPhoto?.url ?? ''} onNext={goUpload} />)}
       {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onError={() => setFatal(true)} />}
       {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={restart} />}
       {screen === 'end'      && <End         onRestart={restart} />}

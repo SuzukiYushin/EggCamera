@@ -3,7 +3,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = rateLimit; // IPv6 を /56 に正規化するヘルパ（per-IP キーの IPv6 対策）
 
-const { PORT, STATIC_DIR, FRAMES_DIR, ADMIN_DIR, R2_CLEANUP_INTERVAL, SESSION_TTL_MS, ts } = require('./src/config');
+const { PORT, STATIC_DIR, FRAMES_DIR, ADMIN_DIR, R2_CLEANUP_INTERVAL, SESSION_TTL_MS, SERVER_COMPOSITE, ts } = require('./src/config');
 const logger = require('./src/logger');
 logger.install();
 
@@ -107,8 +107,11 @@ app.post('/api/internal/reload-signal', (req, res) => {
     res.json({ ok: true, clients: sse.clientCount() });
 });
 
-// ── ユーザーUIが参照する運用モード（メンテ中は操作ロック） ──
-app.get('/api/mode', (req, res) => res.json({ maintenance: mode.isMaintenance() }));
+// ── ユーザーUIが参照する運用モード（メンテ中は操作ロック / 合成方式フラグ） ──
+app.get('/api/mode', (req, res) => res.json({
+    maintenance: mode.isMaintenance(),
+    serverCompose: SERVER_COMPOSITE,
+}));
 
 // ── iPhone ライブプレビュー ──
 // stream: MJPEG(multipart/x-mixed-replace)。node 側の単一取得ループを全クライアントへ fan-out。
