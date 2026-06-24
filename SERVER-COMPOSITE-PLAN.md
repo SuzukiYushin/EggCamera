@@ -151,9 +151,17 @@ confirm → composing ─(失敗)→ composite_failed ─┐(無限リトライ�
 |---|---|---|---|
 | P1 | **サーバ合成エンジン**（crop+frame+文字+サムネ）。`compose` エンドポイント | 実機サムネで crop+frame が本番合成と一致・フォント解決を確認 | ✅ 完了（[src/compose.js](EggCameraNode/src/compose.js)・配置は後日5パターン作成） |
 | P2 | **永続ジョブモデル + worker + 再起動再開 + 時刻基準削除**。`/compose`・`/confirm` 配線。既存 `/composite` は温存 | オフライン統合テスト17件 pass（compose→confirm→done / 失敗リトライ / composite欠落→再合成 / resumeAll再開 / 24H・TTL掃除） | ✅ 完了（[jobs.js](EggCameraNode/src/jobs.js)/[uploadWorker.js](EggCameraNode/src/uploadWorker.js)・**未デプロイ=server未再起動**） |
-| P3 | クライアントを**サムネ表示フロー**へ切替（canvas 撤去）。サーバ駆動フラグで新旧切替（保険） | iPad 実機で全フロー / 毎時テスト緑 | ⏳ 次 |
-| P4 | 管理画面**失敗ページ拡張**（撮影日時/QR/リアルタイム状態/手動DL）。※メール送付はアプリ実装せずスタッフ手作業 | 失敗注入→一覧/QR/DL/状態更新を確認 | 未着手 |
+| P3 | クライアントを**サムネ表示フロー**へ切替。サーバ駆動フラグ `SERVER_COMPOSITE` で新旧切替（既定OFF=旧canvas・即ロールバック可） | 型チェック＋本番ビルド(一時outDir)成功。FinalPreview は温存し新規 FinalPreviewServer を追加 | ✅ 完了（dark=ライブ dist 未ビルド） |
+| P4 | 管理画面**失敗ページ拡張**（撮影日時/QR/リアルタイム状態/手動DL）。※メール送付はアプリ実装せずスタッフ手作業 | 失敗注入→一覧/QR/DL/状態更新を確認 | ⏳ 次（切替前推奨） |
 | P5 | デッドコード除去（クライアント合成 + リトライ#1）。ドキュメント更新 | 差分レビュー / soak | 未着手 |
+
+## 7. 本番切替ランブック（要 GO・:3000 再起動を伴う不可逆操作）
+1. クライアントを本番ビルド: `cd EggCameraUserUI && npm run build`（フラグOFFなので**この時点では旧フロー**＝安全）。
+2. `:3000` を再起動（新コード＋worker をロード。`SERVER_COMPOSITE` 未設定なら `/api/mode` は `serverCompose:false` を返し**挙動不変**）。毎時テスト緑を確認。
+3. `EggCameraNode/.env` に `SERVER_COMPOSITE=1` を設定 → `:3000` 再起動 → **新フロー有効化**。
+4. 検証: iPad 実機で 撮影→選択→(サーバ合成サムネ)→決定→QR、`data/jobs` の done 遷移、R2 アップロード、毎時テスト緑。
+5. **ロールバック**: `.env` の `SERVER_COMPOSITE` を外す（または0）→ `:3000` 再起動。即旧フローへ。
+- 注: 再起動は launchd 運用（手動 node 起動はしない）。worker は再起動後 `resumeAll` で未完了ジョブを自動再開。
 
 ### 実装メモ（P2）
 - 新規: [src/jobs.js](EggCameraNode/src/jobs.js)（永続ジョブCRUD）, [src/uploadWorker.js](EggCameraNode/src/uploadWorker.js)（逐次worker・無期限バックオフ・resumeAll・sweep）。
