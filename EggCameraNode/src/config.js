@@ -11,6 +11,9 @@ const COMPOSITED_DIR = path.join(DATA_DIR, 'composited');
 // COMPOSITED_DIR のトリム(30件)で消えないよう別ディレクトリに退避する。
 const DEFERRED_DIR   = path.join(DATA_DIR, 'deferred');
 const FAILED_DIR     = path.join(DATA_DIR, 'failed');
+// サーバ側合成の永続ジョブ。1ジョブ=1ディレクトリ(job.json + 元写真 + composite.jpg)。
+// in-memory セッションと分離し、再起動後も未完了の合成/アップロードを再開できるようにする。
+const JOBS_DIR       = path.join(DATA_DIR, 'jobs');
 const FRAMES_DIR     = path.join(DATA_DIR, 'assets/frames');
 const FLAME_PATH     = path.join(FRAMES_DIR, 'flame_sample.png');
 const FRAMES_META    = path.join(FRAMES_DIR, 'frames.json');
@@ -28,6 +31,11 @@ const DISK_WARN_BYTES = 5 * 1024 * 1024 * 1024; // 5GB
 
 // 後追いアップロードをこの時間まで粘り、超えたら failed として管理画面に出す
 const DEFERRED_MAX_MS = 60 * 60 * 1000; // 1時間
+
+// サーバ合成ジョブ: 未確定(プレビュー合成のみで決定タップされず放置)を掃除するTTL。
+const JOB_PENDING_TTL_MS = 30 * 60 * 1000; // 30分
+// アップロード/合成が成功するまでの再試行バックオフ（上限5分・無期限リトライ）。
+const JOB_RETRY_DELAYS_MS = [0, 3_000, 10_000, 30_000, 60_000, 120_000, 300_000];
 
 // 管理画面/管理APIの認証トークン（未設定なら認証なし＝従来どおり）
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
@@ -81,10 +89,11 @@ function ts() {
 }
 
 module.exports = {
-    DATA_DIR, RAW_DIR, PREVIEW_DIR, COMPOSITED_DIR, DEFERRED_DIR, FAILED_DIR,
+    DATA_DIR, RAW_DIR, PREVIEW_DIR, COMPOSITED_DIR, DEFERRED_DIR, FAILED_DIR, JOBS_DIR,
     FRAMES_DIR, FLAME_PATH,
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
+    JOB_PENDING_TTL_MS, JOB_RETRY_DELAYS_MS,
     ADMIN_TOKEN, ADMIN_USER, ADMIN_PASSWORD, REBOOT_PASSWORD,
     PORT, ADMIN_PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,

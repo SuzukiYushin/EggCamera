@@ -9,6 +9,7 @@ logger.install();
 
 const { cleanupOldR2Objects } = require('./src/composite');
 const { cleanupExpiredSessions } = require('./src/sessions');
+const uploadWorker = require('./src/uploadWorker');
 const slack = require('./src/slack');
 const frames   = require('./src/frames');
 const settings = require('./src/settings');
@@ -166,6 +167,10 @@ cleanupOldR2Objects();
 // バックグラウンドジョブは safeInterval で包む（1ジョブの例外で全停止しない）
 safeInterval(cleanupOldR2Objects, R2_CLEANUP_INTERVAL, 'r2-cleanup');
 safeInterval(cleanupExpiredSessions, Math.min(SESSION_TTL_MS, 5 * 60 * 1000), 'session-cleanup');
+
+// サーバ合成ジョブ: 起動時に未完了を再開（再起動耐性）＋ 5分ごとに掃除（完了24H/未確定TTL）
+uploadWorker.resumeAll();
+safeInterval(uploadWorker.sweep, 5 * 60 * 1000, 'jobs-sweep');
 
 // ── 5分ごとに自プロセスのメモリ/負荷をログへ（リーク・フリーズ予兆の追跡） ──
 const os = require('node:os');

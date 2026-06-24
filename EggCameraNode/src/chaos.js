@@ -13,6 +13,7 @@ const armed = {
     capture: 0, // 撮影トリガーを mac-unreachable で失敗させる
     r2:      0, // R2 アップロードを失敗させる
     qr:      0, // QR 生成を失敗させる
+    compose: 0, // サーバ側合成(/compose)を失敗させる
 };
 
 function arm(target, count = 1) {

@@ -1,14 +1,55 @@
 const express = require('express');
 const path    = require('node:path');
 
-const { CAPTURE_TIMEOUT_MS, COMPOSITED_DIR, R2_RETENTION_MS, ts } = require('../config');
+const { CAPTURE_TIMEOUT_MS, COMPOSITED_DIR, R2_RETENTION_MS, FRAMES_DIR, FLAME_PATH, ts } = require('../config');
 const { ensurePreviewJpeg } = require('../capture');
 const camera = require('../adapters/camera');
 const { saveComposite, uploadToR2, deferredUploadToR2, generateQRDataUrl } = require('../composite');
-const { createSession, getSession, touch, registerPhoto } = require('../sessions');
+const { createSession, getSession, touch, registerPhoto, getPhoto } = require('../sessions');
+const { composeFinalImage, makeThumbnailDataUrl } = require('../compose');
+const jobsStore = require('../jobs');
+const worker    = require('../uploadWorker');
+const settings  = require('../settings');
+const frames    = require('../frames');
+const fs        = require('node:fs');
 const chaos = require('../chaos');
 
 const router = express.Router();
+
+// ── 完成画像ファイル名（=DL ID）: familia_EggCamera_YYYY.MM.DD.HH.mm.ss[.jpg] ──
+// 同一秒の衝突だけ _2,_3… を付ける（既存ジョブの fileName と突き合わせ）。
+const PHOTO_PREFIX = 'familia_EggCamera';
+function makeFileName() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const base = `${PHOTO_PREFIX}_${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}.`
+        + `${p(d.getHours())}.${p(d.getMinutes())}.${p(d.getSeconds())}`;
+    const existing = new Set(jobsStore.listJobs().map(j => j.fileName));
+    let name = `${base}.jpg`;
+    for (let i = 2; existing.has(name); i++) name = `${base}_${i}.jpg`;
+    return name;
+}
+
+// 撮影日時: raw ファイル名 YYYYMMDD_HHMMSS から推定（無理なら mtime）。
+function capturedAtOf(rawPath) {
+    const m = path.basename(rawPath).match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+    if (m) {
+        const [, Y, Mo, D, H, Mi, S] = m;
+        const t = new Date(+Y, +Mo - 1, +D, +H, +Mi, +S).getTime();
+        if (!Number.isNaN(t)) return t;
+    }
+    try { return fs.statSync(rawPath).mtimeMs; } catch { return Date.now(); }
+}
+
+// 使用中フレームから1つ抽選（サーバ抽選）。0件ならサンプルにフォールバック。
+function pickFrame() {
+    const active = frames.listActiveFrames();
+    if (active.length) {
+        const f = active[Math.floor(Math.random() * active.length)];
+        return { frameId: f.id, frameFile: f.file, framePath: path.join(FRAMES_DIR, f.file) };
+    }
+    return { frameId: null, frameFile: null, framePath: FLAME_PATH };
+}
 
 // ── POST /api/sessions ─────────────────────────────────────────────────
 router.post('/', (req, res) => {
@@ -81,6 +122,81 @@ router.post('/:id/select', (req, res) => {
     session.days     = days;
 
     res.json({ status: 'ok' });
+});
+
+// ── POST /api/sessions/:id/compose ──────────────────────────────────────
+// サーバ側で最終画像を原寸合成し、永続ジョブ(composed_pending)として保存。
+// プレビュー用のサムネ(dataURL)を返す。決定タップは別途 /confirm で行う。
+// body: { photoId, nickname, daysText, days }
+router.post('/:id/compose', async (req, res) => {
+    const session = getSession(req.params.id);
+    if (!session) return res.status(404).json({ error: 'session_not_found' });
+
+    const { photoId, nickname = '', daysText = '', days = 0 } = req.body || {};
+    const inSession = session.photos.find(p => p.photoId === photoId);
+    const photo = inSession && getPhoto(photoId);
+    if (!photo) return res.status(400).json({ error: 'invalid_photo' });
+
+    touch(session);
+    session.selectedPhotoId = photoId;
+    session.nickname = nickname;
+    session.days     = days;
+
+    try {
+        if (chaos.consume('compose')) throw new Error('injected_compose_failure');
+        const crop = settings.getSettings().crop;
+        const { frameId, frameFile, framePath } = pickFrame();
+        const { buffer } = await composeFinalImage({
+            sourcePath: photo.rawPath, framePath, crop, nickname, daysText,
+        });
+
+        const fileName = makeFileName();
+        const job = jobsStore.createJob({
+            sessionId: session.id, fileName, capturedAt: capturedAtOf(photo.rawPath),
+            frameId, frameFile, crop, nickname, days, daysText,
+            sourcePath: photo.rawPath, compositeBuffer: buffer,
+        });
+        session.composeJobId = job.jobId;
+
+        const thumbDataUrl = await makeThumbnailDataUrl(buffer, 1080);
+        res.json({ jobId: job.jobId, fileName, capturedAt: job.capturedAt, thumbDataUrl });
+    } catch (err) {
+        console.error(`[${ts()}] compose failed (session ${session.id}): ${err.message}`);
+        res.status(500).json({ error: 'compose_failed' });
+    }
+});
+
+// ── POST /api/sessions/:id/confirm ──────────────────────────────────────
+// 決定タップ。直前の compose ジョブを確定→アップロード worker へ投入。
+// QR はアップロード非依存に即発行して返す（アップロード中でもDL用QRを提示できる）。
+router.post('/:id/confirm', async (req, res) => {
+    const session = getSession(req.params.id);
+    if (!session) return res.status(404).json({ error: 'session_not_found' });
+
+    const jobId = (req.body && req.body.jobId) || session.composeJobId;
+    const job = jobId && jobsStore.readJob(jobId);
+    if (!job) return res.status(400).json({ error: 'no_composed_job' });
+
+    touch(session);
+    try {
+        const { dataUrl, targetUrl } = await generateQRDataUrl(job.fileName);
+        const result = {
+            downloadUrl: targetUrl,
+            qrDataUrl:   dataUrl,
+            expiresAt:   Date.now() + R2_RETENTION_MS, // 確定時は概算。完了時に uploadedAt+24H へ更新
+        };
+        jobsStore.updateJob(jobId, { status: 'queued', confirmedAt: Date.now(), result });
+        worker.enqueue(jobId);
+
+        // 既存の status ポーリング(GET /sessions/:id)で QR を拾えるよう session にも反映
+        session.result = result;
+        session.status = 'done';
+
+        res.status(202).json({ status: 'uploading', ...result });
+    } catch (err) {
+        console.error(`[${ts()}] confirm failed (session ${session.id}): ${err.message}`);
+        res.status(500).json({ error: 'confirm_failed' });
+    }
 });
 
 // ── POST /api/sessions/:id/composite ────────────────────────────────────
