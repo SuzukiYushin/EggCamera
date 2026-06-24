@@ -29,7 +29,22 @@
 
 進め方: まず表面(1)〜(5)で大枠→深掘り(A)〜(F)を実データで確認。ズレ・異常の兆候があれば、その1点を根本原因まで掘ってから通知する。全体を時間内（数分）に収めること。時間が尽きそうなら、その時点までの結果で**必ずハートビートを出してから終了**する（途中killで無音にしない）。
 
+== 自動復旧（既知で安全な障害は、検知だけでなく自分で直してから報告する）==
+方針: これまでの「検知・通知のみ」を改める。原因が下記の「既知で安全に直せるリスト」に該当するなら、**人を待たず自分で修正してから報告する**。リスト外（未知・破壊的・判断を要する＝再起動可否/コード修正要否/物理対処）は従来どおり「要確認」で人へ（勝手に直さない・握りつぶさない）。
+
+共通規律（必須）:
+- 修正の前後で必ず DEPLOY-MARKER を /api/test-report に出す（無いと監視自身が誤検知する）。
+- ループ防止: 状態ファイル `/tmp/eggcamera-capture-recovery.state`（直近自動復旧のepoch秒）を先に読む。**40分以内に復旧済みでまだ壊れているなら、同じ手を再試行せず alert で人へ**（同手で直らない＝別要因）。自分が復旧したら `date +%s` をこのファイルに書く。
+- 二重復旧の防止: shell watchdog（com.eggcamera.hourly-test-watchdog）も:50に同じ撮影スタック自動復旧を行う。先に直近の `DEPLOY-MARKER(hourly-watchdog)` と上記状態ファイルを確認し、**watchdog が既に復旧していれば自分は iphone.sh restart せず、検証（test-captureプローブ）と報告に留める**。watchdog が明らかに未対応で、かつ撮影が stuck の時だけ自分で実行する（フォールバック）。
+- 直したら必ず再プローブ（test-capture が photoId を返すか）で成否を確認。直れば info で「自動復旧した」と明記して報告、直らなければ alert で人へ。
+
+既知で安全な自動修正リスト:
+(1) **iPhone撮影の in-flight スタック / capture_timeout**（毎時テスト全滅／app.log に "Capture skipped because a request is already in flight" 多発／test-capture が photoId を返さない＝ frame:8080 は200でもカメラ状態がスタック）→ `EggCameraIPhone/iphone.sh restart`（アプリ再launch・ビルド無し）で in-flight をリセット。**注意**: test-capture が完全に無応答なら撮影層でなく node 停止等の別系統 → iPhone を触らず alert。復旧の初回1枚は12MP(コールドstart)になり得るが数枚で48MPへ戻るのが正常、戻らなければ (H) の切り分けで報告。
+
+判断に迷うもの・リストに無いものは、自動で直さず「要確認」で人へ渡す（見落とすより投げる）。
+
 == 判定と通知 ==
+- ★自動復旧を実施した場合はハートビートにその旨を明記する（例: 「WATCH(:50) 自動復旧: 撮影in-flightスタックをiphone.sh restartで復旧・test-capture成功」）。
 - ★毎回必ず実行ハートビートを残す: 点検が済んだら curl で http://127.0.0.1:3000/api/test-report に、正常時 {"level":"info","text":"WATCH(:50) OK: <1行サマリ。確認した主な不変条件（撮影枚数/整合 等）も簡潔に>"}、異常時 {"level":"alert","text":"WATCH(:50) 要確認: <症状と推定原因を1行で>"} を必ず POST する。これにより「:50監視が実行された」ことが毎回残り、無音＝未実行 と誤解されない。
 - 異常時は上記 alert に加えて、/Users/eggcamera/EggCamera/.env.slack の SLACK_WEBHOOK_URL があればそこへも通知（正常時はSlackに出さない＝スパム防止）。文面は先頭に固定タグを付け1行（改行を入れない＝JSONを壊さない）: ":robot_face: *[Claude点検] claude-watch(:50)* — 要確認: <症状と推定原因を1行で>"。
 - ★人間の確認・判断・物理対処（USB抜き差し / 再起動可否 / コード修正要否 など）が要る事象は、必ず通知文に「要確認」と明記する。
