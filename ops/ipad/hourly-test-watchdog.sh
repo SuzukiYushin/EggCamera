@@ -35,6 +35,59 @@ notify_slack() { # text（watchdogの通知は常に「要調査：原因を確�
 alert() { # text
   log "ALERT: $1"; post_marker alert "$1"; notify_slack "$1"
 }
+notify_slack_action() { # text（自動復旧を「実行した」お知らせ。要調査ではなく対応済みの情報）
+  [ -f "$SLACK_ENV" ] || return 0
+  local url; url=$(grep -E '^SLACK_WEBHOOK_URL=' "$SLACK_ENV" | head -1 | cut -d= -f2- | tr -d '"'\'' ')
+  [ -n "$url" ] || return 0
+  curl -s -m 8 -X POST -H 'Content-Type: application/json' \
+    --data "$(printf '{"text":":robot_face: *[自動復旧] hourly-watchdog* — %s"}' "$1")" "$url" >/dev/null 2>&1
+}
+
+# ── 自動復旧（既知で安全な障害の自動修正） ─────────────────────────────────
+# 検知だけでなく、原因が「既知で安全に直せるもの」なら自動で修正する。
+# 第1弾: iPhone撮影の in-flight スタック / capture_timeout → iphone.sh restart。
+IPHONE_SH="/Users/eggcamera/EggCamera/EggCameraIPhone/iphone.sh"
+RECOVERY_STATE="/tmp/eggcamera-capture-recovery.state"
+RECOVERY_COOLDOWN=2400  # 40分: 直近に復旧済みでまだ壊れているなら自動ループせず人へ
+ADMIN_TOKEN=$(grep -E '^ADMIN_TOKEN=' /Users/eggcamera/EggCamera/EggCameraNode/.env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"'\'' ')
+
+# 撮影プローブ: test-capture を叩いて健全/スタック/node停止 を判定して echo する。
+capture_probe() {
+  local r; r=$(curl -s -m 30 -X POST -H "X-Admin-Token: $ADMIN_TOKEN" http://127.0.0.1:3000/api/admin/test-capture 2>/dev/null)
+  if   echo "$r" | grep -q '"photoId"'; then echo ok
+  elif [ -z "$r" ];                     then echo node-down
+  else                                       echo stuck
+  fi
+}
+
+# 失敗検知時に呼ぶ。撮影スタックなら自動復旧を実行して 0、撮影が原因でなければ 1 を返す。
+auto_recover_capture() {
+  local p; p=$(capture_probe)
+  case "$p" in
+    ok)        log "自動復旧: 撮影プローブ健全 → 撮影層は原因でない(別要因)"; return 1 ;;
+    node-down) log "自動復旧: 撮影プローブ無応答 → node停止疑い(撮影層でなく別系統)";    return 1 ;;
+  esac
+  # p=stuck: 撮影スタック確定
+  log "自動復旧: 撮影プローブ=stuck → 撮影 in-flight スタック検知"
+  local now last; now=$(date +%s); last=$(cat "$RECOVERY_STATE" 2>/dev/null || echo 0)
+  if [ $((now - last)) -lt "$RECOVERY_COOLDOWN" ]; then
+    alert "撮影スタックが自動復旧後も継続(前回復旧 $(((now-last)/60))分前)。iphone.sh restartで直らず=要人手(iphone.sh run/本体再起動/署名確認)。"
+    return 0
+  fi
+  echo "$now" > "$RECOVERY_STATE"
+  post_marker info "撮影 in-flight スタックを検知 → iphone.sh restart で自動復旧を試行。想定内。"
+  log "自動復旧: iphone.sh restart 実行"
+  "$IPHONE_SH" restart >> "$WD_LOG" 2>&1
+  sleep 12  # カメラ初期化待ち
+  if [ "$(capture_probe)" = "ok" ]; then
+    log "OK: 撮影スタックを iphone.sh restart で自動復旧(撮影プローブ成功)"
+    post_marker info "撮影スタックを iphone.sh restart で自動復旧・撮影プローブ成功。次枠で検証。"
+    notify_slack_action "撮影 in-flight スタックを自動復旧しました(iphone.sh restart→撮影プローブ成功)。次の毎時テストで確認します。"
+  else
+    alert "撮影スタックの自動復旧(iphone.sh restart)に失敗。撮影プローブが依然失敗 → 要人手。"
+  fi
+  return 0
+}
 
 # node が実際に ipad-test.js を実行中か判定。
 # ps -o comm は16文字で切り詰められ "/opt/homebrew/bin/node" を取り逃すため、command の
@@ -58,7 +111,12 @@ if [ -n "$done_row" ]; then
   # 完走済み。失敗数を確認。
   fails=$(echo "$done_row" | grep -oE '失敗[0-9]+' | grep -oE '[0-9]+')
   if [ "${fails:-0}" -gt 0 ]; then
-    alert "${HOUR_PREFIX}00枠の毎時テストで失敗検出: ${done_row#*] }"
+    # まず既知の安全な原因(撮影スタック)を自動復旧。撮影が原因でなければ従来どおり人へ。
+    if auto_recover_capture; then
+      log "${HOUR_PREFIX}00枠 失敗${fails} → 撮影層の自動復旧を実行(詳細は上記)。"
+    else
+      alert "${HOUR_PREFIX}00枠の毎時テストで失敗検出: ${done_row#*] }"
+    fi
   else
     log "OK: ${HOUR_PREFIX}00枠 正常完走 → ${done_row#*] }"
   fi
@@ -69,8 +127,12 @@ elif echo "$rows" | grep -q '毎時テスト開始' && test_running; then
   # 開始済みで まだ実行中(リトライ等で長引いている)。誤検知回避のため静観。
   log "進行中: ${HOUR_PREFIX}00枠は開始済み・50分時点でなお実行中。次回監視に委ねる。"
 else
-  # 完了行なし=SKIPのみ/開始したが完走せず死亡。直近行の理由を添えて警告。
+  # 完了行なし=SKIPのみ/開始したが完走せず死亡。撮影スタックが原因なら自動復旧、それ以外は警告。
   last=$(echo "$rows" | tail -1)
-  alert "${HOUR_PREFIX}00枠の毎時テストが未完走: ${last#*] }"
+  if auto_recover_capture; then
+    log "${HOUR_PREFIX}00枠 未完走 → 撮影層の自動復旧を実行(詳細は上記)。直近行: ${last#*] }"
+  else
+    alert "${HOUR_PREFIX}00枠の毎時テストが未完走: ${last#*] }"
+  fi
 fi
 exit 0
