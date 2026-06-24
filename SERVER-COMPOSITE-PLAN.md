@@ -152,8 +152,10 @@ confirm → composing ─(失敗)→ composite_failed ─┐(無限リトライ�
 | P1 | **サーバ合成エンジン**（crop+frame+文字+サムネ）。`compose` エンドポイント | 実機サムネで crop+frame が本番合成と一致・フォント解決を確認 | ✅ 完了（[src/compose.js](EggCameraNode/src/compose.js)・配置は後日5パターン作成） |
 | P2 | **永続ジョブモデル + worker + 再起動再開 + 時刻基準削除**。`/compose`・`/confirm` 配線。既存 `/composite` は温存 | オフライン統合テスト17件 pass（compose→confirm→done / 失敗リトライ / composite欠落→再合成 / resumeAll再開 / 24H・TTL掃除） | ✅ 完了（[jobs.js](EggCameraNode/src/jobs.js)/[uploadWorker.js](EggCameraNode/src/uploadWorker.js)・**未デプロイ=server未再起動**） |
 | P3 | クライアントを**サムネ表示フロー**へ切替。サーバ駆動フラグ `SERVER_COMPOSITE` で新旧切替（既定OFF=旧canvas・即ロールバック可） | 型チェック＋本番ビルド(一時outDir)成功。FinalPreview は温存し新規 FinalPreviewServer を追加 | ✅ 完了（dark=ライブ dist 未ビルド） |
-| P4 | 管理画面**失敗ページ拡張**（撮影日時/QR/リアルタイム状態/手動DL）。※メール送付はアプリ実装せずスタッフ手作業 | 失敗注入→一覧/QR/DL/状態更新を確認 | ⏳ 次（切替前推奨） |
-| P5 | デッドコード除去（クライアント合成 + リトライ#1）。ドキュメント更新 | 差分レビュー / soak | 未着手 |
+| P4 | 管理画面**失敗ページ拡張**（撮影日時/QR/リアルタイム状態/手動DL）。※メール送付はアプリ実装せずスタッフ手作業 | listAdminJobs フィルタのオフラインテスト PASS。jobs一覧＋3秒ポーリング＋QR/DL を追加（adminAuth保護下） | ✅ 完了（dark=:3001再起動で /jobs 有効化） |
+| P5 | デッドコード除去（クライアント合成 + リトライ#1）。ドキュメント更新 | 差分レビュー / soak | **切替検証後**に実施 |
+
+> 実装フェーズ P1〜P4 は全て完了（dark）。残りは **本番切替（§7・要GO）** → 検証 → P5 デッドコード除去。
 
 ## 7. 本番切替ランブック（要 GO・:3000 再起動を伴う不可逆操作）
 1. クライアントを本番ビルド: `cd EggCameraUserUI && npm run build`（フラグOFFなので**この時点では旧フロー**＝安全）。
