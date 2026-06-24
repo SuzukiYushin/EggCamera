@@ -87,7 +87,7 @@ final class CaptureCommandClient {
         }
     }
 
-    private func send(payload: Data, to endpoint: NWEndpoint) async throws -> Data {
+    private func send(payload: Data, to endpoint: NWEndpoint, timeout: TimeInterval = 18) async throws -> Data {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Data, Error>) in
             let connection = NWConnection(to: endpoint, using: .tcp)
             let state = ResumeState()
@@ -151,6 +151,15 @@ final class CaptureCommandClient {
             }
 
             connection.start(queue: queue)
+
+            // 内部デッドライン: iPhone が接続後に無応答でも、必ず有限時間で継続を解決する。
+            // これが無いと receive() が永久に待ち、上位 sendCapture の TaskGroup タイムアウトも
+            // 構造化並行ゆえハングした子タスクの完了を待ってからしか巻き戻れず、Mac 側の
+            // isSending が true で固着 → 以降の撮影が全スキップになる(2026-06-25 00:00 全滅の真因)。
+            // finish は ResumeState で冪等なので、受信成功とのレースでも安全。
+            queue.asyncAfter(deadline: .now() + timeout) {
+                finish(.failure(CommandClientError.sendTimeout))
+            }
         }
     }
 }
@@ -160,6 +169,7 @@ enum CommandClientError: Error, LocalizedError {
     case captureRejected
     case bonjourTimeout
     case invalidResponse
+    case sendTimeout
 
     var errorDescription: String? {
         switch self {
@@ -167,6 +177,7 @@ enum CommandClientError: Error, LocalizedError {
         case .captureRejected: return "The iPhone did not accept the capture command."
         case .bonjourTimeout: return "Could not discover the iPhone capture service."
         case .invalidResponse: return "The iPhone returned an invalid HTTP response."
+        case .sendTimeout: return "The iPhone did not respond to the capture command in time."
         }
     }
 }
