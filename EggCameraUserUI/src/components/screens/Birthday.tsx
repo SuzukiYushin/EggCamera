@@ -37,7 +37,9 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
 
   const maxDay = daysInMonth(year, month);
   const safeDay = Math.min(day, maxDay);
-  const days = calcDays(year, month, safeDay) + 270;
+  // 表示する数字は「妊娠期間の約270days」＋「誕生日後の日数」の合計（＝1000daysの考え方）
+  const daysSinceBirth = calcDays(year, month, safeDay);
+  const days = daysSinceBirth + 270;
 
   const handleYearChange = (i: number) => setYear(YEARS[i]);
   const handleMonthChange = (i: number) => {
@@ -97,7 +99,7 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
 
         {/* Days since birth */}
         <div data-ui="birthday-result" style={{
-          marginBottom: 'auto',
+          marginBottom: 10,
           marginTop: 70,
           position: 'relative',
           textAlign: 'center',
@@ -112,23 +114,23 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
             WebkitTextStroke: '0.3px currentColor',
           }}>
 
-          <span style={{
-            color: C.number,
-            display: 'inline-block',
-            position: 'relative',
-            top: 5,
-          }}>
+            <span style={{
+              color: C.number,
+              display: 'inline-block',
+              position: 'relative',
+              top: 5,
+            }}>
 
-          {dateLabel}
+              {dateLabel}
 
-          <img src={butterflyBlue} alt="" aria-hidden="true" style={{
-            position: 'absolute',
-            left: 'calc(100% + 40px)',
-            top: '30%',
-            transform: 'translateY(-50%)',
-            width: 58, height: 'auto',
-          }} />
-          </span>
+              <img src={butterflyBlue} alt="" aria-hidden="true" style={{
+                position: 'absolute',
+                left: 'calc(100% + 40px)',
+                top: '30%',
+                transform: 'translateY(-50%)',
+                width: 58, height: 'auto',
+              }} />
+            </span>
           </div>
 
           <div style={{
@@ -169,6 +171,18 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
             </span>
           </div>
 
+          {/* 内訳: 妊娠期間の270days ＋ 誕生日後の日数（小さめ表示） */}
+          <div style={{
+            fontFamily: "'Futura', 'Century Gothic', sans-serif",
+            fontSize: 18, fontWeight: 700,
+            color: C.number,
+            letterSpacing: '0.04em',
+            marginTop: 12,
+            opacity: 0.85,
+          }}>
+            270 ＋ {daysSinceBirth}
+          </div>
+
           {nickname && (
             <div style={{
               fontFamily: 'var(--font-ui)',
@@ -180,6 +194,19 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
               {nickname}
             </div>
           )}
+        </div>
+
+        {/* 1000days の説明（生後日数＋270 の意味を補足） */}
+        <div style={{
+          fontFamily: 'var(--font-ui)',
+          color: 'var(--color-ink-600)',
+          fontSize: 16, fontWeight: 500,
+          marginLeft: 25,
+          marginRight: 25,
+          marginTop: 10,
+          marginBottom: 'auto',
+        }}>
+          {T.birthday.about1000days}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 36, marginTop: 20 }}>
