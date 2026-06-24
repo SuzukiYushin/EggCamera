@@ -13,17 +13,23 @@ const P_FAULT   = 0.08;
 const P_QUIRK   = 0.15;
 const P_GO_BACK = 0.15;
 
+// サーバ側合成フロー(serverCompose)前提のフォルト群。
+// 旧フロー専用だった frames-api / settings-api / composite-upload / session-poll は、
+// 新フローでは client が叩かない（フレーム/クロップはサーバ内、合成は /compose・/confirm）ため撤去。
+// 失敗UX: createSession/capture/compose/confirm の失敗は FinalPreviewServer/各画面が
+// お詫びオーバーレイ(error-overlay)に倒す＝expectOverlay:true。
+// R2アップロード失敗は worker が裏で無期限再試行し、QRは確定時に即発行済 → ユーザーは
+// QRを持ち帰れる＝オーバーレイは出さない(expectOverlay:false / 新仕様の正しい挙動)。
 const FAULTS = [
-    { id: 'session-create',   label: 'セッション作成API失敗',       kind: 'client', urlPattern: '/api/sessions$',           method: 'POST', mode: 'http500', count: 1,  expectOverlay: true              },
-    { id: 'capture-502',      label: '撮影API失敗(502)',             kind: 'client', urlPattern: '/capture$',                method: 'POST', mode: 'http502', count: 1,  expectOverlay: true,  group: 'capture'   },
-    { id: 'capture-server',   label: '撮影失敗(サーバ側)',           kind: 'server', target: 'capture',                                                                    expectOverlay: true,  group: 'capture'   },
-    { id: 'frames-api',       label: 'フレーム一覧取得失敗',         kind: 'client', urlPattern: '/api/frames$',             method: 'GET',  mode: 'network', count: 1,  expectOverlay: false             },
-    { id: 'settings-api',     label: 'クロップ設定取得失敗',         kind: 'client', urlPattern: '/api/settings$',           method: 'GET',  mode: 'network', count: 1,  expectOverlay: false             },
-    { id: 'composite-upload', label: '合成画像アップロード失敗',     kind: 'client', urlPattern: '/composite$',              method: 'POST', mode: 'http500', count: 1,  expectOverlay: true,  group: 'composite' },
-    { id: 'r2-server',        label: 'R2アップロード失敗',           kind: 'server', target: 'r2',                                                                         expectOverlay: false, group: 'composite' },
-    { id: 'qr-server',        label: 'QR生成失敗(サーバ側)',         kind: 'server', target: 'qr',                                                                         expectOverlay: true,  group: 'composite' },
-    { id: 'session-poll',     label: 'セッションポーリング持続失敗', kind: 'client', urlPattern: '/api/sessions/[0-9a-f]+$', method: 'GET',  mode: 'network', count: 25, expectOverlay: true              },
-    { id: 'js-error',         label: 'フロントJS実行時エラー',       kind: 'js',                                                                                           expectOverlay: true              },
+    { id: 'session-create',  label: 'セッション作成API失敗',     kind: 'client', urlPattern: '/api/sessions$', method: 'POST', mode: 'http500', count: 1, expectOverlay: true              },
+    { id: 'capture-502',     label: '撮影API失敗(502)',           kind: 'client', urlPattern: '/capture$',      method: 'POST', mode: 'http502', count: 1, expectOverlay: true,  group: 'capture' },
+    { id: 'capture-server',  label: '撮影失敗(サーバ側)',         kind: 'server', target: 'capture',                                                       expectOverlay: true,  group: 'capture' },
+    { id: 'compose-client',  label: 'サーバ合成API失敗',          kind: 'client', urlPattern: '/compose$',      method: 'POST', mode: 'http500', count: 1, expectOverlay: true,  group: 'compose' },
+    { id: 'compose-server',  label: 'サーバ合成失敗(サーバ側)',   kind: 'server', target: 'compose',                                                       expectOverlay: true,  group: 'compose' },
+    { id: 'confirm-client',  label: '確定API失敗',                kind: 'client', urlPattern: '/confirm$',      method: 'POST', mode: 'http500', count: 1, expectOverlay: true,  group: 'confirm' },
+    { id: 'qr-server',       label: 'QR生成失敗(サーバ側)',       kind: 'server', target: 'qr',                                                            expectOverlay: true,  group: 'confirm' },
+    { id: 'r2-server',       label: 'R2アップロード失敗(裏で再試行)', kind: 'server', target: 'r2',                                                         expectOverlay: false, group: 'confirm' },
+    { id: 'js-error',        label: 'フロントJS実行時エラー',     kind: 'js',                                                                              expectOverlay: true              },
 ];
 
 const QUIRKS = ['shutter-mash', 'shutter-mash', 'idle-pause', 'double-click', 'double-click', 'reload-midflow'];
@@ -62,7 +68,7 @@ class TestHarness {
     async clearServerFaults() {
         try {
             const st = await this._getJson(`${this.adminBase}/api/admin/chaos`);
-            if (st.capture > 0 || st.r2 > 0 || st.qr > 0) {
+            if (st.capture > 0 || st.r2 > 0 || st.qr > 0 || st.compose > 0) {
                 await this._delete('/api/admin/chaos');
                 this.log('残留サーバフォルトを掃除');
             }

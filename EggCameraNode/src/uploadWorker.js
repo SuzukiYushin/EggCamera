@@ -11,6 +11,7 @@ const {
 const jobsStore = require('./jobs');
 const { composeFinalImage } = require('./compose');
 const { uploadToR2 } = require('./composite');
+const chaos = require('./chaos');
 const sse   = require('./sse');
 const slack = require('./slack');
 
@@ -108,6 +109,7 @@ async function processOne(jobId) {
     // 2) R2 アップロード
     broadcast(jobsStore.updateJob(jobId, { status: 'uploading' }));
     try {
+        if (chaos.consume('r2')) throw new Error('injected_r2_failure');
         await uploadToR2(jobsStore.compositePath(jobId), job.fileName);
     } catch (err) {
         return fail(jobId, 'upload_failed', err);

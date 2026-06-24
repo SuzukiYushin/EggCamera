@@ -179,6 +179,7 @@ router.post('/:id/confirm', async (req, res) => {
 
     touch(session);
     try {
+        if (chaos.consume('qr')) throw new Error('injected_qr_failure');
         const { dataUrl, targetUrl } = await generateQRDataUrl(job.fileName);
         const result = {
             downloadUrl: targetUrl,
