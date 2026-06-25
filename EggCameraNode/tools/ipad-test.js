@@ -65,25 +65,62 @@ const withTimeout = (p, ms, label) => {
 };
 // 長い待機中もトンネル(RemoteXPC)を温め続ける。iOSはRemoteXPC無通信が数分続くとトンネルを
 // アイドル切断し、実行中セッションが無効化されるため、intervalMsごとに軽量コマンドを流す。
+//
+// keepaliveが落ちても即「セッション無効」と断じない。再起動直後の高負荷やトンネル張り直しで
+// getUrl が一過性に無応答化することがあり（postboot 2026-06-25: C1で keepaliveが約105秒
+// 無応答→旧ロジックは2連続で「セッション無効」と誤判定しC1を誤失敗計上。実際はその後復帰し
+// 残りサイクルは全完走）、短い無応答で中断すると本来完了できるサイクルを取りこぼす。
+// 「無応答が DEAD_AFTER_MS 連続継続」かつ「長めの確認プローブも失敗」した時だけ＝真のセッション
+// 死亡とみなして中断する。一過性なら待機を完走させ、サイクルを正しく完了させる（getUrlは毎回
+// withTimeoutで縛るので、判定を緩めてもC3で起きた21分ハングは再発しない）。
+// セッション内で keepalive が一過性無応答に陥った回数。150s未満で復帰したブレは「失敗」計上
+// しないが、慢性化（トンネルflapping等の本物の劣化）を監視が見落とさないよう、完走しても
+// サマリに可視化し warn 化するための健全性カウンタ（プロセス毎=1セッション毎にリセット）。
+let keepaliveBlips = 0;
 async function waitWithKeepalive(browser, totalMs, intervalMs, label) {
     const deadline = Date.now() + totalMs;
-    let consecutiveFails = 0;
+    const DEAD_AFTER_MS = 150000; // これだけ連続で無応答なら（確認の上で）セッション死亡とみなす
+    let downSince = 0;            // 現在の無応答ストリーク開始時刻（0=応答中）
     while (Date.now() < deadline) {
         await sleep(Math.min(intervalMs, deadline - Date.now()));
         if (Date.now() >= deadline) break;
         try {
-            await withTimeout(browser.getUrl(), 15000, 'keepalive');
-            consecutiveFails = 0;
+            await withTimeout(browser.getUrl(), 20000, 'keepalive');
+            if (downSince) { log(`${label} keepalive復帰（一過性の無応答だった・${Math.round((Date.now() - downSince) / 1000)}s）`); downSince = 0; }
         } catch (e) {
-            consecutiveFails++;
-            log(`${label} ⚠ keepalive失敗${consecutiveFails}回目(セッション不安定の可能性): ${e.message}`);
-            // 連続失敗＝トンネル/セッション死亡とみなし、185秒を待たず即中断→フォルト→②セッション再生成へ。
-            // （死んだセッションで残りの待機・処理を無駄に消費するのを防ぎ、復旧を早める）
-            if (consecutiveFails >= 2) {
-                throw new Error(`keepalive連続失敗(${consecutiveFails})→QR待機を中断(セッション無効と判断)`);
+            if (!downSince) { downSince = Date.now(); keepaliveBlips++; } // 新しい無応答エピソードを1回計上
+            const downMs = Date.now() - downSince;
+            log(`${label} ⚠ keepalive無応答(${Math.round(downMs / 1000)}s継続・セッション不安定の可能性): ${e.message}`);
+            if (downMs >= DEAD_AFTER_MS) {
+                // 最終確認: 長めのタイムアウトで一度だけ叩く。これも落ちたら真の死亡と断定して中断
+                // →フォルト→②セッション再生成へ。生きていれば誤検知なので継続する。
+                const alive = await withTimeout(browser.getUrl(), 30000, 'keepalive-confirm').then(() => true).catch(() => false);
+                if (alive) { log(`${label} keepalive確認プローブ成功→継続（誤検知回避）`); downSince = 0; }
+                else throw new Error(`keepalive無応答が${Math.round(downMs / 1000)}s継続＋確認失敗→セッション無効と判断し中断`);
             }
         }
     }
+}
+
+// 再起動直後はシステム負荷が高く（postboot計測でloadavg 8〜10）、RemoteXPCトンネルも張りたてで、
+// 最初の数十秒は getUrl が一過性に無応答化しやすい。サイクル計測を始める前に、軽量な getUrl が
+// 連続で素早く返る＝トンネルが安定したことを確認してから開始する（cold-start吸収）。既に温まって
+// いれば数秒で抜ける。安定しなくても maxMs で打ち切り続行する（以降は keepalive 側が監視）。
+async function warmupTunnel(browser, { needOk = 3, maxMs = 90000, fastMs = 6000 } = {}) {
+    const deadline = Date.now() + maxMs;
+    let ok = 0;
+    while (Date.now() < deadline) {
+        const t0 = Date.now();
+        const dt = await withTimeout(browser.getUrl(), 25000, 'warmup').then(() => Date.now() - t0).catch(() => -1);
+        if (dt >= 0 && dt <= fastMs) {
+            if (++ok >= needOk) { log(`ウォームアップ完了（連続${ok}回応答・最終${dt}ms）`); return; }
+        } else {
+            log(`ウォームアップ: トンネル安定待ち（${dt < 0 ? '無応答/25s超' : dt + 'ms'}）`);
+            ok = 0;
+        }
+        await sleep(2500);
+    }
+    log('⚠ ウォームアップが安定せず最大時間で続行（cold-startの可能性・keepaliveで監視継続）');
 }
 
 function postJson(urlStr, body) {
@@ -431,6 +468,8 @@ async function main() {
         browser = await openSession();
         log(`セッション: ${browser.sessionId}`);
         await browser.url(TARGET_URL);
+        // cold-start吸収: 再起動直後の高負荷/張りたてトンネルが落ち着くまで待ってからサイクル開始。
+        await withTimeout(warmupTunnel(browser), 100000, 'warmup-gate').catch(() => {});
 
         for (let i = 0; i < CYCLES; i++) {
             log(`\n${'─'.repeat(40)}`);
@@ -475,9 +514,12 @@ async function main() {
         if (browser) { await browser.deleteSession().catch(() => {}); log('セッション終了'); }
     }
 
-    const summary = `完了${stats.completed} フォルトOK${stats.faultOk} スキップ${stats.skipped} 失敗${stats.failed} / ${CYCLES}サイクル`;
+    // keepaliveが一過性無応答に陥った（=完走したが不安定だった）なら、慢性化を監視が拾えるよう
+    // サマリに明記し warn 化する。0なら従来どおり静か（info）。
+    const blipNote = keepaliveBlips > 0 ? ` (keepalive一過性無応答${keepaliveBlips}回)` : '';
+    const summary = `完了${stats.completed} フォルトOK${stats.faultOk} スキップ${stats.skipped} 失敗${stats.failed} / ${CYCLES}サイクル${blipNote}`;
     log(`\n=== セッション完了: ${summary} ===`);
-    await testReport(stats.failed > 0 ? 'warn' : 'info', `[iPad-TEST] セッション完了: ${summary}`);
+    await testReport((stats.failed > 0 || keepaliveBlips > 0) ? 'warn' : 'info', `[iPad-TEST] セッション完了: ${summary}`);
 }
 
 function runPhase4() {
