@@ -56,6 +56,12 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || ADMIN_TOKEN;
 // 未設定なら再起動APIは fail-closed で全拒否する（src/routes/admin.js 参照）。
 const REBOOT_PASSWORD = process.env.REBOOT_PASSWORD || '';
 
+// 遠隔公開（取引先テスト）用の共有シークレット。Cloudflare(Pages Functions)経由のみで要求する。
+// CF-Connecting-IP があるリクエスト（=Tunnel/Pages 経由）に限り X-EC-Proxy-Secret が
+// この値と一致しなければ 403。未設定なら検証しない（＝従来どおり）。
+// ローカル直叩き(iPad/テスト)は CF ヘッダが無いので常に素通り＝現行運用に無影響。
+const PROXY_SECRET = process.env.PROXY_SECRET || '';
+
 // ── Server ─────────────────────────────────────────────
 const PORT       = parseInt(process.env.PORT || '3000', 10);
 // 管理(admin)を別プロセス(:3001)に分離。撮影core(:3000)が落ちない/落とさないための障害分離。
@@ -100,7 +106,7 @@ module.exports = {
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
     JOB_PENDING_TTL_MS, JOB_RETRY_DELAYS_MS,
     SERVER_COMPOSITE,
-    ADMIN_TOKEN, ADMIN_USER, ADMIN_PASSWORD, REBOOT_PASSWORD,
+    ADMIN_TOKEN, ADMIN_USER, ADMIN_PASSWORD, REBOOT_PASSWORD, PROXY_SECRET,
     PORT, ADMIN_PORT, STATIC_DIR,
     SESSION_TTL_MS, CAPTURE_TIMEOUT_MS,
     SWIFT_HOST, SWIFT_PORT,

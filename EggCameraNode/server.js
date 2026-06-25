@@ -3,7 +3,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = rateLimit; // IPv6 を /56 に正規化するヘルパ（per-IP キーの IPv6 対策）
 
-const { PORT, STATIC_DIR, FRAMES_DIR, ADMIN_DIR, R2_CLEANUP_INTERVAL, SESSION_TTL_MS, SERVER_COMPOSITE, ts } = require('./src/config');
+const { PORT, STATIC_DIR, FRAMES_DIR, ADMIN_DIR, R2_CLEANUP_INTERVAL, SESSION_TTL_MS, SERVER_COMPOSITE, PROXY_SECRET, ts } = require('./src/config');
 const logger = require('./src/logger');
 logger.install();
 
@@ -24,6 +24,22 @@ const adminCoreRouter = require('./src/routes/adminCore'); // 撮影coreに密�
 const { errorBoundary, safeInterval, safeTimeout } = require('./src/safe');
 
 const app = express();
+
+// ── 遠隔公開ゲート（層2）: Cloudflare(Pages Functions)経由のみ共有シークレットを要求 ──
+// 取引先テスト用に api.siggaze.com を Tunnel 公開する際、Pages Functions が付与する
+// X-EC-Proxy-Secret を検証する。CF-Connecting-IP があるリクエスト（=Cloudflare 経由）に
+// 限り判定し、PROXY_SECRET 未設定なら無効（従来どおり）。ローカル直叩き(iPad/同一LAN/テスト)は
+// CF ヘッダが無いので常に素通り＝現行運用に無影響。撮影coreへの影響を避けるため最前段で軽量判定。
+if (PROXY_SECRET) {
+    app.use((req, res, next) => {
+        if (req.headers['cf-connecting-ip'] &&
+            req.headers['x-ec-proxy-secret'] !== PROXY_SECRET) {
+            return res.status(403).json({ error: 'forbidden' });
+        }
+        next();
+    });
+}
+
 app.use(express.json());
 
 // ── レート制限 ───────────────────────────────────────────────────────────────
