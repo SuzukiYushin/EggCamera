@@ -213,9 +213,10 @@ export function reportIncident(
   }, 15_000).catch(() => ({ action: 'recover' as IncidentAction }));
 }
 
-// 系統Aの復旧確認: サーバで selftest を1周（実撮影）。ok:true で復旧とみなす。
-export function runRecoverySelftest(): Promise<{ ok: boolean; skipped?: boolean }> {
-  return request<{ ok: boolean; skipped?: boolean }>('/recovery/selftest', { method: 'POST' }, 45_000)
+// 系統Aの軽量復旧プローブ: 実撮影なし。カメラ(プレビュー)生存＋サーバ応答を確認し、ok で復旧とみなす。
+// 実シャッターを切らないので、カメラ不安定時に撮影連打/多重撮影を誘発しない。
+export function probeRecovery(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/recovery/probe', undefined, 8_000)
     .catch(() => ({ ok: false }));
 }
 

@@ -11,7 +11,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { ts } = require('../config');
+const { ts, IPHONE_FRAME_URL } = require('../config');
 const jobsStore = require('../jobs');
 const diagnostics = require('../diagnostics');
 const incidentState = require('../incidentState');
@@ -36,6 +36,14 @@ router.get('/diagnostics', async (req, res) => {
         console.error(`[${ts()}] diagnostics error: ${err.message}`);
         res.status(500).json({ error: 'diagnostics_failed' });
     }
+});
+
+// 系統Aの軽量復旧プローブ: 実撮影をせず「カメラ(プレビュー)生存＋サーバ応答」のみ確認する。
+// これが通れば客がトップからやり直せる状態に戻ったとみなす。復旧確認のために実シャッターを
+// 切らない＝撮影連打/多重撮影を誘発しない。深いパイプライン検証(実撮影)は管理者selftestに委ねる。
+router.get('/recovery/probe', async (req, res) => {
+    const camera = await diagnostics.reachable(IPHONE_FRAME_URL, 'GET');
+    res.json({ ok: !!camera.ok, camera });
 });
 
 // 障害報告（系統A: fatal / 系統B: upload-stuck）。

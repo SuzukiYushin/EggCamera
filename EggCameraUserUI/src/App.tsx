@@ -15,7 +15,7 @@ import { ErrorOverlay } from './components/ErrorOverlay';
 import { MaintenanceLock } from './components/MaintenanceLock';
 import { LocalMaintenance } from './components/LocalMaintenance';
 import { createSession, wakeCamera, selectPhoto, uploadComposite, getMode, PROTO,
-         getJobStatus, reportIncident, runRecoverySelftest } from './api';
+         getJobStatus, reportIncident, probeRecovery } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 import { reportClientError } from './clientLog';
 
@@ -28,9 +28,9 @@ type Screen = 'start' | 'nick' | 'bday' | 'capture' | 'photosel' | 'preview' | '
 type LocalPhase = 'none' | 'recovering' | 'diagnosing';
 
 // お詫び（ErrorOverlay）を見せてからメンテ画面へ移すまでの猶予
-const APOLOGY_MS = 4_000;
-// 自己復旧ループの間隔（サーバ側 recovery/selftest は25秒スロットル）
-const RECOVERY_RETRY_MS = 15_000;
+const APOLOGY_MS = 15_000;
+// 自己復旧プローブの間隔（軽量＝実撮影しないので短めでよい）
+const RECOVERY_RETRY_MS = 5_000;
 
 // クライアント確認用プロトタイプの画面選択ナビ
 const NAV_TABS: [Screen, string][] = [
@@ -152,19 +152,22 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 系統A/重症B の自己復旧ループ: localPhase==='recovering' の間、サーバの selftest
-  // （撮影→合成→R2→DL を1周）を回し、ok になったらトップへ復帰する。
-  // selftest が通る＝カメラ含む全経路が回復、の確かな信号。Slackはサーバ側で復旧時のみ通知。
+  // 系統A/重症B の自己復旧ループ: localPhase==='recovering' の間、軽量プローブ
+  // （カメラ=プレビュー生存＋サーバ応答）を回し、2回連続OKでトップへ復帰する。
+  // 実撮影はしない＝復旧確認でシャッターを切らないので、カメラ不安定時に多重撮影を誘発しない。
+  // 深いパイプライン検証（実撮影selftest）は管理者/watchdog側に委ねる。
   useEffect(() => {
     if (PROTO) return;
     if (localPhase !== 'recovering') return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
+    let okStreak = 0;
     const tick = async () => {
       if (stopped) return;
-      const r = await runRecoverySelftest();
+      const r = await probeRecovery();
       if (stopped) return;
-      if (r.ok) { restart(); return; }     // 復旧 → restart が localPhase も none に戻す
+      okStreak = r.ok ? okStreak + 1 : 0;
+      if (okStreak >= 2) { restart(); return; } // 2回連続OK→復帰（一過性ブレ除け）。restartがlocalPhaseもnoneに
       timer = setTimeout(tick, RECOVERY_RETRY_MS);
     };
     timer = setTimeout(tick, 1_500);
