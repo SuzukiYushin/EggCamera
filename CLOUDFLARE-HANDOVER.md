@@ -5,6 +5,8 @@
 iPhone から Mac mini へ遠隔 SSH するための Cloudflare Tunnel + WARP 構成。
 **アカウント切り替え時は §2 のクラウド側だけ作り直し、§3 の Mac mini ローカル側はそのまま流用できる。**
 
+> 📌 本書は **Tunnel/WARP の1系統のみ**。R2・Pages・Workers・独自ドメインを含む**本番アカウント移行の全体手順**は [CLOUDFLARE-MIGRATION.md](CLOUDFLARE-MIGRATION.md) を参照（本書 §2/§3/§5 はそこから参照される）。
+
 ---
 
 ## 0. 現行アカウント情報（旧アカウント・参考）
