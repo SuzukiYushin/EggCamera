@@ -18,5 +18,17 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/Users/eggcamera/.local/bin:/usr/b
 export HOME="/Users/eggcamera"
 
 echo "$(date '+%F %T') appium tunnel-creation 起動 (uid=$(id -u), HOME=$HOME)"
+
+# ── 起動前に既存の tunnel-creation を一掃する（孤児の重複防止）──
+# `launchctl kickstart -k` は本ジョブの主プロセスしか殺さず、過去に exec した
+# `appium driver run xcuitest tunnel-creation` / `tunnel-creation.mjs` の子が
+# ppid=1 の孤児として残り、複数が同一デバイスの RemoteXPC トンネルを取り合って
+# `RemoteXPC connection timed out` / `port 8100 refused` を誘発する（2026-06-23 実障害）。
+# 本スクリプトは root(launchd) 実行なので root 所有の孤児も掃除できる。自分自身は
+# パターンに一致しない（zsh が daemon スクリプトを実行しているだけ）ので除外不要。
+pkill -9 -f 'xcuitest tunnel-creation' 2>/dev/null || true
+pkill -9 -f 'tunnel-creation\.mjs'     2>/dev/null || true
+sleep 2  # :42314 とトンネルの解放を待つ
+
 # --disconnect-retry-max-attempts 0 = 切断時に無制限で自動再接続（常駐の堅牢性）
 exec /opt/homebrew/bin/appium driver run xcuitest tunnel-creation --disconnect-retry-max-attempts 0
