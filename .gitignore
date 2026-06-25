@@ -44,6 +44,8 @@ data/deferred/*
 !data/deferred/.gitkeep
 data/failed/*
 !data/failed/.gitkeep
+data/jobs/*
+!data/jobs/.gitkeep
 .env.slack
 data/backups/
 .env.watchdog
@@ -54,3 +56,6 @@ data/mode.json
 
 # テスト生成物(エラースクショ) — 非ソース。data/raw 等と同じ扱い
 data/test-screenshots/
+
+# サーバ合成プレビューのサンプル生成物(非ソース)
+.compose-preview/
