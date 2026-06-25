@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Booth 管理画面 操作手順書（スタッフ用）</title>
+  <style>
+    :root {
+      --navy: #3a5a82;
+      --navy-deep: #22324a;
+      --blue: #4a6f9f;
+      --beige: #f0ece4;
+      --beige-line: #ddd4c6;
+      --ink: #2c3a4d;
+      --muted: #7a869a;
+      --accent: #c8d8ea;
+      --orange: #d98a3a;
+      --orange-deep: #a85f18;
+      --orange-bg: #fdf3e7;
+      --pink: #ec3a7f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+      color: var(--ink);
+      background: #9aa7b8;
+      line-height: 1.6;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .sheet {
+      width: 297mm;
+      min-height: 210mm;
+      margin: 10mm auto;
+      padding: 12mm 13mm;
+      background: #fff;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, .25);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .pagehead {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 2px solid var(--orange);
+      padding-bottom: 7px;
+      margin-bottom: 6mm;
+    }
+
+    .staff-badge {
+      display: inline-block;
+      background: var(--orange);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      padding: 3px 11px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .pb-tag {
+      display: inline-block;
+      background: var(--pink);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 9px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .pagehead .ttl {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--navy-deep);
+    }
+
+    .pagehead .points {
+      margin-left: auto;
+      max-width: 165mm;
+      text-align: right;
+      font-size: 9px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .pagehead .points b {
+      color: var(--orange-deep);
+    }
+
+    .grid {
+      flex: 1 1 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 6mm;
+    }
+
+    .grid.half {
+      grid-template-rows: 1fr;
+    }
+
+    .step {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: #fff;
+      border: 1px solid var(--beige-line);
+      border-radius: 10px;
+      padding: 9px 11px;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      min-height: 0;
+    }
+
+    .shot {
+      flex: 0 0 52mm;
+      width: 52mm;
+      background: #1e2230;
+      border: 1px solid var(--beige-line);
+      border-radius: 8px;
+      padding: 5px;
+      text-align: center;
+    }
+
+    .shot img {
+      width: 100%;
+      max-height: 46mm;
+      object-fit: contain;
+      border-radius: 5px;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .desc {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .step-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      flex: 0 0 auto;
+      width: 26px;
+      height: 26px;
+      line-height: 26px;
+      background: var(--navy);
+      color: #fff;
+      border-radius: 50%;
+      text-align: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .badge.flag {
+      background: var(--orange);
+    }
+
+    .desc h2 {
+      font-size: 14px;
+      margin: 0;
+      color: var(--navy-deep);
+      line-height: 1.25;
+    }
+
+    .nav {
+      display: inline-block;
+      font-size: 9px;
+      color: #fff;
+      font-weight: 700;
+      background: var(--pink);
+      border-radius: 3px;
+      padding: 1px 7px;
+      vertical-align: 1px;
+    }
+
+    .nav.pop {
+      background: var(--orange);
+    }
+
+    .role {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--navy);
+      margin: 3px 0 1px;
+    }
+
+    .desc ul {
+      margin: 2px 0 0;
+      padding-left: 16px;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .desc li {
+      margin: 2px 0;
+    }
+
+    .key {
+      display: inline-block;
+      background: var(--blue);
+      color: #fff;
+      border-radius: 5px;
+      padding: 0 6px;
+      font-size: 9.5px;
+      font-weight: 700;
+      margin: 0 1px;
+    }
+
+    .say {
+      font-size: 9.5px;
+      background: #eef3fa;
+      border-left: 3px solid var(--blue);
+      padding: 4px 8px;
+      border-radius: 0 5px 5px 0;
+      margin: 5px 0 0;
+      line-height: 1.45;
+    }
+
+    .say .lbl {
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .caution {
+      font-size: 9.5px;
+      background: var(--orange-bg);
+      border-left: 3px solid var(--orange);
+      padding: 4px 8px;
+      border-radius: 0 5px 5px 0;
+      margin: 5px 0 0;
+      color: var(--orange-deep);
+      line-height: 1.45;
+    }
+
+    .caution .lbl {
+      color: var(--orange-deep);
+      font-weight: 700;
+    }
+
+    .say ul,
+    .caution ul,
+    .say ol,
+    .caution ol {
+      margin: 2px 0 0;
+      padding-left: 16px;
+    }
+
+    .say li,
+    .caution li {
+      margin: 1px 0;
+    }
+
+    .foot {
+      margin-top: 5mm;
+      padding-top: 6px;
+      border-top: 1px solid var(--beige-line);
+      font-size: 10px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .summary {
+      background: var(--beige);
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 11px;
+      color: var(--navy-deep);
+      margin-top: 6mm;
+      line-height: 1.55;
+    }
+
+    .summary b {
+      color: var(--blue);
+    }
+
+    .summary ul {
+      margin: 5px 0 0;
+      padding-left: 18px;
+    }
+
+    .summary li {
+      margin: 2px 0;
+    }
+
+    .toolbar {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+    }
+
+    .toolbar button {
+      background: var(--orange);
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 24px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+      font-family: inherit;
+    }
+
+    .toolbar button:hover {
+      background: var(--orange-deep);
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .toolbar {
+        display: none;
+      }
+
+      .sheet {
+        margin: 0;
+        box-shadow: none;
+        min-height: auto;
+        padding: 10mm 12mm;
+      }
+
+      .page-break {
+        page-break-before: always;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="toolbar"><button onclick="window.print()">🖨 印刷 / PDF保存</button></div>
+
+  <!-- ============ ページ1 ============ -->
+  <div class="sheet">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+      <span class="points">
+        運用・障害対応ツール。上部タブ（<b>フレーム管理／写真設定／失敗画像／再起動／ログ</b>）で切替。<br>
+        アクセス：社内共有のURL（ポート3001）。開くのに<b>ログイン（ID・パスワード）</b>、<b>再起動は別途パスワード</b>が必要。
+      </span>
+    </div>
+
+    <div class="grid">
+
+      <!-- 1 フレーム管理 -->
+      <div class="step">
+        <div class="shot"><img src="admin-01-frames.png" alt="フレーム管理画面"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">1</span>
+            <h2>フレーム管理</h2><span class="nav">フレーム管理</span>
+          </div>
+          <p class="role">▶ できること</p>
+          <ul>
+            <li>写真に合成する<b>フレーム画像</b>の一覧・追加・削除。</li>
+          </ul>
+          <div class="say"><span class="lbl">補足：</span>
+            <ul>
+              <li>一覧のフレームから撮影時に<b>ランダムで選ばれる</b>。</li>
+              <li>不要なものは <b>×</b> で削除（ファイルは Mac mini 内に残る）。</li>
+              <li>再び使うときは <span class="key">+ フレームを追加</span> から（→ 次項）。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 フレーム追加ポップアップ -->
+      <div class="step">
+        <div class="shot"><img src="admin-06-add-frame.png" alt="フレーム追加ポップアップ"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">2</span>
+            <h2>フレームを追加</h2><span class="nav pop">ポップアップ</span>
+          </div>
+          <p class="role">▶ 「+ フレームを追加」で開く</p>
+          <div class="say"><span class="lbl">操作：</span>
+            <ul>
+              <li><b>フレーム名</b>を入力。（未入力の場合はファイル名が表示される）</li>
+              <li>取り込み元を選ぶ：<span class="key">このPCから</span>（接続しているPC内の画像）/ <span class="key">Mac mini から</span>（Mac mini
+                内を参照して選択）。</li>
+              <li><span class="key">追加する</span> で登録。</li>
+            </ul>
+          </div>
+          <div class="caution"><span class="lbl">ポイント：</span>
+            <ul>
+              <li>過去に削除したフレームの<b>再利用は「Mac mini から」</b>で元ファイルを選ぶ。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 写真設定 -->
+      <div class="step">
+        <div class="shot"><img src="admin-02-photo-settings.png" alt="写真設定画面"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">3</span>
+            <h2>写真設定</h2><span class="nav">写真設定</span>
+          </div>
+          <p class="role">▶ できること</p>
+          <ul>
+            <li>撮影写真の<b>クロップ（ズーム・位置）</b>を数値で調整して保存。</li>
+          </ul>
+          <div class="say"><span class="lbl">補足：</span>
+            <ul>
+              <li><span class="key">テスト撮影</span> で試し撮り → 左に結果が表示。</li>
+              <li>ズーム(1.0〜3.0)・横/縦オフセット(-50〜50%)を調整。</li>
+              <li><span class="key">設定を保存</span> で確定（iPad側へ即反映）。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 失敗画像 -->
+      <div class="step">
+        <div class="shot"><img src="admin-03-failed.png" alt="失敗画像画面"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">4</span>
+            <h2>失敗画像</h2><span class="nav">失敗画像</span>
+          </div>
+          <p class="role">▶ 2つのセクションがある</p>
+          <div class="say"><span class="lbl">内容：</span>
+            <ul>
+              <li><b>失敗画像</b>：アップロードに失敗した写真。<b>再送/ダウンロード</b>可。24時間継続し、成功で自動消去。</li>
+              <li><b>合成ジョブ（要確認）</b>：サーバ合成→アップロードで未完了/失敗中。「<b>合成失敗（再試行中）</b>」「アップロード中」等。完了でQR提示可。</li>
+            </ul>
+          </div>
+          <div class="caution"><span class="lbl">サイン：</span>
+            <ul>
+              <li><b>合成失敗・アップロード失敗の両方</b>がここに出る。溜まる＝障害のサイン → ログ・再起動を確認。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>1 / 3</span></div>
+  </div>
+
+  <!-- ============ ページ2 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid">
+
+      <!-- 5 再起動 -->
+      <div class="step">
+        <div class="shot"><img src="admin-04-restart.png" alt="再起動画面"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">5</span>
+            <h2>再起動</h2><span class="nav">再起動</span>
+          </div>
+          <p class="role">▶ できること</p>
+          <ul>
+            <li>不具合時に各装置を再起動（<b>実行にパスワード必須</b>）。</li>
+          </ul>
+          <div class="caution"><span class="lbl">つまずき対応：</span>
+            <ul>
+              <li>ログから推奨を診断し<b>赤く点滅</b>表示（実害なければ無視も可）。</li>
+              <li><b>軽い順</b>に試す：iPhoneアプリ → EggCameraMac → Nodeサーバ → 再ビルド → iPhone本体 → Mac mini本体（最終手段）。</li>
+              <li>作業後は <span class="key">通常運用に戻す（ロック解除）</span>。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 エラー診断ポップアップ -->
+      <div class="step">
+        <div class="shot"><img src="admin-07-diag-popup.png" alt="エラー診断ポップアップ"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">6</span>
+            <h2>エラー診断</h2><span class="nav pop">ポップアップ</span>
+          </div>
+          <p class="role">▶ エラー検知時に自動で表示</p>
+          <div class="say"><span class="lbl">内容：</span>
+            <ul>
+              <li><b>エラー理由</b>＋<b>推奨順</b>＋直近ログを表示。</li>
+            </ul>
+          </div>
+          <div class="caution"><span class="lbl">対応：</span>
+            <ul>
+              <li><span class="key">無視する</span>（実害がなさそうなら）。</li>
+              <li><span class="key">推奨ボタンへ</span>（再起動タブの推奨ボタンへ移動）。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7 パスワードポップアップ -->
+      <div class="step">
+        <div class="shot"><img src="admin-08-password.png" alt="パスワード確認ポップアップ"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">7</span>
+            <h2>再起動の実行</h2><span class="nav pop">ポップアップ</span>
+          </div>
+          <p class="role">▶ 再起動ボタンを押すと表示</p>
+          <div class="say"><span class="lbl">操作：</span>
+            <ul>
+              <li><b>パスワード</b>を入力 → <span class="key">実行する</span>。</li>
+            </ul>
+          </div>
+          <div class="caution"><span class="lbl">注意：</span>
+            <ul>
+              <li>パスワードは社内共有のもの。間違うと実行されない。</li>
+              <li>本体再起動は数分かかる。むやみに押さない。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 8 ログ -->
+      <div class="step">
+        <div class="shot"><img src="admin-05-logs.png" alt="ログ画面"></div>
+        <div class="desc">
+          <div class="step-head"><span class="badge">8</span>
+            <h2>ログ</h2><span class="nav">ログ</span>
+          </div>
+          <p class="role">▶ できること</p>
+          <ul>
+            <li>サーバログを<b>リアルタイム表示</b>（自動更新）で状況を確認。</li>
+          </ul>
+          <div class="say"><span class="lbl">補足：</span>
+            <ul>
+              <li>撮影・合成・アップロード・エラーが時系列で流れる。</li>
+              <li>トラブル時は<b>まずここで状況を確認</b>。判断に迷えば責任者へ。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>2 / 3</span></div>
+  </div>
+
+  <!-- ============ ページ3 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid half">
+
+      <!-- 9 トラブル対応フロー -->
+      <div class="step">
+        <div class="desc">
+          <div class="step-head"><span class="badge flag">!</span>
+            <h2>困ったときの対応フロー</h2>
+          </div>
+          <p class="role">▶ 写真が届かない／エラーが続くとき</p>
+          <div class="caution"><span class="lbl">上から順に：</span>
+            <ol>
+              <li><b>「ログ」</b>で今なにが起きているか確認。</li>
+              <li><b>「失敗画像」</b>を確認（失敗画像／合成ジョブが溜まっていないか。再送/DLも可）。</li>
+              <li><b>「再起動」</b>で軽い順に再起動（パスワード必要・1つずつ様子見）。</li>
+              <li>それでも直らなければ<b>責任者へ連絡</b>。</li>
+            </ol>
+          </div>
+          <div class="say"><span class="lbl">忘れずに：</span>
+            <ul>
+              <li>再起動の作業後は <span class="key">通常運用に戻す</span> を実行。</li>
+              <li>「写真設定」のクロップ変更後は<b>テスト撮影で必ず確認</b>。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空き活用：用語ミニ補足 -->
+      <div class="step">
+        <div class="desc">
+          <div class="step-head"><span class="badge flag">i</span>
+            <h2>知っておくと安心</h2>
+          </div>
+          <div class="say"><span class="lbl">フレーム：</span>
+            <ul>
+              <li>一覧のフレームから撮影ごとに<b>ランダム</b>で1つ合成。お客様側でも選べない。</li>
+              <li>削除してもファイルは Mac mini に残り、「Mac mini から」で戻せる。</li>
+            </ul>
+          </div>
+          <div class="say"><span class="lbl">失敗画像／合成ジョブ：</span>
+            <ul>
+              <li><b>合成失敗</b>＝サーバでの写真合成が失敗（再試行中）。<b>アップロード失敗</b>＝合成後の送信が失敗。</li>
+              <li>多くは自動で再試行・自動消去される。<b>増え続けるときだけ</b>対応フローへ。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="summary">
+      <b>スタッフが押さえる要点</b>
+      <ul>
+        <li>管理画面はポート3001・<b>ログイン必須</b>。タブで機能を切り替える。</li>
+        <li>フレームは一覧から<b>ランダム選択</b>（使用/未使用の区別なし）。不要は×削除、再利用は「Mac mini から」追加。</li>
+        <li>失敗画像タブには<b>アップロード失敗と合成失敗の両方</b>が出る。溜まる＝障害のサイン。</li>
+        <li>再起動は<b>パスワード必須</b>。軽い順に1つずつ、作業後は通常運用に戻す。</li>
+        <li>判断に迷う・直らない場合は、自己判断で続けず<b>責任者へ連絡</b>。</li>
+      </ul>
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>3 / 3</span></div>
+  </div>
+
+</body>
+
+</html>

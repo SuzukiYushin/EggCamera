@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Egg Camera 操作手順書（スタッフ用）</title>
+<style>
+  :root{
+    --navy:#3a5a82;
+    --navy-deep:#22324a;
+    --blue:#4a6f9f;
+    --beige:#f0ece4;
+    --beige-line:#ddd4c6;
+    --ink:#2c3a4d;
+    --muted:#7a869a;
+    --accent:#c8d8ea;
+    --orange:#d98a3a;
+    --orange-deep:#a85f18;
+    --orange-bg:#fdf3e7;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",
+                "Noto Sans JP",system-ui,sans-serif;
+    color:var(--ink); background:#9aa7b8; line-height:1.6;
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+
+  /* A4横 */
+  .sheet{
+    width:297mm; min-height:210mm; margin:10mm auto; padding:12mm 13mm;
+    background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.25);
+    display:flex; flex-direction:column;
+  }
+
+  /* ページ上部バー */
+  .pagehead{
+    display:flex; align-items:center; gap:10px;
+    border-bottom:2px solid var(--orange); padding-bottom:7px; margin-bottom:7mm;
+  }
+  .staff-badge{
+    display:inline-block; background:var(--orange); color:#fff;
+    font-size:10px; font-weight:700; letter-spacing:.16em;
+    padding:3px 11px; border-radius:20px; white-space:nowrap;
+  }
+  .pagehead .brand{ font-size:11px; letter-spacing:.2em; color:var(--blue); font-weight:700; }
+  .pagehead .ttl{ font-size:15px; font-weight:800; color:var(--navy-deep); }
+  .pagehead .points{
+    margin-left:auto; max-width:160mm; text-align:right;
+    font-size:9px; color:var(--muted); line-height:1.45;
+  }
+  .pagehead .points b{ color:var(--orange-deep); }
+
+  /* 4分割グリッド */
+  .grid{
+    flex:1 1 auto;
+    display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+    gap:6mm;
+  }
+  .grid.half{ grid-template-rows:1fr; }   /* 2枚だけのページ */
+
+  /* 手順カード */
+  .step{
+    display:flex; gap:9px; align-items:flex-start;
+    background:#fff; border:1px solid var(--beige-line); border-radius:10px;
+    padding:9px 10px; break-inside:avoid; page-break-inside:avoid; min-height:0;
+  }
+  .shot{
+    flex:0 0 34mm; width:34mm; background:var(--beige);
+    border:1px solid var(--beige-line); border-radius:8px; padding:5px; text-align:center;
+  }
+  .shot img{ width:100%; max-height:60mm; object-fit:contain; border-radius:5px; display:block; margin:0 auto; }
+
+  .desc{ flex:1 1 auto; min-width:0; }
+  .step-head{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .badge{
+    flex:0 0 auto; width:26px; height:26px; line-height:26px;
+    background:var(--navy); color:#fff; border-radius:50%;
+    text-align:center; font-weight:700; font-size:13px;
+  }
+  .desc h2{ font-size:14px; margin:0; color:var(--navy-deep); line-height:1.25; }
+  .tag{
+    display:inline-block; font-size:9px; color:var(--blue); font-weight:700;
+    background:var(--accent); border-radius:3px; padding:0 6px; margin-left:2px; vertical-align:1px;
+  }
+  .role{ font-size:9px; font-weight:700; color:var(--navy); margin:3px 0 1px; }
+  .desc ul{ margin:2px 0 0; padding-left:16px; font-size:10px; line-height:1.45; }
+  .desc li{ margin:2px 0; }
+  .key{
+    display:inline-block; background:var(--blue); color:#fff; border-radius:5px;
+    padding:0 6px; font-size:9.5px; font-weight:700; margin:0 1px;
+  }
+
+  /* 補足ボックス */
+  .say{
+    font-size:9.5px; background:#eef3fa; border-left:3px solid var(--blue);
+    padding:4px 8px; border-radius:0 5px 5px 0; margin:5px 0 0; line-height:1.45;
+  }
+  .say .lbl{ color:var(--blue); font-weight:700; }
+  .caution{
+    font-size:9.5px; background:var(--orange-bg); border-left:3px solid var(--orange);
+    padding:4px 8px; border-radius:0 5px 5px 0; margin:5px 0 0; color:var(--orange-deep); line-height:1.45;
+  }
+  .caution .lbl{ color:var(--orange-deep); font-weight:700; }
+  /* 補足内の箇条書き */
+  .say ul, .caution ul{ margin:2px 0 0; padding-left:15px; }
+  .say li, .caution li{ margin:1px 0; }
+
+  /* ダウンロード画面モック（STEP10） */
+  .phone{ width:30mm; margin:0 auto; background:#f6f3ed; border:1px solid var(--beige-line);
+    border-radius:8px; padding:6px 6px 7px; text-align:center; }
+  .phone-brand{ line-height:1.15; margin-bottom:4px; }
+  .pb-s{ display:block; font-size:6.5px; letter-spacing:.2em; color:var(--blue); font-weight:700; }
+  .pb-l{ display:block; font-size:10px; color:var(--navy); font-weight:800; }
+  .phone-photo{ width:100%; border-radius:3px; display:block; margin:0 auto 3px; }
+  .phone-note{ font-size:6px; color:var(--navy-deep); font-weight:700; margin:3px 1px; line-height:1.35; }
+  .phone-file{ font-size:5px; color:var(--muted); margin:2px 1px; word-break:break-all; }
+  .phone-btn{ background:var(--blue); color:#fff; font-size:6.5px; font-weight:700;
+    border-radius:11px; padding:4px 3px; margin:4px 1px; }
+  .phone-sub{ font-size:5px; color:var(--muted); margin:3px 1px; line-height:1.35; }
+
+  .foot{
+    margin-top:6mm; padding-top:6px; border-top:1px solid var(--beige-line);
+    font-size:10px; color:var(--muted); display:flex; justify-content:space-between;
+  }
+
+  /* まとめ帯（最終ページ） */
+  .summary{
+    background:var(--beige); border-radius:10px; padding:10px 16px;
+    font-size:11px; color:var(--navy-deep); margin-top:6mm; line-height:1.55;
+  }
+  .summary b{ color:var(--blue); }
+  .summary ul{ margin:5px 0 0; padding-left:18px; }
+  .summary li{ margin:2px 0; }
+
+  .toolbar{ position:fixed; top:16px; right:16px; z-index:10; }
+  .toolbar button{
+    background:var(--orange); color:#fff; border:none; padding:10px 18px;
+    border-radius:24px; font-size:14px; cursor:pointer;
+    box-shadow:0 2px 8px rgba(0,0,0,.3); font-family:inherit;
+  }
+  .toolbar button:hover{ background:var(--orange-deep); }
+
+  @page{ size:A4 landscape; margin:0; }
+  @media print{
+    body{ background:#fff; }
+    .toolbar{ display:none; }
+    .sheet{ margin:0; box-shadow:none; min-height:auto; padding:10mm 12mm; }
+    .page-break{ page-break-before:always; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar"><button onclick="window.print()">🖨 印刷 / PDF保存</button></div>
+
+<!-- ============ ページ1（STEP 1-4） ============ -->
+<div class="sheet">
+  <div class="pagehead">
+    <span class="staff-badge">STAFF</span>
+    <span class="brand">familiar</span>
+    <span class="ttl">Egg Camera 操作手順書（スタッフ用）</span>
+    <span class="points">
+      お客様のセルフ操作。スタッフは仕組みを把握し質問・トラブルに対応。<br>
+      要点：<b>①フレームはランダムで選べない ②保存中は触らない ③QR/DLは24時間以内 ④一定時間で自動TOP復帰</b>
+    </span>
+  </div>
+
+  <div class="grid">
+
+    <!-- STEP 1 -->
+    <div class="step">
+      <div class="shot"><img src="01-start.png" alt="スタート画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">1</span><h2>はじめる</h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>お子様をベッド中央にあおむけで寝かせる（画面に案内表示）。</li>
+          <li>言語を選び <span class="key">はじめる</span> をタップ。</li>
+        </ul>
+        <p class="say"><span class="lbl">補足：</span>ここから撮影フローが始まるトップ画面。</p>
+      </div>
+    </div>
+
+    <!-- STEP 2 -->
+    <div class="step">
+      <div class="shot"><img src="02-nickname.png" alt="お名前入力画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">2</span><h2>お名前を入力<span class="tag">1/7</span></h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>名前を入力して <span class="key">次へ</span>。入れなければ <span class="key">スキップ</span>。</li>
+        </ul>
+        <div class="say"><span class="lbl">補足：</span>
+          <ul>
+            <li>入力は任意。</li>
+            <li><b>アルファベットのみ・最大10文字</b>（日本語は入りません）。</li>
+            <li>入れた名前は写真に印字されます。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 3 -->
+    <div class="step">
+      <div class="shot"><img src="03-birthday.png" alt="生年月日入力画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">3</span><h2>生年月日を入力<span class="tag">2/7</span></h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>年・月・日を選び <span class="key">次へ</span>。不要なら <span class="key">スキップ</span>。</li>
+        </ul>
+        <div class="caution"><span class="lbl">補足：</span>
+          <ul>
+            <li>入力は任意。</li>
+            <li>画面表記は「生後の日数」だが、実際は<b>生後日数＋270日</b>（妊娠期間の約9か月ぶん）の値。</li>
+            <li>例：2024/8/12生 → 949日。</li>
+            <li>「日数が多い」と聞かれたら把握しておく。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 4 -->
+    <div class="step">
+      <div class="shot"><img src="04-capture.png" alt="撮影画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">4</span><h2>撮影する（3枚）</h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>お顔を<b>青い点線の円</b>に合わせ <span class="key">撮影</span> → <b>3枚自動</b>撮影。</li>
+        </ul>
+        <div class="caution"><span class="lbl">つまずき対応：</span>
+          <ul>
+            <li>きれいに撮るコツは<b>真上から・お顔を円に合わせる</b>。</li>
+            <li>「うまく撮れない」と相談されたら、カメラの高さ・角度を確認。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <span>familiar — Egg Camera 操作手順書（スタッフ用）</span>
+    <span>1 / 3</span>
+  </div>
+</div>
+
+<!-- ============ ページ2（STEP 5-8） ============ -->
+<div class="sheet page-break">
+  <div class="pagehead">
+    <span class="staff-badge">STAFF</span>
+    <span class="ttl">Egg Camera 操作手順書（スタッフ用）</span>
+  </div>
+
+  <div class="grid">
+
+    <!-- STEP 5 -->
+    <div class="step">
+      <div class="shot"><img src="05-photoselect.png" alt="写真選択画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">5</span><h2>写真を選ぶ<span class="tag">4/7</span></h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>3枚から1枚<b>タップ</b>（青枠）→ <span class="key">決定</span>。撮り直しは <span class="key">戻る</span>。</li>
+        </ul>
+        <p class="say"><span class="lbl">補足：</span><span class="key">戻る</span> で撮影画面に戻り、何度でも撮り直せる。</p>
+      </div>
+    </div>
+
+    <!-- STEP 6 -->
+    <div class="step">
+      <div class="shot"><img src="06-preview.png" alt="仕上がりプレビュー画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">6</span><h2>仕上がりを確認<span class="tag">5/7</span></h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>完成イメージを確認し <span class="key">この写真を保存する</span>。名前・生後日数が反映。</li>
+        </ul>
+        <div class="caution"><span class="lbl">つまずき対応：</span>
+          <ul>
+            <li>フレームは<b>ランダムで選ばれ、変更不可</b>。</li>
+            <li>「変えたい」と聞かれやすいので把握しておく。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 7 -->
+    <div class="step">
+      <div class="shot"><img src="07-uploading.png" alt="保存中画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">7</span><h2>保存中（待機）</h2></div>
+        <p class="role">▶ この画面で起きること</p>
+        <ul>
+          <li>「保存しているよ」表示 → 完了で<b>自動的に次へ</b>。</li>
+        </ul>
+        <div class="caution"><span class="lbl">つまずき対応：</span>
+          <ul>
+            <li>処理中は<b>画面を触らない</b>。</li>
+            <li><b>最大90秒</b>（通信が約20秒連続失敗でも）完了しないと<b>お詫び画面</b>（「スタッフにお声掛けください」）へ自動遷移。</li>
+            <li>その後<b>約10秒で自動的にトップへ戻る</b>（最初からやり直し）。</li>
+            <li>頻発する場合は責任者へ。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 8 -->
+    <div class="step">
+      <div class="shot"><img src="08-qr.png" alt="QRコード画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">8</span><h2>QRで受け取り<span class="tag">6/7</span></h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li><b>スマホのカメラ</b>でQRを読み取りリンクを開く。</li>
+        </ul>
+        <div class="caution"><span class="lbl">つまずき対応：</span>
+          <ul>
+            <li>受け取りは<b>24時間以内</b>。</li>
+            <li>カウントダウンで<b>自動的にトップへ戻る</b>（戻ると再撮影が必要）。</li>
+            <li>読み取れない時はカメラのピント・明るさ・距離を調整。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="foot">
+    <span>familiar — Egg Camera 操作手順書（スタッフ用）</span>
+    <span>2 / 3</span>
+  </div>
+</div>
+
+<!-- ============ ページ3（STEP 9-10 ＋ まとめ） ============ -->
+<div class="sheet page-break">
+  <div class="pagehead">
+    <span class="staff-badge">STAFF</span>
+    <span class="ttl">Egg Camera 操作手順書（スタッフ用）</span>
+  </div>
+
+  <div class="grid half">
+
+    <!-- STEP 9 -->
+    <div class="step">
+      <div class="shot"><img src="09-end.png" alt="完了画面"></div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">9</span><h2>完了</h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>「Thanks!」表示。<span class="key">はじめに戻る</span> でトップへ。</li>
+        </ul>
+        <div class="say"><span class="lbl">補足：</span>
+          <ul>
+            <li>一定時間操作がなければ<b>自動的にトップへ復帰</b>。</li>
+            <li>寝具の乱れがあれば整えておく。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP 10 -->
+    <div class="step">
+      <div class="shot">
+        <div class="phone">
+          <div class="phone-brand"><span class="pb-s">familiar</span><span class="pb-l">Egg Camera</span></div>
+          <img class="phone-photo" src="06-photo.png" alt="完成した写真">
+          <p class="phone-note">24時間以内にダウンロードしてください。</p>
+          <p class="phone-file">ファイル名: familiar_EggCamera_2026.06.13.01.41.46.jpg</p>
+          <div class="phone-btn">↓ 写真を保存する</div>
+          <p class="phone-sub">保存できない場合は、写真を長押しで「写真に追加」へ</p>
+        </div>
+      </div>
+      <div class="desc">
+        <div class="step-head"><span class="badge">10</span><h2>スマホで保存（お客様の端末）</h2></div>
+        <p class="role">▶ お客様がすること</p>
+        <ul>
+          <li>スマホに表示の <span class="key">↓ 写真を保存する</span> で端末に保存。</li>
+        </ul>
+        <div class="caution"><span class="lbl">つまずき対応：</span>
+          <ul>
+            <li>ダウンロード期限は<b>24時間</b>。</li>
+            <li>「保存できない」時は<b>写真を長押し →「写真に追加」</b>。</li>
+            <li>複数端末で受け取る場合は、同じQRを各端末で読み取る。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="summary">
+    <b>スタッフが押さえる要点</b>
+    <ul>
+      <li>基本はお客様のセルフ操作（スタッフは見守り）。</li>
+      <li>フレームはランダムで選べない（変更不可）。</li>
+      <li>保存中は触らず待つ。最大90秒で完了しないとお詫び画面 → 約10秒で自動的にトップへ。</li>
+      <li>QR・ダウンロードは24時間以内。一定時間操作がないと自動的にトップへ復帰。</li>
+      <li>端末が反応しない・写真が受け取れない等は、自己判断で操作を続けず<b>責任者へ連絡</b>。</li>
+    </ul>
+  </div>
+
+  <div class="foot">
+    <span>familiar — Egg Camera 操作手順書（スタッフ用）</span>
+    <span>3 / 3</span>
+  </div>
+</div>
+
+</body>
+</html>

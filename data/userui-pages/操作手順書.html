@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Egg Camera 操作手順書</title>
+  <style>
+    /* ===== 基本 ===== */
+    :root {
+      --navy: #3a5a82;
+      --navy-deep: #22324a;
+      --blue: #4a6f9f;
+      --beige: #f0ece4;
+      --beige-line: #ddd4c6;
+      --ink: #2c3a4d;
+      --muted: #7a869a;
+      --accent: #c8d8ea;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic",
+        "Noto Sans JP", system-ui, sans-serif;
+      color: var(--ink);
+      background: #9aa7b8;
+      line-height: 1.7;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ===== 印刷ページの枠（A4） ===== */
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 10mm auto;
+      padding: 16mm 15mm;
+      background: #fff;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, .25);
+    }
+
+    /* ===== 表紙ヘッダー ===== */
+    .cover {
+      text-align: center;
+      border-bottom: 3px solid var(--navy);
+      padding-bottom: 14px;
+      margin-bottom: 22px;
+    }
+
+    .brand {
+      font-size: 15px;
+      letter-spacing: .28em;
+      color: var(--blue);
+      font-weight: 700;
+      margin-bottom: 2px;
+    }
+
+    .cover h1 {
+      font-size: 34px;
+      color: var(--navy-deep);
+      margin: 4px 0 6px;
+      letter-spacing: .04em;
+    }
+
+    .cover .sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 0;
+    }
+
+    .lead {
+      background: var(--beige);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 13px;
+      margin: 18px 0 24px;
+      color: var(--navy-deep);
+    }
+
+    .lead b {
+      color: var(--blue);
+    }
+
+    /* ===== フロー一覧 ===== */
+    .flow-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--navy);
+      border-left: 5px solid var(--blue);
+      padding-left: 10px;
+      margin: 0 0 12px;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .flow .f {
+      background: var(--beige);
+      border: 1px solid var(--beige-line);
+      border-radius: 8px;
+      padding: 8px 6px;
+      text-align: center;
+      font-size: 10.5px;
+      line-height: 1.4;
+      position: relative;
+    }
+
+    .flow .f .n {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      line-height: 20px;
+      background: var(--blue);
+      color: #fff;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    /* ===== 手順カード ===== */
+    .steps {
+      margin-top: 6px;
+    }
+
+    .step {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      padding: 16px 0;
+      border-bottom: 1px dashed var(--beige-line);
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .step:last-child {
+      border-bottom: none;
+    }
+
+    .shot {
+      flex: 0 0 56mm;
+      width: 56mm;
+      background: var(--beige);
+      border: 1px solid var(--beige-line);
+      border-radius: 10px;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .shot img {
+      width: 100%;
+      max-height: 88mm;
+      object-fit: contain;
+      border-radius: 6px;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .shot.narrow img {
+      max-width: 34mm;
+    }
+
+    .desc {
+      flex: 1 1 auto;
+      padding-top: 2px;
+    }
+
+    .step-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .badge {
+      flex: 0 0 auto;
+      width: 34px;
+      height: 34px;
+      line-height: 34px;
+      background: var(--navy);
+      color: #fff;
+      border-radius: 50%;
+      text-align: center;
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .desc h2 {
+      font-size: 18px;
+      margin: 0;
+      color: var(--navy-deep);
+      line-height: 1.3;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 11px;
+      color: var(--blue);
+      font-weight: 700;
+      background: var(--accent);
+      border-radius: 4px;
+      padding: 1px 8px;
+      margin-left: 2px;
+      vertical-align: 2px;
+    }
+
+    .desc p {
+      margin: 6px 0;
+      font-size: 13px;
+    }
+
+    .desc ul {
+      margin: 6px 0;
+      padding-left: 20px;
+      font-size: 13px;
+    }
+
+    .desc li {
+      margin: 3px 0;
+    }
+
+    .key {
+      display: inline-block;
+      background: var(--blue);
+      color: #fff;
+      border-radius: 6px;
+      padding: 1px 9px;
+      font-size: 12px;
+      font-weight: 700;
+      margin: 0 1px;
+    }
+
+    .note {
+      font-size: 12px;
+      color: var(--muted);
+      background: #f7f5f0;
+      border-left: 3px solid var(--accent);
+      padding: 6px 10px;
+      border-radius: 0 6px 6px 0;
+      margin: 8px 0 0;
+    }
+
+    /* ===== フッター ===== */
+    .foot {
+      margin-top: 26px;
+      padding-top: 10px;
+      border-top: 1px solid var(--beige-line);
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* ===== ダウンロード画面モック（STEP10） ===== */
+    .phone {
+      width: 38mm;
+      margin: 0 auto;
+      background: #f6f3ed;
+      border: 1px solid var(--beige-line);
+      border-radius: 10px;
+      padding: 8px 8px 10px;
+      text-align: center;
+    }
+
+    .phone-brand {
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+
+    .pb-s {
+      display: block;
+      font-size: 8px;
+      letter-spacing: .2em;
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .pb-l {
+      display: block;
+      font-size: 13px;
+      color: var(--navy);
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+
+    .phone-photo {
+      width: 100%;
+      border-radius: 4px;
+      display: block;
+      margin: 0 auto 4px;
+    }
+
+    .phone-note {
+      font-size: 7.5px;
+      color: var(--navy-deep);
+      font-weight: 700;
+      margin: 4px 2px;
+      line-height: 1.4;
+    }
+
+    .phone-file {
+      font-size: 6px;
+      color: var(--muted);
+      margin: 3px 2px;
+      word-break: break-all;
+    }
+
+    .phone-btn {
+      background: var(--blue);
+      color: #fff;
+      font-size: 8.5px;
+      font-weight: 700;
+      border-radius: 14px;
+      padding: 6px 4px;
+      margin: 5px 2px;
+    }
+
+    .phone-sub {
+      font-size: 6px;
+      color: var(--muted);
+      margin: 4px 2px;
+      line-height: 1.4;
+    }
+
+    /* ===== 画面用：印刷ボタン ===== */
+    .toolbar {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10;
+    }
+
+    .toolbar button {
+      background: var(--navy);
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 24px;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+      font-family: inherit;
+    }
+
+    .toolbar button:hover {
+      background: var(--blue);
+    }
+
+    /* ===== 印刷時 ===== */
+    @page {
+      size: A4;
+      margin: 0;
+    }
+
+    @media print {
+      body {
+        background: #fff;
+      }
+
+      .toolbar {
+        display: none;
+      }
+
+      .sheet {
+        margin: 0;
+        box-shadow: none;
+        width: auto;
+        min-height: auto;
+        padding: 14mm 14mm;
+      }
+
+      .page-break {
+        page-break-before: always;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="toolbar"><button onclick="window.print()">🖨 印刷 / PDF保存</button></div>
+
+  <!-- ============ ページ1 ============ -->
+  <div class="sheet">
+
+    <div class="cover">
+      <div class="brand">familiar</div>
+      <h1>Egg Camera 操作手順書</h1>
+      <p class="sub">お子様の記念写真を撮影し、スマートフォンで受け取るまでの手順</p>
+    </div>
+
+    <div class="lead">
+      この手順書は、<b>Egg Camera</b> でお子様を撮影し、できあがった写真を
+      スマートフォンにダウンロードするまでの流れをまとめたものです。<br>
+      撮影の前に、<b>お子様を白いベッドの中央にあおむけで寝かせて</b>ください。
+      画面の案内に沿って、順に操作を進めます。
+    </div>
+
+    <p class="flow-title">全体の流れ（全10ステップ）</p>
+    <div class="flow">
+      <div class="f"><span class="n">1</span>はじめる</div>
+      <div class="f"><span class="n">2</span>お名前を入力</div>
+      <div class="f"><span class="n">3</span>生年月日を入力</div>
+      <div class="f"><span class="n">4</span>撮影（3枚）</div>
+      <div class="f"><span class="n">5</span>写真を選ぶ</div>
+    </div>
+    <div class="flow">
+      <div class="f"><span class="n">6</span>仕上がり確認</div>
+      <div class="f"><span class="n">7</span>保存中</div>
+      <div class="f"><span class="n">8</span>QRで受け取り</div>
+      <div class="f"><span class="n">9</span>完了</div>
+      <div class="f"><span class="n">10</span>スマホで保存</div>
+    </div>
+
+    <div class="steps">
+
+      <!-- STEP 1 -->
+      <div class="step">
+        <div class="shot"><img src="01-start.png" alt="スタート画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">1</span>
+            <h2>はじめる</h2>
+          </div>
+          <p>最初に表示される画面です。お子様を<b>ベッドの中央にあおむけで寝かせて</b>から操作を始めてください。</p>
+          <ul>
+            <li>右上で表示言語（<span class="key">日本語</span> / <span class="key">English</span>）を選べます。</li>
+            <li>準備ができたら、画面下の <span class="key">はじめる</span> をタップします。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- STEP 2 -->
+      <div class="step">
+        <div class="shot"><img src="02-nickname.png" alt="お名前入力画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">2</span>
+            <h2>お名前を入力<span class="tag">ステップ 1 / 7</span></h2>
+          </div>
+          <p>写真にお名前を入れることができます。<b>アルファベットで最大10文字</b>まで入力できます。</p>
+          <ul>
+            <li>入力欄をタップしてお名前を入力します（例：Hanako）。</li>
+            <li>入力したら <span class="key">次へ</span> をタップします。</li>
+            <li>名前を入れない場合は <span class="key">スキップ</span> で先に進めます。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- STEP 3 -->
+      <div class="step">
+        <div class="shot"><img src="03-birthday.png" alt="生年月日入力画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">3</span>
+            <h2>生年月日を入力<span class="tag">ステップ 2 / 7</span></h2>
+          </div>
+          <p>写真に<b>生後の日数</b>を入れることができます。年・月・日のダイヤルを上下に動かして選びます。</p>
+          <ul>
+            <li>選んだ日付に応じて、生後の日数（例：949 days）が自動で表示されます。</li>
+            <li>選び終えたら <span class="key">次へ</span> をタップします。</li>
+            <li>入れない場合は <span class="key">スキップ</span> で先に進めます。</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="foot">
+      <span>familiar — Egg Camera 操作手順書</span>
+      <span>1 / 4</span>
+    </div>
+  </div>
+
+  <!-- ============ ページ2 ============ -->
+  <div class="sheet page-break">
+    <div class="steps">
+
+      <!-- STEP 4 -->
+      <div class="step">
+        <div class="shot"><img src="04-capture.png" alt="撮影画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">4</span>
+            <h2>撮影する（3枚）</h2>
+          </div>
+          <p>続けて<b>3枚の写真を撮影</b>します。画面に表示される<b>青い点線の円に、お子様のお顔を合わせて</b>ください。</p>
+          <ul>
+            <li>お顔の位置が円に合うように、カメラまたはお子様の位置を調整します。</li>
+            <li>準備ができたら、画面下の <span class="key">撮影</span> ボタンをタップします。</li>
+            <li>自動で3枚撮影されます。お子様が動いても、よい表情が撮れるよう数枚撮ります。</li>
+          </ul>
+          <p class="note">ポイント：手やお顔が円から大きくはみ出さないように、まっすぐ真上から撮ると、きれいに仕上がります。</p>
+        </div>
+      </div>
+
+      <!-- STEP 5 -->
+      <div class="step">
+        <div class="shot"><img src="05-photoselect.png" alt="写真選択画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">5</span>
+            <h2>写真を選ぶ<span class="tag">ステップ 4 / 7</span></h2>
+          </div>
+          <p>撮影した3枚の中から、<b>いちばん良い1枚をタップ</b>して選びます。</p>
+          <ul>
+            <li>選んだ写真は<b>青い枠</b>で囲まれます。</li>
+            <li>決まったら <span class="key">決定</span> をタップします。</li>
+            <li>撮り直したいときは <span class="key">戻る</span> で撮影画面に戻れます。</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- STEP 6 -->
+      <div class="step">
+        <div class="shot"><img src="06-preview.png" alt="仕上がりプレビュー画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">6</span>
+            <h2>仕上がりを確認<span class="tag">ステップ 5 / 7</span></h2>
+          </div>
+          <p>選んだ写真に<b>ランダムに選ばれたフレーム</b>が合成され、完成イメージが表示されます。</p>
+          <ul>
+            <li>仕上がりを確認します。お名前・生後日数を入力した場合は写真に反映されます。</li>
+            <li>これでよければ <span class="key">この写真を保存する</span> をタップします。</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="foot">
+      <span>familiar — Egg Camera 操作手順書</span>
+      <span>2 / 4</span>
+    </div>
+  </div>
+
+  <!-- ============ ページ3 ============ -->
+  <div class="sheet page-break">
+    <div class="steps">
+
+      <!-- STEP 7 -->
+      <div class="step">
+        <div class="shot"><img src="07-uploading.png" alt="保存中画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">7</span>
+            <h2>保存しています</h2>
+          </div>
+          <p>「<b>写真を保存しているよ</b>」と表示され、写真のアップロードが始まります。</p>
+          <ul>
+            <li>進行バーがいっぱいになるまで、<b>そのまましばらくお待ちください</b>。</li>
+            <li>この間は画面を操作したり、その場を離れたりしないでください。</li>
+          </ul>
+          <p class="note">通信状況によって時間がかかる場合があります。自動で次の画面に切り替わります。</p>
+        </div>
+      </div>
+
+      <!-- STEP 8 -->
+      <div class="step">
+        <div class="shot"><img src="08-qr.png" alt="QRコード画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">8</span>
+            <h2>QRコードで受け取る<span class="tag">ステップ 6 / 7</span></h2>
+          </div>
+          <p>完成です。表示された<b>QRコードをお手持ちのスマートフォンで読み取って</b>写真を受け取ります。</p>
+          <ul>
+            <li>スマートフォンを<b>カメラモード</b>にして、QRコードにかざします。</li>
+            <li>表示されたリンクを開くと、ダウンロード画面に進みます。</li>
+            <li><b>QRコードは24時間以内</b>に読み取ってください。</li>
+          </ul>
+          <p class="note">画面のボタンには「TOPに戻るまで ○:○○」とカウントダウンが表示されます。読み取りが終わる前に時間が来ると最初の画面に戻るため、先にスマートフォンで読み取りましょう。</p>
+        </div>
+      </div>
+
+      <!-- STEP 9 -->
+      <div class="step">
+        <div class="shot"><img src="09-end.png" alt="完了画面"></div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">9</span>
+            <h2>完了（端末側）</h2>
+          </div>
+          <p>「<b>Thanks!</b>」と表示されたら、端末側の操作は完了です。</p>
+          <ul>
+            <li>写真がスマートフォンに保存できる状態になりました。</li>
+            <li><span class="key">はじめに戻る</span> をタップすると、最初の画面に戻ります。</li>
+          </ul>
+          <p class="note">次の方が使えるよう、必ず「はじめに戻る」を押して最初の画面に戻してください。</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="foot">
+      <span>familiar — Egg Camera 操作手順書</span>
+      <span>3 / 4</span>
+    </div>
+  </div>
+
+  <!-- ============ ページ4 ============ -->
+  <div class="sheet page-break">
+    <div class="steps">
+
+      <!-- STEP 10 -->
+      <div class="step">
+        <div class="shot">
+          <div class="phone">
+            <div class="phone-brand"><span class="pb-s">familiar</span><span class="pb-l">Egg Camera</span></div>
+            <img class="phone-photo" src="06-photo.png" alt="完成した写真">
+            <p class="phone-note">24時間以内にダウンロードしてください。</p>
+            <p class="phone-file">ファイル名: familiar_EggCamera_2026.06.13.01.41.46.jpg</p>
+            <div class="phone-btn">↓ 写真を保存する</div>
+            <p class="phone-sub">保存できない場合は、写真を長押しで「写真に追加」へ</p>
+          </div>
+        </div>
+        <div class="desc">
+          <div class="step-head">
+            <span class="badge">10</span>
+            <h2>スマートフォンで保存</h2>
+          </div>
+          <p>QRコードを読み取ると、<b>お手持ちのスマートフォン</b>に次のようなダウンロード画面が表示されます。</p>
+          <ul>
+            <li>仕上がった写真を確認します。</li>
+            <li><span class="key">↓ 写真を保存する</span> をタップして、スマートフォンに保存します。</li>
+            <li>保存できない場合は、写真を長押しして「<b>写真に追加</b>」を選んでください。</li>
+            <li>ダウンロードは<b>24時間以内</b>に行ってください。</li>
+          </ul>
+          <p class="note">ファイル名の例：familiar_EggCamera_2026.06.13.01.41.46.jpg</p>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="lead" style="margin-top:24px;">
+      <b>お疲れさまでした。</b><br>
+      以上で、撮影から写真の受け取りまでの操作はすべて完了です。
+      うまくいかないときや、写真が受け取れないときは、係員までお声がけください。
+    </div>
+
+    <div class="foot">
+      <span>familiar — Egg Camera 操作手順書</span>
+      <span>4 / 4</span>
+    </div>
+  </div>
+
+</body>
+
+</html>
