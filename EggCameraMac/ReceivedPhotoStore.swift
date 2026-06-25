@@ -87,8 +87,21 @@ final class ReceivedPhotoStore {
 
         let sourceWidth = CGFloat(orientedImage.width)
         let sourceHeight = CGFloat(orientedImage.height)
-        let targetWidth = outputSize.width
-        let targetHeight = outputSize.height
+
+        // 低照度ビニング等でソースが小さい(12MP=3024x4032)時、出力サイズ(4000x6000)へ
+        // 引き伸ばすと偽の解像度＝眠い画になる。拡大が必要なら、ソースが無拡大で満たせる
+        // ところまで出力サイズを半分ずつ縮める（48MP→4000x6000 / 12MP→2000x3000）。
+        // 最終合成のレイアウトは compose 側が出力寸法へ比例追従するため崩れない。
+        var adaptiveSize = outputSize
+        if centerCropToExactSize {
+            while adaptiveSize.width >= 2, adaptiveSize.height >= 2,
+                  max(adaptiveSize.width / sourceWidth, adaptiveSize.height / sourceHeight) > 1 {
+                adaptiveSize = CGSize(width: (adaptiveSize.width / 2).rounded(),
+                                      height: (adaptiveSize.height / 2).rounded())
+            }
+        }
+        let targetWidth = adaptiveSize.width
+        let targetHeight = adaptiveSize.height
 
         let scale = centerCropToExactSize
             ? max(targetWidth / sourceWidth, targetHeight / sourceHeight)
