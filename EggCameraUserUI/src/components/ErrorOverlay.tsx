@@ -1,15 +1,9 @@
-import { useEffect } from 'react';
-
-// 全画面共通のエラー表示。ボタン・閉じる×は置かず、
-// 一定時間表示したあと自動でリロードしてトップに戻る。
-const RELOAD_AFTER_MS = 10_000;
-
+// 全画面共通のお詫び表示（純粋に表示のみ）。
+// 以前はここで location.reload() してトップへ戻していたが、「お詫びの後はトップではなく
+// メンテ画面へ移し、裏で自己復旧する」方針に変更したため自動リロードは行わない。
+// 表示時間と遷移先（→ローカルメンテ画面）は App.tsx が制御する。
+// レンダリング例外の最終防壁は ErrorBoundary 側が担当（そちらは reload する）。
 export function ErrorOverlay() {
-  useEffect(() => {
-    const t = setTimeout(() => window.location.reload(), RELOAD_AFTER_MS);
-    return () => clearTimeout(t);
-  }, []);
-
   return (
     <div data-section="error-overlay" style={{
       position: 'fixed', inset: 0, zIndex: 9999,

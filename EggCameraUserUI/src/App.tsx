@@ -13,11 +13,24 @@ import { QR }           from './components/screens/QR';
 import { End }          from './components/screens/End';
 import { ErrorOverlay } from './components/ErrorOverlay';
 import { MaintenanceLock } from './components/MaintenanceLock';
-import { createSession, wakeCamera, selectPhoto, uploadComposite, getMode, PROTO } from './api';
+import { LocalMaintenance } from './components/LocalMaintenance';
+import { createSession, wakeCamera, selectPhoto, uploadComposite, getMode, PROTO,
+         getJobStatus, reportIncident, runRecoverySelftest } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 import { reportClientError } from './clientLog';
 
 type Screen = 'start' | 'nick' | 'bday' | 'capture' | 'photosel' | 'preview' | 'upload' | 'qr' | 'end' | 'dl';
+
+// ローカル障害フェーズ（この端末のエラー起因。グローバルmaintenance=全端末ロックとは別物）。
+//   none       … 平常
+//   recovering … 系統A/重症B: 裏で selftest を回して自己復旧を待つ（回復→トップ）
+//   diagnosing … 系統B: アップロード未解消の切り分け中（短時間）
+type LocalPhase = 'none' | 'recovering' | 'diagnosing';
+
+// お詫び（ErrorOverlay）を見せてからメンテ画面へ移すまでの猶予
+const APOLOGY_MS = 4_000;
+// 自己復旧ループの間隔（サーバ側 recovery/selftest は25秒スロットル）
+const RECOVERY_RETRY_MS = 15_000;
 
 // クライアント確認用プロトタイプの画面選択ナビ
 const NAV_TABS: [Screen, string][] = [
@@ -56,6 +69,11 @@ export default function App() {
   const [maintenance, setMaintenance] = useState(false);
   // サーバ側合成フローを使うか（/api/mode の serverCompose で切替。既定=旧canvas合成）
   const [serverCompose, setServerCompose] = useState(false);
+  // ローカル障害フェーズと、系統Bで完了確認する対象ジョブ
+  const [localPhase, setLocalPhase] = useState<LocalPhase>('none');
+  const [pendingJob, setPendingJob] = useState<{ jobId: string } | null>(null);
+  // 致命エラー処理の二重起動ガード（複数のエラーが同時に飛んでも1回だけ処理する）
+  const handlingRef = useRef(false);
 
   // createSession の世代管理。リロード直後のマウント生成と retake/restart の生成が
   // 競合したとき、解決順が逆転して「古い session」を掴むのを防ぐ。常に最新要求だけ採用。
@@ -67,11 +85,21 @@ export default function App() {
         if (gen === sessionGen.current) setSessionId(sessionId); // 最新だけ採用
         return sessionId;
       })
-      .catch(err => { reportClientError(`createSession failed: ${err}`); setFatal(true); return null; });
+      .catch(err => { triggerFatal(`createSession failed: ${err}`); return null; });
   };
 
-  // 想定外のエラーは全画面共通のお詫びオーバーレイ → 自動リロードでトップへ。
-  // 原因はサーバログへ送って data/logs/ と管理画面で追えるようにする。
+  // 致命エラー（系統A）: お詫びを数秒見せてから、トップではなくメンテ画面へ移し、
+  // 裏で自己復旧（selftest）を試みる。原因はサーバログ＋管理画面（incident通知）に残す。
+  const triggerFatal = (detail: string) => {
+    if (handlingRef.current) return;      // 既に障害対応中なら無視
+    handlingRef.current = true;
+    reportClientError(detail);
+    reportIncident({ kind: 'fatal', detail, sessionId });
+    setFatal(true);
+    setTimeout(() => { setFatal(false); setLocalPhase('recovering'); }, APOLOGY_MS);
+  };
+
+  // 想定外のJSエラー（捕捉漏れ）も系統Aに乗せる。描画中の例外は ErrorBoundary が別途担当。
   useEffect(() => {
     const onError = (e: Event) => {
       const detail = e instanceof ErrorEvent
@@ -79,8 +107,7 @@ export default function App() {
         : e instanceof PromiseRejectionEvent
           ? `unhandledrejection: ${e.reason}`
           : 'unknown error';
-      reportClientError(detail);
-      setFatal(true);
+      triggerFatal(detail);
     };
     window.addEventListener('error', onError);
     window.addEventListener('unhandledrejection', onError);
@@ -88,6 +115,7 @@ export default function App() {
       window.removeEventListener('error', onError);
       window.removeEventListener('unhandledrejection', onError);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -95,7 +123,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 管理画面で設定が変更されたらページをリロード（SSE push）
+  // 管理画面で設定が変更されたらページをリロード（SSE push）。EventSource は標準で自動再接続する。
   useEffect(() => {
     if (PROTO) return;
     const es = new EventSource('/api/events');
@@ -103,8 +131,8 @@ export default function App() {
     return () => es.close();
   }, []);
 
-  // メンテナンス状態を定期確認。再起動後の自己診断中は操作をロックし、
-  // 解除されたらトップへ戻す（PROTOでは常にfalse）。
+  // グローバルのメンテナンス状態を定期確認（mode.json 由来＝全端末ロック）。
+  // 解除されたらトップへ戻す（PROTOでは常にfalse）。ローカル障害（localPhase）とは独立。
   useEffect(() => {
     if (PROTO) return;
     let prev = false;
@@ -124,6 +152,26 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 系統A/重症B の自己復旧ループ: localPhase==='recovering' の間、サーバの selftest
+  // （撮影→合成→R2→DL を1周）を回し、ok になったらトップへ復帰する。
+  // selftest が通る＝カメラ含む全経路が回復、の確かな信号。Slackはサーバ側で復旧時のみ通知。
+  useEffect(() => {
+    if (PROTO) return;
+    if (localPhase !== 'recovering') return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = async () => {
+      if (stopped) return;
+      const r = await runRecoverySelftest();
+      if (stopped) return;
+      if (r.ok) { restart(); return; }     // 復旧 → restart が localPhase も none に戻す
+      timer = setTimeout(tick, RECOVERY_RETRY_MS);
+    };
+    timer = setTimeout(tick, 1_500);
+    return () => { stopped = true; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localPhase]);
+
   const go = (s: Screen) => setScreen(s);
 
   const goCapture = (d: number) => {
@@ -136,7 +184,6 @@ export default function App() {
     setPhotos([]);
     setSelectedPhotoId(null);
     // 新session確定まで sessionId を null にし、Capture の撮影ボタンを抑止する
-    // （古いsessionで撮影 → 保存時に取り違える経路を構造的に塞ぐ）
     setSessionId(null);
     newSession();
     go('capture');
@@ -144,10 +191,8 @@ export default function App() {
 
   const goUpload = (blob: Blob) => {
     // session が無い状態で保存に来たら黙って進めず即エラーに倒す
-    // （旧実装は無言で upload 画面へ進み、90秒待ってからエラーになっていた）
     if (!sessionId) {
-      reportClientError('goUpload without sessionId');
-      setFatal(true);
+      triggerFatal('goUpload without sessionId');
       return;
     }
     if (selectedPhotoId) {
@@ -156,8 +201,36 @@ export default function App() {
         .catch(err => console.error('selectPhoto failed', err));
     }
     uploadComposite(sessionId, blob)
-      .catch(err => { reportClientError(`uploadComposite failed: ${err}`); setFatal(true); });
+      .catch(err => { triggerFatal(`uploadComposite failed: ${err}`); });
     go('upload');
+  };
+
+  // セッション終了（QRで「トップ」/ Endの自動タイムアウト）時の処理（系統B）。
+  // 確定済みジョブのアップロードがまだ完了していなければ、メンテ画面で切り分けを行う。
+  const endSession = () => {
+    const job = pendingJob;
+    if (!job) { restart(); return; }     // サーバ合成以外（旧フロー等）は追跡なし
+    setLocalPhase('diagnosing');
+    (async () => {
+      const st = await getJobStatus(job.jobId);
+      // done＝完了 / attempts<1＝まだ正常に進行中（worker未失敗）→ どちらも通常どおりトップへ。
+      // （QR表示直後にトップを押した正常ケースを「詰まり」と誤検知しないための条件）
+      if (st.done || st.attempts < 1) {
+        setPendingJob(null); setLocalPhase('none'); restart();
+        return;
+      }
+      // 明確に詰まっている（worker が1回以上失敗）→ サーバへ報告して指示を仰ぐ。
+      const inc = await reportIncident({ kind: 'upload-stuck', jobId: job.jobId, sessionId });
+      setPendingJob(null);
+      if (inc.action === 'recover') {
+        // 1回目＋回線正常 → 画像固有とみなしトップへ復帰
+        setLocalPhase('none'); restart();
+      } else {
+        // maintain-restart（2連続）/ wait-network（回線異常）→ メンテ画面に留まり自己復旧へ。
+        // 管理画面への再起動通知はサーバ側(incident)で送信済み。
+        setLocalPhase('recovering');
+      }
+    })();
   };
 
   const restart = () => {
@@ -167,6 +240,10 @@ export default function App() {
     setSelectedPhotoId(null);
     setResult(null);
     setSessionId(null);
+    setPendingJob(null);
+    setFatal(false);
+    setLocalPhase('none');
+    handlingRef.current = false;
     newSession();
     go('start');
   };
@@ -189,18 +266,19 @@ export default function App() {
       {screen === 'start'    && <Start       onNext={() => { wakeCamera().catch(() => {}); go('nick'); }} />}
       {screen === 'nick'     && <Nickname    nickname={nickname} onChange={setNickname} onNext={() => go('bday')} onSkip={() => go('bday')} />}
       {screen === 'bday'     && <Birthday    nickname={nickname} onNext={goCapture} onSkip={() => goCapture(0)} />}
-      {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={() => setFatal(true)} />}
+      {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={() => triggerFatal('capture error')} />}
       {screen === 'photosel' && <PhotoSelect photos={photos} onNext={photoId => { setSelectedPhotoId(photoId); go('preview'); }} onBack={retake} />}
       {screen === 'preview'  && (serverCompose
         ? <FinalPreviewServer
             sessionId={sessionId} photoId={selectedPhotoId} nickname={nickname} days={days}
-            onConfirmed={result => { setResult(result); go('qr'); }}
-            onError={() => setFatal(true)} />
+            onConfirmed={(r, jobId) => { setResult(r); setPendingJob({ jobId }); go('qr'); }}
+            onError={() => triggerFatal('server-compose error')} />
         : <FinalPreview nickname={nickname} days={days} photoUrl={selectedPhoto?.url ?? ''} onNext={goUpload} />)}
-      {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onError={() => setFatal(true)} />}
-      {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={restart} />}
-      {screen === 'end'      && <End         onRestart={restart} />}
+      {screen === 'upload'   && <Uploading   sessionId={sessionId} onResult={setResult} onNext={() => go('qr')} onError={() => triggerFatal('upload error')} />}
+      {screen === 'qr'       && <QR          result={result} onDone={() => go('end')} onRestart={endSession} />}
+      {screen === 'end'      && <End         onRestart={endSession} />}
       {screen === 'dl'       && <ProtoDownload />}
+      {localPhase !== 'none' && <LocalMaintenance phase={localPhase} />}
       {maintenance && <MaintenanceLock />}
       {fatal && <ErrorOverlay />}
     </LangProvider>

@@ -20,7 +20,7 @@ interface Props {
   photoId: string | null;
   nickname: string;
   days: number;
-  onConfirmed: (result: SessionResult) => void;
+  onConfirmed: (result: SessionResult, jobId: string) => void;
   onError: () => void;
 }
 
@@ -59,7 +59,7 @@ export function FinalPreviewServer({ sessionId, photoId, nickname, days, onConfi
     if (phase !== 'ready' || !sessionId || !jobId) return;
     setPhase('confirming');
     confirmComposite(sessionId, jobId)
-      .then(({ downloadUrl, qrDataUrl, expiresAt }) => onConfirmed({ downloadUrl, qrDataUrl, expiresAt }))
+      .then(r => onConfirmed({ downloadUrl: r.downloadUrl, qrDataUrl: r.qrDataUrl, expiresAt: r.expiresAt }, r.jobId))
       .catch(err => fail('confirmComposite', err));
   };
 
