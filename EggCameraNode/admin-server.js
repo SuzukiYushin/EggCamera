@@ -68,8 +68,11 @@ app.use('/admin', adminAuth, express.static(ADMIN_DIR, {
 
 app.use(errorBoundary);
 
-app.listen(ADMIN_PORT, () => {
-    console.log(`[${ts()}] EggCamera admin server listening on :${ADMIN_PORT} (core=:${PORT})`);
+// 既定では loopback のみに bind（管理APIをLANへ晒さない）。
+// LAN公開が必要な場合のみ ADMIN_HOST=0.0.0.0 で明示的に上書きする。
+const ADMIN_HOST = process.env.ADMIN_HOST || '127.0.0.1';
+app.listen(ADMIN_PORT, ADMIN_HOST, () => {
+    console.log(`[${ts()}] EggCamera admin server listening on ${ADMIN_HOST}:${ADMIN_PORT} (core=:${PORT})`);
 });
 
 // admin が落ちても core に影響しない。ここではログのみ（launchd が再起動）。
