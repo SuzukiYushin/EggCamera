@@ -50,7 +50,7 @@ function proxyToCore(req, res) {
 }
 
 // 撮影coreに密結合する管理API → core へ（express.json より前に raw ストリームで中継）
-['/api/admin/metrics', '/api/admin/test-capture', '/api/admin/chaos', '/api/admin/selftest']
+['/api/admin/metrics', '/api/admin/test-capture', '/api/admin/chaos', '/api/admin/chaos/client', '/api/admin/selftest']
     .forEach(p => app.all(p, proxyToCore));
 // test-capture のプレビュー画像は core のセッションストアにあるので core から取る
 app.use('/api/photos', proxyToCore);
