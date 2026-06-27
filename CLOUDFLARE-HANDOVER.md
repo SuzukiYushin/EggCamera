@@ -1,11 +1,47 @@
 # Cloudflare 設定まとめ（アカウント切り替え移行手順書）
 
-最終更新: 2026-06-18 / 現アカウント: `Siggaze.0000@gmail.com`
+最終更新: 2026-06-27 / 現アカウント: `Tanigawa-mn@familiar.co.jp`（familiar所有・新 `e6037`）。旧 `Siggaze.0000@gmail.com`（`ba88`）は §0 に参考として残す。
 
 iPhone から Mac mini へ遠隔 SSH するための Cloudflare Tunnel + WARP 構成。
 **アカウント切り替え時は §2 のクラウド側だけ作り直し、§3 の Mac mini ローカル側はそのまま流用できる。**
 
 > 📌 本書は **Tunnel/WARP の1系統のみ**。R2・Pages・Workers・独自ドメインを含む**本番アカウント移行の全体手順**は [CLOUDFLARE-MIGRATION.md](CLOUDFLARE-MIGRATION.md) を参照（本書 §2/§3/§5 はそこから参照される）。
+
+---
+
+## ★ 現行構成（2026-06-27 移行完了・本番ライブ）
+
+旧 `ba88`（Siggaze.0000@gmail.com）から **familiar 所有の新アカウント `e6037`** へ Tunnel/WARP を移行完了。用途は **自分の MacBook から「家の Mac mini」（展示会場 LAN に接続予定・スクショ用システム／本番機とは別物）へ遠隔 SSH ＋ 画面共有(VNC)** すること。
+
+| 項目 | 値 |
+|---|---|
+| アカウント | `Tanigawa-mn@familiar.co.jp`（familiar 所有）/ ID `e6037dd3898fac341ca130b80faded3c` |
+| 自分の参加 | `siggaze.0000@gmail.com` を Administrator でメンバー招待済 |
+| Zero Trust チーム名 | `eggcamera-familiar`（= `eggcamera-familiar.cloudflareaccess.com`） |
+| トンネル名 / ID | `EggCamera-familiar` / `fd5b81bf-c282-4e3c-99be-a2a014ae8eaa` |
+| CIDR ルート | `10.99.99.1/32` → 上記トンネル（warp-routing 有効） |
+| コネクタ(cloudflared) | 家の Mac mini。`/Library/LaunchDaemons/com.cloudflare.cloudflared.plist` 内 token = 新 `e6037` のもの（旧 token は同ディレクトリに `*.bak-ba88-*` でバックアップ） |
+| 接続元デバイス | 自分の MacBook（WARP）。`siggaze.0000@gmail.com` ユーザーとして登録 |
+| 到達先サービス | `ssh eggcamera@10.99.99.1`（:22）/ 画面共有 `vnc://10.99.99.1`（:5900） |
+
+**デバイス登録(WARP)のしくみ:**
+- 認証方式は **「Cloudflare ログイン」(type=cloudflare) のみ**。WARP 登録時、**ブラウザが Cloudflare にログインしているメール**がそのまま登録ユーザーになる。→ siggaze で登録したいなら、登録前にブラウザを `siggaze.0000@gmail.com` で Cloudflare ログインしておくこと（tanigawa のままだと tanigawa で登録される）。`dash` の左上アカウント切替は無関係（効くのはログイン ID）。
+- 登録権限（Device enrollment の Allow ポリシー）に `siggaze.0000@gmail.com` を許可。
+- **デバイスプロファイルは 2 つ**:
+  - `Onboarding`（match=`siggaze.0000@gmail.com`・**include モード**）: `10.99.99.1/32` だけを WARP 経由にする → MacBook の通常のネット通信は familiar の Cloudflare を経由しない（プライバシー）。
+  - `Default`（全デバイス・**exclude モード**・`10.0.0.0/8` 除外）: siggaze 以外（tanigawa 含む）は `10.99.99.1` に **到達不可**。
+
+**ハマりどころ（今回踏んだ罠）:**
+- **WARP と Tunnel は同一アカウント（同一 Zero Trust 組織）でないと繋がらない。** 別アカウント間でプライベートルートは張れない。→ Mac mini のトンネルが `e6037` にある以上、MacBook も `e6037` の `eggcamera-familiar` に登録するしかない（`siggaze.0000` は「組織内のユーザー名」で、別 Cloudflare アカウントではない）。
+- WARP 認証で **`ERR_TOO_MANY_REDIRECTS`** → 古い認証 Cookie の衝突。`https://eggcamera-familiar.cloudflareaccess.com/cdn-cgi/access/logout` を開く or `cloudflareaccess.com` の Cookie 削除で解消。
+- WARP の Split Tunnel で `10.0.0.0/8` が既定で **除外** されていると `10.99.99.1` に届かない（include モードなら逆に `10.99.99.1` を **含める** 必要）。
+- サービスモードは **トラフィックプロキシ必須**（DNS のみだと届かない）。CA 証明書のインストールは **SSH/VNC には不要**（HTTPS 検査用なので外してよい）。
+
+**セキュリティ上の注意:**
+- このアカウントは **familiar 所有・tanigawa が管理者**。所有者はプロファイル/ルートを書き換えられるため、**WARP のプロファイル分離だけでは所有者を完全には締め出せない**。本当に固めるなら **SSH 鍵認証（パスワード認証無効化）** が本丸（未実施・任意）。
+- include モード採用で、MacBook の通常通信は familiar 側を経由しない。
+
+> 以下 §0〜§5 は移行手順書（ランブック）。§0 は旧 `ba88` の参考情報、§2/§3 は切替手順（今回はこの手順どおり `e6037` へ移行済み）。
 
 ---
 
