@@ -60,11 +60,21 @@ router.post('/chaos', (req, res) => {
 router.get('/chaos', (req, res) => res.json(chaos.status()));
 router.delete('/chaos', (req, res) => { chaos.reset(); res.json(chaos.status()); });
 
+// クライアント(ページ内 hook)注入フォルトの予告窓。ハーネスが hook 注入時に立て、
+// incident が hook 由来の致命エラー(createSession/capture/compose/confirm/js)を
+// 「テスト注入(info)」と判定できるようにする（サーバを通らない hook 注入の誤⚠️抑止）。
+router.post('/chaos/client', (req, res) => {
+    chaos.expectClient((req.body && req.body.label) || 'client-hook');
+    res.json(chaos.status());
+});
+router.delete('/chaos/client', (req, res) => { chaos.clearClientExpect(); res.json(chaos.status()); });
+
 // ── 今すぐセルフテスト（撮影→合成→アップの自己診断） ──
 router.post('/selftest', (req, res) => {
     mode.startMaintenance({ reason: (req.body && req.body.reason) || 'selftest' });
     res.json({ started: true });
-    selftest.run({ reason: (req.body && req.body.reason) || '' }).catch(() => {});
+    // 再起動系フローからの自己診断。合格でキオスクを自動再開する（手動 /egg ok は失敗時のみ）。
+    selftest.run({ reason: (req.body && req.body.reason) || '', autoResumeOnPass: true }).catch(() => {});
 });
 
 module.exports = router;

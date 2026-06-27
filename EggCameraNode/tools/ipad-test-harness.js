@@ -81,6 +81,8 @@ class TestHarness {
     // clearServerFaults() のクライアント版。フックが無ければ postMessage は無害な no-op。
     async clearClientFaults(browser) {
         await browser.execute(`window.postMessage({source:'eggtest-ctl',cmd:'clear'},'*')`).catch(() => {});
+        // サーバ側のクライアント注入予告窓も閉じる（前サイクルの予告を次サイクルに持ち越さない）
+        await this._delete('/api/admin/chaos/client').catch(() => {});
     }
 
     async armServerFaults(faults) {
@@ -110,6 +112,10 @@ class TestHarness {
             await browser.execute(`window.postMessage({source:'eggtest-ctl',cmd:'js-error',delayMs:5000},'*')`);
             this.log('★ JSエラー注入（5秒後）');
         }
+        // hook 注入(サーバを通らない)を incident が「テスト注入(info)」と判定できるよう、サーバに予告する。
+        // これが無いと createSession/capture 等の hook 由来致命エラーが⚠️(要調査)になる（誤アラート）。
+        const labels = [...clientFaults.map(f => f.label), jsFault && jsFault.label].filter(Boolean).join(' + ');
+        await this._postJson(`${this.adminBase}/api/admin/chaos/client`, { label: labels }).catch(() => {});
     }
 
     async checkOverlay(browser) {

@@ -48,8 +48,45 @@ function reset() {
     console.warn(`[${ts()}] CHAOS reset`);
 }
 
-function status() {
-    return { enabled: ENABLED, ...armed, recentFired };
+// クライアント側(ページ内 hook)注入フォルトの「予告窓」。
+// armServerFaults はサーバの consume() を通るので recentFired に乗るが、
+// createSession/capture/compose/confirm/js の hook 注入は fetch 差し替え＝サーバを通らないため
+// recentFired に乗らない。これが無いと incident は hook 由来の致命エラーを「実障害(要調査)」と
+// 誤判定して⚠️を出す（2026-06-27 createSession injected_fault の誤アラートの原因）。
+// ハーネスが hook 注入時にここへ予告を立て、incident が「テスト注入(info)」と判定できるようにする。
+// CHAOS_ENABLED 時のみ有効＝本番では常に無効＝実客の致命エラーは従来どおり「要調査」になる。
+let clientExpectUntil = 0;
+let clientExpectLabel = '';
+function expectClient(label, ttlMs = 600_000) {
+    if (!ENABLED) return false;
+    clientExpectUntil = Date.now() + ttlMs;
+    clientExpectLabel = label || 'client-hook';
+    console.warn(`[${ts()}] CHAOS client-expect: ${clientExpectLabel}`);
+    return true;
+}
+function clearClientExpect() { clientExpectUntil = 0; clientExpectLabel = ''; }
+
+// 直近 withinMs(既定15秒) 以内に CHAOS が発火していれば、その発火記録 {target, at} を返す
+// （なければ null）。incident 通知が「致命エラーは毎時テストのフォルト注入由来か」を判定する用。
+// CHAOS は本番では無効(ENABLED=false)なので、本番では常に null＝実障害として扱われる。
+function recentlyFired(withinMs = 15_000) {
+    if (!ENABLED) return null;
+    const cutoff = Date.now() - withinMs;
+    for (let i = recentFired.length - 1; i >= 0; i--) {
+        if (recentFired[i].at >= cutoff) return recentFired[i];
+    }
+    // サーバを通らない client/js hook 注入は予告窓で判定する
+    if (clientExpectUntil && Date.now() < clientExpectUntil) {
+        return { target: clientExpectLabel, at: Date.now(), client: true };
+    }
+    return null;
 }
 
-module.exports = { arm, consume, reset, status };
+function status() {
+    return {
+        enabled: ENABLED, ...armed, recentFired,
+        clientExpect: clientExpectUntil ? { label: clientExpectLabel, until: clientExpectUntil } : null,
+    };
+}
+
+module.exports = { arm, consume, reset, status, recentlyFired, expectClient, clearClientExpect };

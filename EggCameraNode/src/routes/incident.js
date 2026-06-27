@@ -16,6 +16,7 @@ const jobsStore = require('../jobs');
 const diagnostics = require('../diagnostics');
 const incidentState = require('../incidentState');
 const selftest = require('../selftest');
+const chaos = require('../chaos');
 const slack = require('../slack');
 
 // アップロード完了判定。done なら done:true。未確定/失敗系は done:false。
@@ -82,6 +83,17 @@ router.post('/incident', async (req, res) => {
     }
 
     // 系統A: 即時致命エラー。メンテ画面に入ったことを通知（再起動は自動実行しない）。
+    // 直近に CHAOS フォルトを注入していた＝毎時テストの想定内なら、「要調査」ではなく
+    // info(対処不要) で通知する。CHAOS は本番では無効(CHAOS_ENABLED未設定)なので、実客の
+    // 致命エラーは必ず従来どおり「要調査」になる（recentlyFired が常に null を返す）。
+    const injected = chaos.recentlyFired();
+    if (injected) {
+        slack.notify(
+            `:test_tube: テスト注入(${injected.target})により致命エラー → 自己復旧（想定内・テスト）。${screen ? ' 画面:' + screen : ''}`,
+            { level: 'info', action: 'none', key: 'kiosk-fatal-test', throttleMs: 60_000 });
+        console.log(`[${ts()}] incident fatal (test-injected ${injected.target}): ${screen} (session ${sessionId || '-'})`);
+        return res.json({ action: 'recover' });
+    }
     slack.notify(
         `:warning: キオスクで致命エラー → メンテ画面で自己復旧を試行中（${screen || 'no-detail'}）。`,
         { level: 'warn', action: 'investigate', key: 'kiosk-fatal', throttleMs: 60_000 });

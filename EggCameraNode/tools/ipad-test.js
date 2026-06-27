@@ -18,6 +18,7 @@ const TARGET_URL     = 'http://192.168.10.104:3000/';
 const SERVER_BASE    = 'http://localhost:3000';
 const ADMIN_BASE     = 'http://localhost:3001';
 const SCREENSHOT_DIR = path.join(__dirname, '../../data/test-screenshots');
+const SCREENSHOT_KEEP = 100; // 診断スクショは新しい順にこの枚数だけ保持（無制限蓄積を防ぐ）
 const CYCLES         = parseInt(process.argv[2] || process.env.CYCLES || '6', 10);
 
 const CAPS = {
@@ -110,12 +111,19 @@ async function warmupTunnel(browser, { needOk = 3, maxMs = 90000, fastMs = 6000 
     const deadline = Date.now() + maxMs;
     let ok = 0;
     while (Date.now() < deadline) {
-        const t0 = Date.now();
-        const dt = await withTimeout(browser.getUrl(), 25000, 'warmup').then(() => Date.now() - t0).catch(() => -1);
-        if (dt >= 0 && dt <= fastMs) {
-            if (++ok >= needOk) { log(`ウォームアップ完了（連続${ok}回応答・最終${dt}ms）`); return; }
+        // getUrl(WDAレベル)だけでなく execute(webview内JS実行=cold-startの真のボトルネック)も測る。
+        // 旧版はgetUrlのみ温めたため、トンネルは安定でも初回サイクルの execute/sync が60sを超えて
+        // C1を誤失敗させた（postboot 2026-06-27: ウォームアップ27msで通過直後にC1がexecute/sync 60s
+        // timeout）。execute/sync が連続で素早く返るまでサイクルを開始しない＝C1のcold-startブレを未然に断つ。
+        const t0     = Date.now();
+        const urlOk  = await withTimeout(browser.getUrl(), 25000, 'warmup-url').then(() => true).catch(() => false);
+        const execOk = urlOk && await withTimeout(browser.execute(() => document.readyState), 25000, 'warmup-exec')
+            .then(() => true).catch(() => false);
+        const dt     = Date.now() - t0;
+        if (urlOk && execOk && dt <= fastMs) {
+            if (++ok >= needOk) { log(`ウォームアップ完了（getUrl+execute 連続${ok}回応答・最終${dt}ms）`); return; }
         } else {
-            log(`ウォームアップ: トンネル安定待ち（${dt < 0 ? '無応答/25s超' : dt + 'ms'}）`);
+            log(`ウォームアップ: 安定待ち（url=${urlOk ? 'OK' : 'NG'} exec=${execOk ? 'OK' : 'NG'} ${dt}ms）`);
             ok = 0;
         }
         await sleep(2500);
@@ -147,12 +155,27 @@ function getJson(urlStr) {
 }
 const notifySlack = (t, action = 'investigate') => postJson(`${ADMIN_BASE}/api/admin/notify`, { text: t, kind: 'alert', action }).catch(() => {});
 const testReport  = (level, text) => postJson(`${SERVER_BASE}/api/test-report`, { level, text }).catch(() => {});
+// 古い診断スクショを掃除し、新しい順に SCREENSHOT_KEEP 枚だけ残す。
+// 順序はファイル名末尾の Date.now() で判定（stat不要・軽量）。失敗はテスト本流に波及させない。
+function pruneScreenshots() {
+    try {
+        const files = fs.readdirSync(SCREENSHOT_DIR)
+            .filter(n => n.endsWith('.png'))
+            .map(n => ({ n, t: Number((n.match(/-(\d+)\.png$/) || [])[1]) || 0 }))
+            .sort((a, b) => b.t - a.t);
+        for (const { n } of files.slice(SCREENSHOT_KEEP)) {
+            fs.rmSync(path.join(SCREENSHOT_DIR, n), { force: true });
+        }
+    } catch { /* 掃除失敗は無視 */ }
+}
+
 function saveScreenshot(browser, label) {
     fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
     return browser.takeScreenshot().then(b64 => {
         const f = path.join(SCREENSHOT_DIR, `${label}-${Date.now()}.png`);
         fs.writeFileSync(f, Buffer.from(b64, 'base64'));
         log(`スクリーンショット: ${f}`);
+        pruneScreenshots();
     }).catch(() => {});
 }
 
@@ -443,8 +466,11 @@ async function runCycle(browser, cycleNum) {
 // ── メイン（1セッション・複数サイクル） ────────────────────────────────────
 // セッション生成（既存Safariへattach、ダメなら起動して復旧）。初回＋失敗時の再生成で共用。
 async function openSession() {
+    // connectionRetryTimeout=各コマンドの応答待ち上限。60sだと再起動直後の高負荷で execute/sync が
+    // 一過性に超過しC1を誤失敗させた（postboot 2026-06-27）。120sへ延長して cold-start の余裕を持たせる
+    // （真のハング対策は各所の withTimeout 側＝この延長では21分ハングは再発しない。newCommandTimeout=300s）。
     const opts = { hostname: '127.0.0.1', port: 4723, path: '/', protocol: 'http',
-        connectionRetryTimeout: 60000, connectionRetryCount: 2, logLevel: 'error' };
+        connectionRetryTimeout: 120000, connectionRetryCount: 2, logLevel: 'error' };
     try {
         return await remote({ ...opts, capabilities: CAPS });
     } catch (attachErr) {
@@ -474,34 +500,49 @@ async function main() {
         for (let i = 0; i < CYCLES; i++) {
             log(`\n${'─'.repeat(40)}`);
             log(`サイクル ${i + 1} / ${CYCLES}`);
-            try {
-                const result = await runCycle(browser, i + 1);
-                if (result === 'completed') stats.completed++;
-                else if (result === 'fault-ok') stats.faultOk++;
-                else if (result === 'skipped') stats.skipped++;
+            // 再起動直後の初回サイクルは cold-start 高負荷で execute/sync が一過性に詰まりやすい。
+            // 初回(i===0)だけは、失敗してもセッションを作り直して1回だけ再試行する。warmupの
+            // execute温め＋timeout延長で大半は未然に防ぐが、最後の保険＝再起動直後のC1偽失敗を解消する。
+            const maxAttempts = (i === 0) ? 2 : 1;
+            for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                try {
+                    const result = await runCycle(browser, i + 1);
+                    if (result === 'completed') stats.completed++;
+                    else if (result === 'fault-ok') stats.faultOk++;
+                    else if (result === 'skipped') stats.skipped++;
 
-                // fault-ok / skipped は途中終了なのでページをリセット
-                if (result !== 'completed') {
-                    await withTimeout(resetPage(browser), 30000, 'resetPage').catch(() => {});
-                }
-            } catch (err) {
-                stats.failed++;
-                log(`サイクル ${i + 1} エラー: ${err.message}`);
-                // ③ エラー処理のコマンドもタイムアウトで縛る（死んだセッションで延々詰まらせない）
-                await withTimeout(saveScreenshot(browser, `error-c${i + 1}`), 20000, 'error-screenshot').catch(() => {});
-                await testReport('alert', `▲ [iPad-TEST] [C${i + 1}/${CYCLES}] 失敗: ${err.message}`);
-                await notifySlack(`▲ iPad Safari テスト [C${i + 1}/${CYCLES}] 失敗: ${err.message}`);
-                // ② セッション生存確認 → 死んでいたら再生成（トンネル切断で以降全滅するのを防ぐ）
-                const alive = await withTimeout(browser.getUrl(), 10000, 'liveness').then(() => true).catch(() => false);
-                if (!alive) {
-                    log(`サイクル ${i + 1} 後: セッション無効 → 再生成`);
-                    await testReport('warn', `[iPad-TEST] [C${i + 1}/${CYCLES}] セッション無効化(トンネル切断等)→再生成`);
-                    await withTimeout(browser.deleteSession(), 10000, 'deleteSession').catch(() => {});
-                    browser = await openSession();
-                    await withTimeout(browser.url(TARGET_URL), 30000, 'reopen-url').catch(() => {});
-                } else {
-                    // 生きていれば従来どおりページをリセット（タイムアウト付き）
-                    await withTimeout(resetPage(browser), 30000, 'resetPage').catch(() => {});
+                    // fault-ok / skipped は途中終了なのでページをリセット
+                    if (result !== 'completed') {
+                        await withTimeout(resetPage(browser), 30000, 'resetPage').catch(() => {});
+                    }
+                    break; // このサイクルは決着
+                } catch (err) {
+                    const willRetry = attempt < maxAttempts;
+                    log(`サイクル ${i + 1} エラー${willRetry ? '（cold-start初回・作り直して再試行）' : ''}: ${err.message}`);
+                    // ③ エラー処理のコマンドもタイムアウトで縛る（死んだセッションで延々詰まらせない）
+                    await withTimeout(saveScreenshot(browser, `error-c${i + 1}-a${attempt}`), 20000, 'error-screenshot').catch(() => {});
+                    // ② セッション生存確認 → 死んでいたら再生成（トンネル切断で以降全滅するのを防ぐ）
+                    const alive = await withTimeout(browser.getUrl(), 10000, 'liveness').then(() => true).catch(() => false);
+                    if (!alive) {
+                        log(`サイクル ${i + 1} 後: セッション無効 → 再生成`);
+                        await testReport('warn', `[iPad-TEST] [C${i + 1}/${CYCLES}] セッション無効化(トンネル切断等)→再生成`);
+                        await withTimeout(browser.deleteSession(), 10000, 'deleteSession').catch(() => {});
+                        browser = await openSession();
+                        await withTimeout(browser.url(TARGET_URL), 30000, 'reopen-url').catch(() => {});
+                        // 再試行する初回は、作り直したセッションを再度ウォームアップしてから入る
+                        if (willRetry) await withTimeout(warmupTunnel(browser, { needOk: 2, maxMs: 60000 }), 65000, 'warmup-retry').catch(() => {});
+                    } else {
+                        // 生きていれば従来どおりページをリセット（タイムアウト付き）
+                        await withTimeout(resetPage(browser), 30000, 'resetPage').catch(() => {});
+                    }
+                    if (willRetry) {
+                        await testReport('warn', `[iPad-TEST] [C${i + 1}/${CYCLES}] cold-start一過性失敗→再試行: ${err.message}`);
+                        continue; // 初回サイクルの再試行
+                    }
+                    // 再試行しない／再試行も失敗 → 失敗確定
+                    stats.failed++;
+                    await testReport('alert', `▲ [iPad-TEST] [C${i + 1}/${CYCLES}] 失敗: ${err.message}`);
+                    await notifySlack(`▲ iPad Safari テスト [C${i + 1}/${CYCLES}] 失敗: ${err.message}`);
                 }
             }
         }
