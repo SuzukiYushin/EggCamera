@@ -24,6 +24,13 @@ const DAYS_LINE_HEIGHT     = 1.2;
 const TEXT_GAP_PX          = 1;
 const TARGET_ASPECT        = 2 / 3;
 
+// 出力(完成画像)の最大高さ(px)。2:3 なので高さが長辺。これを超える出力は縮小する。
+// 48MP 撮影では無キャップだと出力 4000×6000(=24MP)になり、1合成で写真/フレーム/合成の
+// 各レイヤを 24MP ぶんネイティブ確保 → RSS が膨張する。3600(=2400×3600, 約8.6MP)に
+// 抑えると印刷/DL品質は十分なまま、合成あたりのメモリを約1/3に削減できる。
+// 配信画質を変える値なので調整可（小さくするほど軽い: 3000=2000×3000≒6MP 等）。
+const MAX_OUTPUT_HEIGHT    = parseInt(process.env.COMPOSE_MAX_HEIGHT || '3600', 10);
+
 // CSS の --font-heading / --font-futura に対応するシステムフォント。
 const FONT_HEADING = "'Hiragino Kaku Gothic Pro', 'Hiragino Sans', sans-serif";
 const FONT_FUTURA  = "'Futura', 'Century Gothic', sans-serif";
@@ -118,20 +125,29 @@ async function composeFinalImage({ sourcePath, framePath, crop, nickname, daysTe
         const meta = await sharp(rasterPath).metadata();
         const { cw, ch, extract } = computeCropGeometry(meta.width, meta.height, crop);
 
+        // 出力解像度をキャップ(メモリ有界化)。2:3 を保ったまま長辺(高さ)を上限に収める。
+        // extract は原寸座標のまま＝libvips が原寸クロップ領域を縮小出力するだけ。これにより
+        // 写真/フレーム/合成の各レイヤ確保が出力寸法ぶんで済み、1合成のネイティブ確保を抑える。
+        let outW = cw, outH = ch;
+        if (outH > MAX_OUTPUT_HEIGHT) {
+            outH = MAX_OUTPUT_HEIGHT;
+            outW = Math.round(outH * TARGET_ASPECT);
+        }
+
         // 1) 写真を 2:3 クロップ → 出力寸法へ
         const photo = await sharp(rasterPath)
             .extract(extract)
-            .resize(cw, ch, { fit: 'fill' })
+            .resize(outW, outH, { fit: 'fill' })
             .toBuffer();
 
         // 2) フレームを出力寸法へ伸ばす
         const frame = await sharp(framePath)
-            .resize(cw, ch, { fit: 'fill' })
+            .resize(outW, outH, { fit: 'fill' })
             .png()
             .toBuffer();
 
         // 3) 文字レイヤー
-        const text = buildTextSvg(cw, ch, nickname, daysText);
+        const text = buildTextSvg(outW, outH, nickname, daysText);
 
         const buffer = await sharp(photo)
             .composite([
@@ -141,7 +157,7 @@ async function composeFinalImage({ sourcePath, framePath, crop, nickname, daysTe
             .jpeg({ quality: 95 })
             .toBuffer();
 
-        return { buffer, width: cw, height: ch };
+        return { buffer, width: outW, height: outH };
     } finally {
         if (cleanup) fs.rm(rasterPath, { force: true }, () => {});
     }

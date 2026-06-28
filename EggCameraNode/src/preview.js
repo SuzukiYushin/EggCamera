@@ -43,11 +43,22 @@ function fetchOne() {
     });
 }
 
-// multipart/x-mixed-replace の1パートを書き込む
+// 視聴者ごとの送信待ち(socket書込)バッファ上限。これを超えて滞留している遅い/停止
+// clientには当該フレームを送らずスキップする(MJPEGはコマ落ち許容)。
+// ※バックプレッシャが無いと、読みが遅い/停止したclient向けにフレームが res.write で
+//   無限に積もり、heap外(socket書込バッファ)のRSSが ~100MB/5分 で膨張する。
+//   writableLength で滞留量を見て捨てることで、メモリを「上限×client数」に有界化する。
+const MAX_CLIENT_BACKLOG = 512 * 1024; // ~数フレーム分(約33-100KB/枚)
+
+// multipart/x-mixed-replace の1パートを書き込む。送信が滞っている client にはこの
+// フレームを捨てて false を返す（パートは丸ごと送るか丸ごと捨てる＝部分送信しない）。
 function writeFrame(res, buf) {
+    if (res.writableEnded || res.destroyed) return false;
+    if (res.writableLength > MAX_CLIENT_BACKLOG) return false; // 滞留中＝このフレームはドロップ
     res.write(`--${BOUNDARY}\r\nContent-Type: image/jpeg\r\nContent-Length: ${buf.length}\r\n\r\n`);
     res.write(buf);
     res.write('\r\n');
+    return true;
 }
 
 function broadcast(buf) {
