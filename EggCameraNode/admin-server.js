@@ -54,6 +54,9 @@ function proxyToCore(req, res) {
     .forEach(p => app.all(p, proxyToCore));
 // test-capture のプレビュー画像は core のセッションストアにあるので core から取る
 app.use('/api/photos', proxyToCore);
+// ライブビュー（MJPEG stream / 単写真 fallback / カメラ先行起動）も core へ中継。
+// stream は1接続=1リクエストの長寿命ストリームで、proxyToCore が r.pipe(res) で素通しする。
+app.use('/api/preview', proxyToCore);
 
 // 管理(運用)API（ローカル処理）
 app.use('/api/admin', adminRouter);

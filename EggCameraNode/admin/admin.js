@@ -46,6 +46,7 @@ document.querySelectorAll('.tab').forEach(btn => {
     if (btn.dataset.tab === 'logs') startLogPolling(); else stopLogPolling();
     if (btn.dataset.tab === 'failed') { loadFailed(); startJobsPolling(); } else stopJobsPolling();
     if (btn.dataset.tab === 'restart') loadRestart();
+    if (btn.dataset.tab !== 'photo') stopLiveView(); // 写真タブを離れたらライブビュー停止（ストリーム切断）
   });
 });
 
@@ -179,7 +180,7 @@ $('#btn-upload').addEventListener('click', async () => {
   }
 });
 
-/* ── 写真設定（テスト撮影＋クロップ調整） ────── */
+/* ── 写真設定（ライブビュー＋クロップ調整） ────── */
 let testImage = null;
 let savedCrop = { zoom: 1, offsetX: 0, offsetY: 0 };
 
@@ -234,29 +235,68 @@ function drawCropPreview() {
   });
 });
 
-$('#btn-test-capture').addEventListener('click', async () => {
-  const btn = $('#btn-test-capture');
-  const status = $('#crop-status');
-  btn.disabled = true;
-  status.className = 'status';
-  status.textContent = '撮影中…（最大25秒）';
-  try {
-    const { url } = await api.post('/test-capture', {});
-    const img = new Image();
-    img.onload = () => {
-      testImage = img;
-      $('#crop-placeholder').hidden = true;
-      drawCropPreview();
-      status.textContent = '撮影完了';
-    };
-    img.onerror = () => { status.className = 'status err'; status.textContent = '画像の読み込みに失敗'; };
-    img.src = url;
-  } catch (err) {
-    status.className = 'status err';
-    status.textContent = `撮影失敗: ${err.message}`;
-  } finally {
-    btn.disabled = false;
+/* ── ライブビュー（撮影設定: クロップ調整用） ──────────
+   テスト撮影（単発）の代わりに、iPhone の MJPEG ライブ映像を流し続けて、
+   クロップ（zoom/offset）を反映した結果を canvas にライブ描画する。
+   ・映像取得は MJPEG ストリーム1本（=1接続）。レート制限にも優しい。
+   ・stream/frame/wake は core(:3000) の /api/preview/*。admin(:3001) が中継する。
+   ・preview は管理トークン不要だが、?token= ブートストラップ時のため withToken を通す。 */
+const liveImg = $('#liveview-src');   // 非表示の MJPEG 受け皿
+let liveTimer = null;                 // 描画ループ（null=停止中）
+
+function stopLiveView() {
+  if (!liveTimer && !(liveImg && liveImg.src)) return; // 動いていなければ何もしない
+  if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+  // 停止後もスライダーでクロップ調整できるよう、最後のフレームを静止画として保持する。
+  // （proxy 経由＝同一オリジンなので canvas は汚染されず toDataURL 可能）
+  if (liveImg && liveImg.naturalWidth) {
+    try {
+      const off = document.createElement('canvas');
+      off.width = liveImg.naturalWidth;
+      off.height = liveImg.naturalHeight;
+      off.getContext('2d').drawImage(liveImg, 0, 0);
+      const frozen = new Image();
+      frozen.onload = () => { testImage = frozen; drawCropPreview(); };
+      frozen.src = off.toDataURL('image/jpeg', 0.92);
+    } catch { /* 取得できなくても直近の canvas 描画は残る */ }
   }
+  if (liveImg) liveImg.src = '';      // ストリーム切断（接続スロットを解放）
+  const btn = $('#btn-liveview');
+  if (btn) { btn.textContent = 'ライブビュー開始'; btn.style.background = ''; }
+  const status = $('#crop-status');
+  if (status && status.classList.contains('err') === false) {
+    status.className = 'status';
+    status.textContent = 'ライブビュー停止中';
+  }
+}
+
+function startLiveView() {
+  const btn = $('#btn-liveview');
+  const status = $('#crop-status');
+  // カメラ先行起動（黒画面の短縮）。失敗しても撮影/プレビュー時に遅延起動するので無視。
+  fetch(withToken('/api/preview/wake'), { method: 'POST' }).catch(() => {});
+  status.className = 'status';
+  status.textContent = 'ライブビュー接続中…';
+  liveImg.onerror = () => {
+    status.className = 'status err';
+    status.textContent = 'ライブビュー接続に失敗（カメラ未接続の可能性）';
+    stopLiveView();
+  };
+  liveImg.src = withToken('/api/preview/stream');
+  testImage = liveImg;                 // drawCropPreview の入力をライブ映像に
+  // MJPEG は1フレームごとに自動更新される。canvas へ ~10fps で描画してクロップを反映。
+  liveTimer = setInterval(() => {
+    if (!liveImg.naturalWidth) return; // 最初のフレーム未到達
+    $('#crop-placeholder').hidden = true;
+    if (status.textContent === 'ライブビュー接続中…') status.textContent = 'ライブビュー中（クロップを調整して保存）';
+    drawCropPreview();
+  }, 100);
+  btn.textContent = 'ライブビュー停止';
+  btn.style.background = '#E0556E';    // 停止＝赤系
+}
+
+$('#btn-liveview').addEventListener('click', () => {
+  if (liveTimer) stopLiveView(); else startLiveView();
 });
 
 $('#btn-save-crop').addEventListener('click', async () => {

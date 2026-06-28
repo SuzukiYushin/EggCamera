@@ -44,15 +44,17 @@
     <div class="panel-head">
       <div>
         <h2>写真設定</h2>
-        <p class="hint">テスト撮影の結果を見ながら、クロップを数値で調整して保存します</p>
+        <p class="hint">ライブビューを見ながら、クロップを数値で調整して保存します</p>
       </div>
-      <button id="btn-test-capture" class="btn-pink">テスト撮影</button>
+      <button id="btn-liveview" class="btn-pink">ライブビュー開始</button>
     </div>
     <hr>
     <div class="photo-layout">
       <div class="crop-stage">
         <canvas id="crop-canvas" width="600" height="900"></canvas>
-        <div id="crop-placeholder" class="crop-placeholder">テスト撮影を実行すると<br>ここに結果が表示されます</div>
+        <!-- MJPEGライブ映像の受け皿（非表示）。canvasへ ~10fps で描画してクロップ反映 -->
+        <img id="liveview-src" alt="" hidden>
+        <div id="crop-placeholder" class="crop-placeholder">「ライブビュー開始」を押すと<br>ここに映像が表示されます</div>
       </div>
       <div class="crop-controls">
         <label>ズーム（1.0〜3.0）
