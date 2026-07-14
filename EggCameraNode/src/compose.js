@@ -4,9 +4,14 @@
 // 原寸合成し、完成画像 JPEG を返す。文字はシステムフォント(Hiragino/Futura)を使う
 // SVG テキストレイヤーを重ねる（厳密一致でなくデザイン準拠・目視調整前提）。
 const os    = require('node:os');
+const { spawn } = require('node:child_process');
 const path  = require('node:path');
 const fs    = require('node:fs');
 const sharp = require('sharp');
+// libvips のオペレーションキャッシュを無効化し合成のネイティブメモリ滞留を抑える(出力品質・解像度は不変)。
+// 合成は composeInChild で子プロセスへ隔離するが、子側でも本設定を効かせる。
+sharp.cache(false);
+sharp.concurrency(1);
 const { heicToJpeg } = require('./capture');
 
 // ── クライアント FinalPreview.tsx から移植したレイアウト定数 ────────────────
@@ -22,13 +27,16 @@ const NICKNAME_LINE_HEIGHT = 1.1;
 const DAYS_FONT_PX         = 28;
 const DAYS_LINE_HEIGHT     = 1.2;
 const TEXT_GAP_PX          = 1;
-const TARGET_ASPECT        = 2 / 3;
+// 完成画像のアスペクト。iPhone の画面比(1179:2556 ≒ 19.5:9)で縦いっぱいに切る＝
+// スマホの壁紙/全画面表示で余白なく収まる。高さ 6000 なら 2768×6000。
+// 旧値は 2/3(=4000×6000)。変更時は成長フレーム(gen-growth-frames.js)と
+// UI プレビュー(FinalPreviewServer/FinalPreview)のアスペクトも合わせること。
+const TARGET_ASPECT        = 2768 / 6000;
 
-// 出力(完成画像)の最大高さ(px)。2:3 なので高さが長辺。これを超える出力は縮小する。
-// 48MP 撮影では無キャップだと出力 4000×6000(=24MP)になり、1合成で写真/フレーム/合成の
-// 各レイヤを 24MP ぶんネイティブ確保 → RSS が膨張する。3600(=2400×3600, 約8.6MP)に
-// 抑えると印刷/DL品質は十分なまま、合成あたりのメモリを約1/3に削減できる。
-// 配信画質を変える値なので調整可（小さくするほど軽い: 3000=2000×3000≒6MP 等）。
+// 出力(完成画像)の最大高さ(px)。縦長なので高さが長辺。これを超える出力は縮小する。
+// 無キャップだと 48MP 撮影の原寸クロップがそのまま出力寸法になり、1合成で写真/フレーム/合成の
+// 各レイヤをそのぶんネイティブ確保 → RSS が膨張する。現行は 6000(=2768×6000, 約16.6MP)。
+// 配信画質を変える値なので調整可（小さくするほど軽い: 3600=1661×3600≒6MP 等）。
 const MAX_OUTPUT_HEIGHT    = parseInt(process.env.COMPOSE_MAX_HEIGHT || '3600', 10);
 
 // CSS の --font-heading / --font-futura に対応するシステムフォント。
@@ -39,7 +47,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
 const xmlEsc = s => String(s).replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]));
 
-// ── 2:3 クロップ枠(出力寸法) と ソース矩形を算出（FinalPreview.tsx:116-143 移植）──
+// ── クロップ枠(TARGET_ASPECT・出力寸法) と ソース矩形を算出（FinalPreview.tsx:116-143 移植）──
 function computeCropGeometry(iw, ih, crop) {
     let cw, ch;
     if (iw / ih > TARGET_ASPECT) { ch = ih; cw = ch * TARGET_ASPECT; }
@@ -107,12 +115,18 @@ function buildTextSvg(cw, ch, nickname, daysText) {
 }
 
 // ── HEIC等を sharp が扱える JPEG パスへ（既存方針: HEIC は sips 変換） ──────
+// 一時ファイル名は pid+連番で一意化する。basename はジョブ間で重複する（jobs 配下の
+// ソースは全件 source.heic）ため、basename だけだと worker 再合成と管理画面の
+// source.jpg 表示が並走したとき同一 /tmp パスへ二重書き込み＋削除交錯が起こり、
+// 別ジョブの写真で合成/破損画像を生みうる。
+let tmpSeq = 0;
 async function ensureRasterSource(sourcePath) {
     const ext = path.extname(sourcePath).toLowerCase();
     if (ext === '.jpg' || ext === '.jpeg' || ext === '.png') {
         return { rasterPath: sourcePath, cleanup: false };
     }
-    const tmp = path.join(os.tmpdir(), `eggcompose_${path.basename(sourcePath)}.jpg`);
+    const tmp = path.join(os.tmpdir(),
+        `eggcompose_${process.pid}_${++tmpSeq}_${path.basename(sourcePath)}.jpg`);
     await heicToJpeg(sourcePath, tmp);
     return { rasterPath: tmp, cleanup: true };
 }
@@ -123,19 +137,30 @@ async function composeFinalImage({ sourcePath, framePath, crop, nickname, daysTe
     const { rasterPath, cleanup } = await ensureRasterSource(sourcePath);
     try {
         const meta = await sharp(rasterPath).metadata();
-        const { cw, ch, extract } = computeCropGeometry(meta.width, meta.height, crop);
 
-        // 出力解像度をキャップ(メモリ有界化)。2:3 を保ったまま長辺(高さ)を上限に収める。
+        // iPhone は縦持ちでも「横バッファ + EXIF orientation=6」で吐き、sips の HEIC→JPEG は
+        // その向きをタグのまま素通しする（画素は回さない）。sharp は EXIF を自動適用しないため、
+        // .rotate()(=EXIF自動回転) を挟まないと extract が回転前の座標系で走り完成画像が90°倒れる。
+        // metadata の width/height も回転前の値なので、正立後の寸法に読み替えてから幾何計算する。
+        const upright = meta.orientation >= 5;   // 5..8 = 90/270度回転を伴う向き
+        const iw = upright ? meta.height : meta.width;
+        const ih = upright ? meta.width  : meta.height;
+        const { cw, ch, extract } = computeCropGeometry(iw, ih, crop);
+
+        // 出力解像度をキャップ(メモリ有界化)。アスペクトを保ったまま長辺(高さ)を上限に収める。
         // extract は原寸座標のまま＝libvips が原寸クロップ領域を縮小出力するだけ。これにより
         // 写真/フレーム/合成の各レイヤ確保が出力寸法ぶんで済み、1合成のネイティブ確保を抑える。
+        // 拡大はしない（ch < MAX なら実解像度のまま出す＝偽の解像度を作らない）。
         let outW = cw, outH = ch;
         if (outH > MAX_OUTPUT_HEIGHT) {
             outH = MAX_OUTPUT_HEIGHT;
             outW = Math.round(outH * TARGET_ASPECT);
         }
 
-        // 1) 写真を 2:3 クロップ → 出力寸法へ
+        // 1) 写真を正立 → TARGET_ASPECT クロップ → 出力寸法へ
+        //    .rotate() は extract より先に適用される（実測確認済み）。
         const photo = await sharp(rasterPath)
+            .rotate()
             .extract(extract)
             .resize(outW, outH, { fit: 'fill' })
             .toBuffer();
@@ -172,10 +197,53 @@ async function makeThumbnailDataUrl(finalBuffer, maxSide = 1080) {
     return `data:image/jpeg;base64,${thumb.toString('base64')}`;
 }
 
+// ── 完成画像からDLページ先行表示用の縮小版(JPEGバッファ)を作る ──────────────
+// スマホ回線でフル解像度(~2MB)の読込を待たせないため、軽量版(数十KB)を先に表示する。
+// R2 へ `<fileName>_preview.jpg` として本画像の後にアップロードされる(uploadWorker)。
+async function makeDlPreviewJpeg(finalBuffer, maxSide = 900) {
+    return sharp(finalBuffer)
+        .resize(maxSide, maxSide, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 60 })
+        .toBuffer();
+}
+
+// ── 合成を独立プロセスで実行し、終了時に libvips/sharp のネイティブメモリを完全解放する ──
+// 親(Node本体)で composeFinalImage を直接呼ぶと libvips のワーキングセットが RSS に高止まりする
+// (完成画像4000×6000で顕著)。子プロセスへ隔離し、合成ごとに解放してアイドル時 baseline へ戻す。
+// composite.jpg は子が outPath へ直接書く。stdin に JSON、stdout に {width,height,thumbDataUrl}。
+function composeInChild(opts) {
+    return new Promise((resolve, reject) => {
+        const worker = path.join(__dirname, 'composeWorker.js');
+        // 結果は一時ファイルで受け渡す。子の stdout は環境系ツール等の起動時診断出力で汚染され得る
+        // (例: '◇ injected env ...')ため stdout は捨て(ignore)、JSON.parse への混入を防ぐ。
+        const resultPath = path.join(os.tmpdir(),
+            `composeres_${process.pid}_${Date.now()}_${Math.floor(Math.random() * 1e9)}.json`);
+        const cleanup = () => { try { fs.rmSync(resultPath, { force: true }); } catch {} };
+        const child = spawn(process.execPath, [worker], { stdio: ['pipe', 'ignore', 'pipe'] });
+        let err = '';
+        child.stderr.on('data', d => { err += d; });
+        child.on('error', e => { cleanup(); reject(e); });
+        child.on('close', code => {
+            if (code !== 0) { cleanup(); return reject(new Error(`composeWorker exit ${code}: ${err.slice(0, 500)}`)); }
+            try {
+                const r = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+                cleanup();
+                resolve(r);
+            } catch (e) { cleanup(); reject(new Error(`composeWorker result read failed: ${e.message}`)); }
+        });
+        child.stdin.on('error', () => {}); // 子が即死した場合の EPIPE を握りつぶす
+        child.stdin.write(JSON.stringify({ ...opts, resultPath }));
+        child.stdin.end();
+    });
+}
+
 module.exports = {
     composeFinalImage,
+    composeInChild,
     makeThumbnailDataUrl,
+    makeDlPreviewJpeg,
     computeCropGeometry,
     buildTextSvg,
+    ensureRasterSource,
     DESIGN_PHOTO_W,
 };

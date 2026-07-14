@@ -8,9 +8,9 @@
   "preferredHeight": 6048,
   "captureIntervalSeconds": 0,
   "sendCaptureOnLaunch": false,
-  "outputWidth": 4000,
-  "outputHeight": 6000,
-  "centerCropToExactSize": true,
+  "outputWidth": null,
+  "outputHeight": null,
+  "centerCropToExactSize": false,
   "receivedPhotosDirectory": "../data/raw",
   "logsDirectory": "../data/logs/swift"
 }

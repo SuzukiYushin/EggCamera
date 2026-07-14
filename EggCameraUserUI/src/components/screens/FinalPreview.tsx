@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { IPad, useFitScale } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
-import { getFrames, getCropSettings } from '../../api';
+import { getFrames, getGrowthFrames, getCropSettings } from '../../api';
 import type { CropSettings } from '../../api';
 import { ParticleEl, makeBurst, type Burst } from '../ParticleBurst';
 import { reportClientError } from '../../clientLog';
@@ -78,11 +78,29 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
     return () => clearTimeout(t);
   }, []);
 
-  // 管理画面で登録された「使用中」フレームから1つ抽選（マウント時に一度だけ）。
-  // API失敗・0件のときは同梱の photo_frameA/B/C にフォールバック。
+  // フレーム選択（マウント時に一度だけ）。
+  //  ①「成長するファミちゃん（年齢連動）」が有効なら days で該当フレームを決定的に選ぶ。
+  //    （レアはサーバ側の低確率抽選＝完成画像でのお楽しみとし、プレビューは年齢フレームを表示）
+  //  ② 無効/失敗なら従来どおり登録フレームからランダム、それも空なら同梱フォールバック。
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      try {
+        const g = await getGrowthFrames();
+        if (cancelled) return;
+        if (g.enabled && g.growth.length > 0) {
+          const sorted = [...g.growth].sort((a, b) => (a.minDays ?? 0) - (b.minDays ?? 0));
+          let chosen = sorted[0];
+          for (const f of sorted) if (days >= (f.minDays ?? 0)) chosen = f;
+          setFrameSrc(chosen.url);
+          try {
+            const s = await getCropSettings();
+            if (!cancelled && s?.crop) setCrop(s.crop);
+          } catch { /* デフォルトのまま */ }
+          return;
+        }
+      } catch { /* 無効/失敗なら従来のランダムへ */ }
+
       try {
         const frames = await getFrames();
         if (cancelled) return;
@@ -100,6 +118,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
       } catch { /* デフォルトのまま */ }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Composite photo + frame + nickname/days onto the canvas — this is the
@@ -116,7 +135,8 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
       const [photoImg, frameImg] = await Promise.all([loadImage(photoUrl), loadImage(frameSrc)]);
       if (cancelled) return;
 
-      const targetAspect = 2 / 3;
+      // 完成画像は iPhone 画面比(2768:6000)。compose.js の TARGET_ASPECT と揃える。
+      const targetAspect = 2768 / 6000;
       const iw = photoImg.naturalWidth;
       const ih = photoImg.naturalHeight;
       let cw: number, ch: number;
@@ -135,12 +155,13 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Photo: 2:3 center-crop (object-fit: cover) に管理画面のクロップ設定
-      // （zoom / offsetX% / offsetY%）を適用
-      const rw = cw / crop.zoom;
-      const rh = ch / crop.zoom;
-      let rx = (iw - cw) / 2 + (cw - rw) / 2 + (crop.offsetX / 100) * rw;
-      let ry = (ih - ch) / 2 + (ch - rh) / 2 + (crop.offsetY / 100) * rh;
+      // Photo: 2:3 center-crop (object-fit: cover) に offset(pan) を適用。
+      // ズームは撮影時にカメラ(センサークロップ)で適用済みのため、ここではデジタルズーム=1。
+      // 二重ズーム防止・サーバ合成(compose.js)と整合（この旧canvasパスは serverCompose=false 時のみ）。
+      const rw = cw;
+      const rh = ch;
+      let rx = (iw - cw) / 2 + (crop.offsetX / 100) * rw;
+      let ry = (ih - ch) / 2 + (crop.offsetY / 100) * rh;
       rx = Math.max(0, Math.min(rx, iw - rw));
       ry = Math.max(0, Math.min(ry, ih - rh));
       ctx.drawImage(photoImg, rx, ry, rw, rh, 0, 0, cw, ch);
@@ -223,7 +244,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
   };
 
   return (
-    <IPad step={5} totalSteps={7} animKey="preview">
+    <IPad step={5} totalSteps={5} animKey="preview">
       <Page data-section="preview-screen" style={{ paddingTop: 50, paddingBottom: 28 }}>
 
         {/* Header */}
@@ -254,7 +275,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
 
           <div ref={containerRef} style={{
             position: 'relative',
-            aspectRatio: '2/3',
+            aspectRatio: '2768/6000',
             height: '90%',
             borderRadius: 4,
             overflow: 'hidden',
