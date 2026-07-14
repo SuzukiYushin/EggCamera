@@ -19,6 +19,9 @@ E2E_CYCLES="${E2E_CYCLES:-3}"
 # iPadの物理対応リマインダは間引く(30分毎のSlack連打を防ぐ)。既定6時間に1回。
 IPAD_DOWN_STAMP="/Users/eggcamera/Library/Logs/eggcamera-ipad-down-notified.stamp"
 IPAD_REMIND_SEC="${IPAD_REMIND_SEC:-21600}"
+# 人がiPad不在を承知していて復旧予定日が決まっている間は、リマインダを止める。
+# 中身は復旧予定日(YYYY-MM-DD)。その日を過ぎたら自動でリマインダが復活する＝忘れない。
+IPAD_DOWN_ACK="/Users/eggcamera/EggCamera/ops/ipad/.ipad-down-until"
 RECOVER="/Users/eggcamera/EggCamera/ops/ipad/recover-ipad-usbmux.sh"
 LOGDIR="/Users/eggcamera/Library/Logs"
 MAIN_LOG="$LOGDIR/eggcamera-hourly-test.log"
@@ -58,8 +61,16 @@ skip() { # level action text  — 実行せず終了
 # iPadの物理対応リマインダ。毎枠鳴らすとSlackが埋まるので IPAD_REMIND_SEC に1回だけ。
 # iPad復帰時にスタンプを消すので、次の障害では即座に鳴る。
 remind_ipad_down() { # text
-  local now last
+  local now last until_s
   now=$(date +%s)
+  # ack期限内なら黙る（ログには残す）。期限切れ/ファイル無しなら通常どおり鳴らす。
+  if [ -f "$IPAD_DOWN_ACK" ]; then
+    until_s=$(date -j -f "%Y-%m-%d %H:%M:%S" "$(head -1 "$IPAD_DOWN_ACK" | tr -d '[:space:]') 23:59:59" +%s 2>/dev/null || echo 0)
+    if [ "$now" -le "${until_s:-0}" ]; then
+      log "iPad不在は承知済み(~$(head -1 "$IPAD_DOWN_ACK" | tr -d '[:space:]'))につきリマインダ抑止"
+      return 0
+    fi
+  fi
   last=0; [ -f "$IPAD_DOWN_STAMP" ] && last=$(cat "$IPAD_DOWN_STAMP" 2>/dev/null || echo 0)
   if [ $((now - last)) -ge "$IPAD_REMIND_SEC" ]; then
     notify_slack restart "$1"

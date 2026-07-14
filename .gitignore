@@ -53,6 +53,7 @@ data/.soak-watch-state.json
 .env.slackbot
 EggCameraBot/node_modules/
 data/mode.json
+.env.claude
 
 # テスト生成物(エラースクショ) — 非ソース。data/raw 等と同じ扱い
 data/test-screenshots/
