@@ -47,30 +47,50 @@ export class ApiError extends Error {
 // 既定（~300秒）まで無応答で固まる。撮影・原寸合成など重い処理は個別に延長する。
 const DEFAULT_TIMEOUT_MS = 10_000;
 
+// 429(too_many_requests)= サーバのレート制限。混雑で一時的に上限へ達しても、リクエストは
+// サーバのビジネスロジックに到達する前に弾かれる＝リトライしても二重セッション作成・二重確定などの
+// 副作用は起きない「安全にリトライできる」唯一のケース。少し間隔を空けて後回し再送すれば、
+// 実客にお詫び画面を出さず自動回復する。それ以外(4xx/5xx/timeout/network)は副作用や恒久性の
+// 懸念があるためリトライしない（従来どおり即エラー化）。
+const RATE_LIMIT_MAX_RETRIES = 3;
+const RATE_LIMIT_MAX_WAIT_MS = 10_000; // 1回の待機上限（Retry-After が長くても待ちすぎない）
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
 async function request<T>(path: string, init?: RequestInit, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`/api${path}`, {
-      headers: { 'Content-Type': 'application/json' },
-      ...init,
-      // signal は init の後に置き、必ずタイムアウトが効くようにする
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch (err) {
-    // タイムアウト/ネットワーク断は fetch が throw する。お詫び・診断側で区別できるよう
-    // ApiError(0, ...) に正規化する（status=0 = HTTP応答に到達せず落ちた）。
-    const name = (err as { name?: string })?.name;
-    throw new ApiError(0, name === 'TimeoutError' ? 'timeout' : 'network');
-  }
-  if (!res.ok) {
-    let code = `http_${res.status}`;
+  for (let attempt = 0; ; attempt++) {
+    let res: Response;
     try {
-      const body = await res.json();
-      if (body?.error) code = body.error;
-    } catch { /* ignore non-JSON error body */ }
-    throw new ApiError(res.status, code);
+      res = await fetch(`/api${path}`, {
+        headers: { 'Content-Type': 'application/json' },
+        ...init,
+        // signal は init の後に置き、必ずタイムアウトが効くようにする
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      // タイムアウト/ネットワーク断は fetch が throw する。お詫び・診断側で区別できるよう
+      // ApiError(0, ...) に正規化する（status=0 = HTTP応答に到達せず落ちた）。
+      const name = (err as { name?: string })?.name;
+      throw new ApiError(0, name === 'TimeoutError' ? 'timeout' : 'network');
+    }
+    // レート制限は後回し再送で自動回復を試みる（上限回数まで）。
+    if (res.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES) {
+      const retryAfterSec = Number(res.headers.get('Retry-After'));
+      const waitMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+        ? Math.min(retryAfterSec * 1000, RATE_LIMIT_MAX_WAIT_MS)   // サーバ指定を尊重（上限クランプ）
+        : Math.min(500 * 2 ** attempt, 4_000);                     // 指定が無ければ指数バックオフ 0.5→1→2s
+      await sleep(waitMs);
+      continue;
+    }
+    if (!res.ok) {
+      let code = `http_${res.status}`;
+      try {
+        const body = await res.json();
+        if (body?.error) code = body.error;
+      } catch { /* ignore non-JSON error body */ }
+      throw new ApiError(res.status, code);
+    }
+    return res.json() as Promise<T>;
   }
-  return res.json() as Promise<T>;
 }
 
 export function createSession(): Promise<{ sessionId: string }> {
@@ -124,6 +144,21 @@ export function getFrames(): Promise<FrameInfo[]> {
   return request('/frames');
 }
 
+// 成長するファミちゃん（年齢連動9種＋レア2種）。enabled=false なら getFrames の
+// 従来ランダムにフォールバックする。プレビューは days で成長フレームを決定的に選ぶ。
+export interface GrowthFrameItem {
+  level?: number; minDays?: number; maxDays?: number; number?: number;
+  key?: string; label?: string; file: string; url: string;
+}
+export interface GrowthFramesData {
+  enabled: boolean; rareProbability: number;
+  growth: GrowthFrameItem[]; rare: GrowthFrameItem[];
+}
+export function getGrowthFrames(): Promise<GrowthFramesData> {
+  if (PROTO) return Promise.resolve({ enabled: false, rareProbability: 0, growth: [], rare: [] });
+  return request('/growth-frames');
+}
+
 // Crop tuning saved from the admin panel's 写真設定 tab.
 export interface CropSettings {
   zoom: number;
@@ -138,10 +173,18 @@ export function getCropSettings(): Promise<{ crop: CropSettings }> {
 
 // 運用モード。メンテナンス中はキオスクの操作をロックする。
 // serverCompose=true ならサーバ側合成フロー(/compose・/confirm)を使う。
-export function getMode(): Promise<{ maintenance: boolean; serverCompose?: boolean }> {
+export function getMode(): Promise<{ maintenance: boolean; serverCompose?: boolean; bundle?: string }> {
   if (PROTO) return Promise.resolve({ maintenance: false });
   return request('/mode', undefined, 6_000);
 }
+
+// 起動中のバンドル名（例 assets/index-XXXX.js）。開発サーバやプロトでは空になり、
+// その場合はビルド更新の判定を行わない。
+export const CURRENT_BUNDLE = (() => {
+  const src = document.querySelector('script[type="module"][src]')?.getAttribute('src') || '';
+  const m = src.match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+  return m ? m[0] : '';
+})();
 
 // ── サーバ側合成フロー ───────────────────────────────────────────────────
 export interface ComposePreview {
@@ -154,7 +197,7 @@ export interface ComposePreview {
 // プレビュー入場時: サーバで最終画像を原寸合成し、表示用サムネ(dataURL)を受け取る。
 export function composePreview(
   sessionId: string,
-  params: { photoId: string; nickname: string; daysText: string; days: number },
+  params: { photoId: string; nickname: string; daysText: string; days: number; months: number },
 ): Promise<ComposePreview> {
   // サーバで原寸合成(sharp)が走るので長め
   return request(`/sessions/${sessionId}/compose`, {

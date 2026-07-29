@@ -13,11 +13,13 @@ const express = require('express');
 const { CAPTURE_TIMEOUT_MS, ts } = require('../config');
 const adminAuth = require('./adminAuth');
 const { ensurePreviewJpeg } = require('../capture');
+const { guardRaw } = require('../rawQuality');
 const camera = require('../adapters/camera');
 const { registerPhoto } = require('../sessions');
 const chaos    = require('../chaos');
 const mode     = require('../mode');
 const selftest = require('../selftest');
+const { warmupCamera } = require('../warmup');
 
 const router = express.Router();
 router.use(express.json());
@@ -38,7 +40,9 @@ router.get('/metrics', (req, res) => {
 // ── テスト撮影（1枚撮ってプレビューURLを返す） ──
 router.post('/test-capture', async (req, res) => {
     try {
-        const { rawPath } = await camera.capture(CAPTURE_TIMEOUT_MS);
+        const { rawPath: capturedPath } = await camera.capture(CAPTURE_TIMEOUT_MS);
+        // 12MP混入ガード(検査のみ・リテイク無し): 明所低解像ならSlack alertで固着を知らせる
+        const rawPath = await guardRaw(capturedPath, { label: 'test-capture' });
         const previewPath = await ensurePreviewJpeg(rawPath);
         const photoId     = registerPhoto(rawPath, previewPath);
         console.log(`[${ts()}] test capture ok → ${path.basename(rawPath)}`);
@@ -49,6 +53,14 @@ router.post('/test-capture', async (req, res) => {
             : err.message === 'capture-timeout' ? 504 : 500;
         res.status(code).json({ error: err.message });
     }
+});
+
+// ── カメラ・ウォームアップ（iphone.sh のアプリ再起動フックが叩く） ──
+// アプリ再起動直後の初回撮影は 12MP cold-start race を踏む。実客より先に捨て撮りを1回入れて
+// 吸収する。応答は即返し、warmup はバックグラウンド実行（多重発火/実撮影中は warmup 側でガード）。
+router.post('/warmup', (req, res) => {
+    res.json({ started: true });
+    warmupCamera({ reason: (req.body && req.body.reason) || 'iphone-relaunch' }).catch(() => {});
 });
 
 // ── フォールトインジェクション（長期運用テスト用） ──

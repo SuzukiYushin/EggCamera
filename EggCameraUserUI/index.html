@@ -5,8 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- ホーム画面追加(standalone)の表示位置を決める。ここは black-translucent にしないこと。
+         Apple の仕様（Supported Meta Tags）:
+           default / black    → Webコンテンツはステータスバーの「下」に表示される
+           black-translucent  → Webコンテンツは画面全体に表示され、ステータスバーが重なる
+         black-translucent では、コンテンツの原点が画面上端(y=0)なのに与えられる領域は
+         画面高-ステータスバー(1366-32=1334)しかなく、下端32ptが埋められない領域として残った
+         （2026-07-29 実測: window.outer=1024x1366・位置0,0 / innerHeight=1334 / その領域に
+         置いた要素は描画されない）。default へ変更後、safe-area-inset-top が 32px→0px に
+         変わり（＝ステータスバーと重ならなくなった証拠）、画面下端まで埋まることを実機で確認。 -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Egg Camera" />
+    <!-- ホーム画面追加時の表示方法を OS へ指定する。iPadOS はアイコン追加の時点でこれを読むため、
+         反映には一度アイコンを削除して追加し直す必要がある（display:fullscreen が効けば
+         ステータスバー領域も含めた画面全体がページの描画領域になる）。 -->
+    <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="theme-color" content="#F0EDE8" />
     <title>Egg Camera</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">

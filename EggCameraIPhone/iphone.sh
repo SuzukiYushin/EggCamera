@@ -22,7 +22,26 @@ APP="$BUILD_DIR/Build/Products/Debug-iphoneos/$SCHEME.app"
 BUNDLE_ID='com.siggaze.eggcamera'
 # プロファイル「iOS Team Provisioning Profile: com.siggaze.eggcamera」のチーム。
 # 署名証明書は siggaze.0000@gmail.com (6FKKW68VQ4) が使われるが、チーム指定はこちら。
-DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-4U78CNU7WN}"
+# 2026-07-27: 個人チーム(4U78CNU7WN, 無料・7日失効)→FAMILIAR,LTD.(有料・1年プロファイル)へ移行。
+# チーム変更時は同一bundle IDでも上書きインストールが無言で弾かれるため、アンインストール→再インストールが必要。
+DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-LS9YJ4SY5W}"
+
+# ── ビルド番号(CFBundleVersion)を毎ビルドで単調増加させる ─────────────
+# 【重要・2026-07-04障害の恒久策】CFBundleVersion が固定("1")だと、iOS/cfgutil は
+# 「同一バージョン＝変更なし」とみなしバイナリを実際に置き換えない no-op install になる。
+# その結果コード変更がデバイスに反映されず（プロセス再起動しても旧バイナリ）、原因究明で
+# アンインストール→無料署名の信頼喪失→撮影停止、という二次被害に至った。
+# 対策: xcodegen generate の前に project.yml の CFBundleVersion を単調増加値へ書き換える。
+# 信頼済みの既存アプリへ「更新」として入るため、同一開発者は再信頼不要でトラストも保たれる。
+bump_build_number() {
+  local pj="project.yml"
+  local cur new
+  cur=$(grep -E '^\s*CFBundleVersion:' "$pj" | grep -oE '[0-9]+' | head -1)
+  new=$(( ${cur:-0} + 1 ))
+  # macOS sed（BSD）: インプレース編集。数値のみを差し替える。
+  sed -i '' -E "s/(CFBundleVersion:[[:space:]]*\")[0-9]+(\")/\1${new}\2/" "$pj"
+  echo "▶ CFBundleVersion ${cur:-?} → ${new}（no-op install 回避）"
+}
 
 # ── 接続デバイスを自動検出 ───────────────────────────────
 # devicectl 用の識別子（install/launch）と xcodebuild 用の UDID（build）を取る。
@@ -41,9 +60,25 @@ detect_device() {
   fi
 }
 
+# アプリ再起動直後は初回撮影が 12MP cold-start race を踏む。node(:3000)に捨て撮り
+# ウォームアップを依頼し、実客より先に「最初の1枚」を吸収させる（応答は即返る＝待たない）。
+# node停止中/未起動でも本処理は止めない（boot時は server.js 側の warmup が肩代わり）。
+trigger_warmup() {
+  local env_file="../EggCameraNode/.env"
+  local token=""
+  [[ -f "$env_file" ]] && token="$(grep -E '^ADMIN_TOKEN=' "$env_file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r"')"
+  echo "▶ node に捨て撮りウォームアップを依頼（cold-start吸収）"
+  curl -s -m 3 -o /dev/null \
+    -X POST "http://127.0.0.1:3000/api/admin/warmup" \
+    -H "Content-Type: application/json" \
+    ${token:+-H "X-Admin-Token: $token"} \
+    --data '{"reason":"iphone-relaunch"}' 2>/dev/null || true
+}
+
 cmd_build() {
   detect_device
   echo "▶ ビルド (team=$DEVELOPMENT_TEAM, udid=${BUILD_UDID:-name指定})"
+  bump_build_number
   xcodegen generate >/dev/null
   local dest
   if [[ -n "${BUILD_UDID:-}" ]]; then dest="platform=iOS,id=$BUILD_UDID"; else dest="generic/platform=iOS"; fi
@@ -81,6 +116,7 @@ cmd_launch() {
   detect_device
   echo "▶ 起動（既存プロセスは終了して入れ替え）"
   xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID"
+  trigger_warmup
 }
 
 # iPhone本体を再起動 → 復帰を待つ → アプリを起動。
@@ -95,7 +131,7 @@ cmd_reboot() {
   # 再起動直後はサービスが立ち上がるまで数回リトライ
   for i in 1 2 3 4 5 6; do
     if xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID" 2>/dev/null; then
-      echo "アプリ起動OK"; break
+      echo "アプリ起動OK"; trigger_warmup; break
     fi
     echo "  起動待ち… ($i)"; sleep 10
   done
@@ -107,6 +143,7 @@ cmd_reboot() {
 cmd_refresh() {
   detect_device
   echo "▶ プロファイル更新つき再ビルド (team=$DEVELOPMENT_TEAM)"
+  bump_build_number
   xcodegen generate >/dev/null
   local dest
   if [[ -n "${BUILD_UDID:-}" ]]; then dest="platform=iOS,id=$BUILD_UDID"; else dest="generic/platform=iOS"; fi

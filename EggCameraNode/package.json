@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
     "bonjour-service": "^1.4.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

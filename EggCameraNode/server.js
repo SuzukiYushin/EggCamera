@@ -1,3 +1,4 @@
+const fs      = require('node:fs');
 const path    = require('node:path');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
@@ -18,6 +19,7 @@ const sse      = require('./src/sse');
 const maintenance = require('./src/maintenance');
 const mode        = require('./src/mode');
 const selftest    = require('./src/selftest');
+const { warmupCamera } = require('./src/warmup');
 const sessionsRouter = require('./src/routes/sessions');
 const photosRouter   = require('./src/routes/photos');
 const adminCoreRouter = require('./src/routes/adminCore'); // 撮影coreに密結合する管理API(metrics/test-capture/chaos/selftest)のみ
@@ -58,6 +60,11 @@ const sessionLimiter = rateLimit({
     windowMs: 60 * 1000, max: 20,
     standardHeaders: true, legacyHeaders: false,
     keyGenerator: clientIp, validate: RL_VALIDATE,
+    // 状態変更系(createSession/capture/select/compose/confirm 等のPOST)のみを 20/分 で保護する。
+    // 読み取り専用の GET ポーリング(getSession=/sessions/:id 1秒間隔)は低コスト・副作用なしで、
+    // これを 20/分 に含めると1客のフロー中のポーリングだけで枠を食い、後続の正当な操作や
+    // 混雑時の他客が 429 になる。GET は publicLimiter(200/分) 側で別途バウンドするのでここでは除外。
+    skip: (req) => req.method === 'GET',
     handler: (req, res) => {
         console.warn(`[${ts()}] rate-limit: sessions ${clientIp(req)}`);
         res.status(429).json({ error: 'too_many_requests' });
@@ -102,11 +109,17 @@ app.use('/api/photos', photosRouter);
 // 管理APIのうち撮影coreに密結合する分だけ core が直接持つ（残りは admin:3001）。
 // 長期運用テスト拡張は従来どおり :3000/api/admin/{chaos,metrics} を直接叩ける。
 app.use('/api/admin', adminCoreRouter);
+// ローカル障害フロー（jobs/:id/status・diagnostics・incident・recovery/selftest）。
+// 公開上限(publicLimiter)配下・SPAフォールバックより前に登録する。
+app.use('/api', require('./src/routes/incident'));
 
-// ── ユーザーUI向け公開API: 使用中フレーム一覧とクロップ設定 ──
+// ── ユーザーUI向け公開API: 登録フレーム一覧とクロップ設定 ──
 app.get('/api/frames', (req, res) => {
-    res.json(frames.listActiveFrames().map(f => ({ id: f.id, name: f.name, url: `/frames/${f.file}` })));
+    res.json(frames.listFrames().map(f => ({ id: f.id, name: f.name, url: `/frames/${f.file}` })));
 });
+// 成長するファミちゃん（年齢連動9種＋レア2種）。クライアントは days で該当フレームを選ぶ。
+// 無効時は enabled:false を返すので、クライアントは従来の /api/frames ランダムにフォールバック。
+app.get('/api/growth-frames', (req, res) => res.json(require('./src/growthFrames').listAll()));
 app.get('/api/settings', (req, res) => res.json(settings.getSettings()));
 
 // ── SSE: 管理画面の設定変更をiPadへリアルタイムプッシュ ──
@@ -123,10 +136,28 @@ app.post('/api/internal/reload-signal', (req, res) => {
     res.json({ ok: true, clients: sse.clientCount() });
 });
 
+// ── 配信中ビルドの識別子 ────────────────────────────────────────────────
+// index.html は no-store だが、ホーム画面追加(standalone)の webapp やキオスクの常駐タブは
+// 終了しない限り再読込されず、古いバンドルのまま動き続ける（2026-07-29: 修正が端末に
+// 届かない事象）。現行バンドル名を /api/mode で配り、クライアント側で差分を検知させる。
+let bundleCache = { mtime: 0, name: '' };
+function currentBundle() {
+    try {
+        const indexPath = path.join(STATIC_DIR, 'index.html');
+        const { mtimeMs } = fs.statSync(indexPath);
+        if (mtimeMs !== bundleCache.mtime) {
+            const m = fs.readFileSync(indexPath, 'utf8').match(/assets\/index-[A-Za-z0-9_-]+\.js/);
+            bundleCache = { mtime: mtimeMs, name: m ? m[0] : '' };
+        }
+    } catch { /* 取得できなければ空文字。クライアントは判定をスキップする */ }
+    return bundleCache.name;
+}
+
 // ── ユーザーUIが参照する運用モード（メンテ中は操作ロック / 合成方式フラグ） ──
 app.get('/api/mode', (req, res) => res.json({
     maintenance: mode.isMaintenance(),
     serverCompose: SERVER_COMPOSITE,
+    bundle: currentBundle(),
 }));
 
 // ── iPhone ライブプレビュー ──
@@ -137,12 +168,21 @@ app.get('/api/preview/stream', (req, res) => preview.streamFrames(req, res));
 app.get('/api/preview/frame', (req, res) => preview.proxyFrame(req, res));
 
 // ── iPhone カメラ先行起動（iPad のスタート押下時に呼ぶ。撮影ページの待ち時間軽減） ──
-app.post('/api/preview/wake', (req, res) => res.json({ ok: preview.wake() }));
+// ここでは捨て撮り(実撮影=シャッター音)を発火しない。スタート押下の瞬間にシャッターが
+// 鳴るのを避けるため（keepAwake でカメラは先行起動する）。cold-start 初回1枚の12MP race は
+// iPhone 側の恒久対策(48MP待ち＋自動リテイク)が保証する。
+app.post('/api/preview/wake', (req, res) => {
+    res.json({ ok: preview.wake(req.query.zoom, req.query.ev) });
+});
 
 // ── フロントのエラー詳細をサーバログへ集約（オーバーレイの原因調査用） ──
+// level:'info' は診断(エラー検知)に拾わせない情報行。ホーム画面追加(standalone)端末の
+// 自己申告（動作中のバンドル・全画面追従の実測）に使う＝実機画面を見られない端末の状態を
+// ログだけで判定できるようにするため。
 app.post('/api/client-log', (req, res) => {
-    const { message = '', screen = '' } = req.body || {};
-    console.error(`[${ts()}] [CLIENT${screen ? `:${screen}` : ''}] ${String(message).slice(0, 2000)}`);
+    const { message = '', screen = '', level = 'error' } = req.body || {};
+    const line = `[${ts()}] [CLIENT${screen ? `:${screen}` : ''}] ${String(message).slice(0, 2000)}`;
+    if (level === 'info') console.log(line); else console.error(line);
     res.json({ ok: true });
 });
 
@@ -187,9 +227,12 @@ cleanupOldR2Objects();
 safeInterval(cleanupOldR2Objects, R2_CLEANUP_INTERVAL, 'r2-cleanup');
 safeInterval(cleanupExpiredSessions, Math.min(SESSION_TTL_MS, 5 * 60 * 1000), 'session-cleanup');
 
-// サーバ合成ジョブ: 起動時に未完了を再開（再起動耐性）＋ 5分ごとに掃除（完了24H/未確定TTL）
+// サーバ合成ジョブ: 起動時に未完了を再開（再起動耐性）＋ 5分ごとに掃除（完了24H/未確定TTL/失敗48H）
 uploadWorker.resumeAll();
 safeInterval(uploadWorker.sweep, 5 * 60 * 1000, 'jobs-sweep');
+// 手動救済（管理画面の直R2アップロード）の完了を R2 HEAD で確認して done 化（30秒ごと）。
+// ブラウザがネット切替後でサーバへ完了通知できなくても、ここで done に到達できる。
+safeInterval(uploadWorker.checkManualUploads, 30 * 1000, 'jobs-manual-head');
 
 // ── 5分ごとに自プロセスのメモリ/負荷をログへ（リーク・フリーズ予兆の追跡） ──
 const os = require('node:os');
@@ -212,12 +255,22 @@ process.on('unhandledRejection', reason => {
         { level: 'alert', key: 'unhandled', throttleMs: 5 * 60_000 });
 });
 
+// 起動時カメラ・ウォームアップは src/warmup.js に集約（boot と iphone.sh フックで共用）。
+// Mac/iPhone 再起動直後はカメラ写真パイプラインが cold で、最初の1撮影が低解像(12MP)になる
+// race がある（直後に48MPへ復帰）。selftest が走らない再起動（テスト/計画外）では、この捨て撮りが
+// 「最初の1枚」を肩代わりし、実客が cold を踏まないようにする。
+
 const server = app.listen(PORT, () => {
     console.log(`[${ts()}] EggCameraNode listening on :${PORT} (static: ${STATIC_DIR})`);
     // Mac本体リブート等でbot自身が落ちた場合の保険: 起動時フラグがあればセルフテスト
     if (mode.get().runSelfTestOnBoot) {
         mode.clearSelfTestFlag();
-        safeTimeout(() => selftest.run({ reason: '再起動後（起動時自動）' }), 8000, 'boot-selftest');
+        // 起動時の自動セルフテストは合格でロックを自動解除する（手動 /egg ok は失敗時のみ）。
+        safeTimeout(() => selftest.run({ reason: '再起動後（起動時自動）', autoResumeOnPass: true }), 8000, 'boot-selftest');
+    } else {
+        // セルフテストが予約されていない再起動（テスト/計画外リブート等）。selftest が走らない＝
+        // カメラ cold-start を最初の実客が踏みうる。ロックはせず軽量な捨て撮りで温める。
+        safeTimeout(() => warmupCamera({ reason: 'boot' }), 5000, 'boot-warmup');
     }
 });
 

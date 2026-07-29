@@ -10,10 +10,15 @@ const RAW_FILE_RE = /\.(heic|heif|jpg|jpeg|png)$/i;
 let seq = 0;
 
 // ── Send an on-demand capture trigger to the Mac (TriggerReceiverServer) ──
-function sendTrigger() {
+function sendTrigger(zoom, exposureBias) {
     return new Promise((resolve, reject) => {
         seq++;
-        const body = JSON.stringify({ triggerId: `t-${seq}` });
+        const z = Number(zoom);
+        const ev = Number(exposureBias);
+        const payload = { triggerId: `t-${seq}` };
+        if (Number.isFinite(z) && z > 0) payload.zoom = z;
+        if (Number.isFinite(ev) && ev !== 0) payload.exposureBias = ev;
+        const body = JSON.stringify(payload);
 
         const req = http.request({
             hostname: SWIFT_HOST,

@@ -1,11 +1,11 @@
 // フロントで起きたエラーの詳細をサーバログへ送る（Sentry的な最小実装）。
 // オーバーレイが出た「理由」を data/logs/ と管理画面ログタブで追えるようにする。
-export function reportClientError(message: string) {
+export function reportClientError(message: string, level: 'error' | 'info' = 'error') {
   try {
     const screen =
       document.querySelector('[data-section]')?.getAttribute('data-section') ?? '';
     const body = JSON.stringify({
-      level: 'error',
+      level,
       message: String(message).slice(0, 2000),
       screen,
     });

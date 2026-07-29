@@ -14,7 +14,7 @@
 const fs   = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
-const { JOBS_DIR, DEFERRED_MAX_MS, ts } = require('./config');
+const { JOBS_DIR, DEFERRED_MAX_MS, R2_RETENTION_MS, ts } = require('./config');
 
 fs.mkdirSync(JOBS_DIR, { recursive: true });
 
@@ -25,6 +25,8 @@ function newId() {
 function jobDir(jobId)        { return path.join(JOBS_DIR, jobId); }
 function jobJsonPath(jobId)   { return path.join(jobDir(jobId), 'job.json'); }
 function compositePath(jobId) { return path.join(jobDir(jobId), 'composite.jpg'); }
+// DLページ先行表示用の縮小版（R2 へ <fileName>_preview.jpg として上げる元ファイル）
+function dlPreviewPath(jobId) { return path.join(jobDir(jobId), 'dl-preview.jpg'); }
 
 // 安全な書き込み（tmp→rename）。途中クラッシュで job.json を半端にしない。
 function writeJobJson(job) {
@@ -77,6 +79,12 @@ function createJob(opts) {
         lastError:  null,
         result:     null,            // { downloadUrl, qrDataUrl, expiresAt }
         listedFailedAt: null,        // 滞留として管理画面失敗一覧に出した時刻
+        // 手動救済（管理画面の再送/再合成）の状態。手動操作中は worker の自動リトライを止める。
+        manualLock:  false,          // true の間、worker は scheduleRetry/processOne をスキップ
+        manualMode:  null,           // 'reupload' | 'recompose'（UI表示・ログ用）
+        attentionRequired: false,    // 24h 自動継続で完了せず自動リトライを止めた＝要対応
+        autoStoppedAt: null,         // 自動リトライを停止した時刻（confirmedAt+24h 到達）
+        deleteAfter:   null,         // confirmedAt+48h（confirm時に算出）。失敗ジョブの強制削除期限
         createdAt:   now,
         confirmedAt: null,
         uploadedAt:  null,
@@ -123,19 +131,36 @@ function sourcePathOf(job) {
     return fs.existsSync(p) ? p : null;
 }
 
+// ── 手動救済（管理画面の再送/再合成）のアップロード完了を done 化する ──────────
+// R2 にオブジェクトが実在することを確認した側（worker の HEAD ループ or complete API）が呼ぶ。
+// 手動ロックを解除し、done でも管理画面に残してQR提示できるよう listedFailedAt は維持する。
+// 既に done なら何もしない（HEAD ループと complete の二重発火に対して冪等）。
+function markManualDone(jobId) {
+    const job = readJob(jobId);
+    if (!job || job.status === 'done') return job;
+    const uploadedAt = Date.now();
+    return updateJob(jobId, {
+        status: 'done', uploadedAt,
+        manualLock: false, manualMode: null, attentionRequired: false, lastError: null,
+        listedFailedAt: job.listedFailedAt || uploadedAt, // done でも一覧に残しQR提示
+        result: { ...(job.result || {}), expiresAt: uploadedAt + R2_RETENTION_MS },
+    });
+}
+
 // ── 管理画面の「要確認」ジョブ一覧（読み取り専用） ──────────────────────────
 // 1時間内に完了しない/失敗中のジョブ＋既に滞留表面化したジョブ（完了済も解決確認用に残す）。
+// 手動救済中(manualLock)のジョブは進行状況を見せるため常に含める。
 // 未確定(composed_pending)は対象外。新しい順。
 function listAdminJobs() {
     const now = Date.now();
     return listJobs()
         .filter(j => j.status !== 'composed_pending')
-        .filter(j => j.listedFailedAt
+        .filter(j => j.manualLock || j.listedFailedAt
             || (j.status !== 'done' && now - (j.confirmedAt || j.createdAt) >= DEFERRED_MAX_MS))
         .sort((a, b) => (b.confirmedAt || b.createdAt) - (a.confirmedAt || a.createdAt));
 }
 
 module.exports = {
-    createJob, readJob, updateJob, listJobs, listAdminJobs, deleteJob,
-    jobDir, compositePath, sourcePathOf, newId,
+    createJob, readJob, updateJob, listJobs, listAdminJobs, deleteJob, markManualDone,
+    jobDir, compositePath, dlPreviewPath, sourcePathOf, newId,
 };

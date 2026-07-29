@@ -70,9 +70,16 @@ final class CaptureCommandServer {
         let header = String(data: data[..<range.lowerBound], encoding: .utf8) ?? ""
         let requestLine = header.components(separatedBy: "\r\n").first ?? ""
 
-        // ウェイク: iPad のスタート押下で呼ばれ、撮影ページ前にカメラを温める
+        // ウェイク: iPad のスタート押下で呼ばれ、撮影ページ前にカメラを温める。
+        // 管理画面ライブビューからは ?zoom=/&ev= 付きで呼ばれ、撮影前にズーム・露出補正をプレビューへ反映する。
         if requestLine.hasPrefix("POST /wake") {
             cameraController.keepAwake()
+            if let raw = Self.queryValue("zoom", in: requestLine), let z = Double(raw) {
+                cameraController.setZoom(z)
+            }
+            if let raw = Self.queryValue("ev", in: requestLine), let ev = Double(raw) {
+                cameraController.setExposureBias(ev)
+            }
             send(status: 200, message: "OK", on: connection)
             return
         }
@@ -111,6 +118,20 @@ final class CaptureCommandServer {
                 self.send(status: 500, message: "Capture Failed", on: connection)
             }
         }
+    }
+
+    // リクエストライン("POST /wake?zoom=1.5 HTTP/1.1")から指定クエリの値を取り出す。
+    private static func queryValue(_ key: String, in requestLine: String) -> String? {
+        let parts = requestLine.split(separator: " ")
+        guard parts.count >= 2 else { return nil }
+        let pathPart = parts[1]
+        guard let qIndex = pathPart.firstIndex(of: "?") else { return nil }
+        let query = pathPart[pathPart.index(after: qIndex)...]
+        for pair in query.split(separator: "&") {
+            let kv = pair.split(separator: "=", maxSplits: 1)
+            if kv.count == 2, kv[0] == key { return String(kv[1]) }
+        }
+        return nil
     }
 
     private func isCompleteRequest(_ data: Data) -> Bool {

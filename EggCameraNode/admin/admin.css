@@ -105,6 +105,13 @@ hr { border: none; border-top: 1px solid #E8E9EF; margin: 20px 0 26px; }
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 22px;
 }
+.growth-h {
+  font-size: 15px;
+  font-weight: 700;
+  color: #4A4E69;
+  margin: 26px 0 12px;
+}
+#growth-section > hr { margin-top: 26px; }
 .card {
   background: #fff;
   border: 1px solid #ECEDF2;
@@ -155,8 +162,10 @@ hr { border: none; border-top: 1px solid #E8E9EF; margin: 20px 0 26px; }
 .photo-layout { display: flex; gap: 36px; align-items: flex-start; flex-wrap: wrap; }
 .crop-stage {
   position: relative;
-  width: 360px;
-  aspect-ratio: 2 / 3;
+  width: 300px;
+  /* 完成画像と同じ比(2768:6000)。2/3 のままだと横に引き伸ばされ「縦につぶれた」映像に見える。
+     実際の値は admin.js が TARGET_ASPECT から上書きするので、ここは fallback。 */
+  aspect-ratio: 2768 / 6000;
   background: #14141f;
   border-radius: 12px;
   overflow: hidden;
@@ -179,6 +188,27 @@ hr { border: none; border-top: 1px solid #E8E9EF; margin: 20px 0 26px; }
 }
 .status { font-size: 13px; color: var(--green); min-height: 18px; }
 .status.err { color: #E5484D; }
+
+/* 保存状態は「色＋形＋アイコン」で区別する。
+   以前は未保存の警告も既定の緑で出ていて「保存済み」と誤読しやすかった。 */
+.status.ok, .status.warn, .status.saving {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 14px; border-radius: 999px;
+  font-size: 13.5px; font-weight: 800; line-height: 1.4;
+  border: 1.5px solid transparent;
+}
+.status.ok     { background: #E7F7EC; color: #1B7F3B; border-color: #8FD19E; }
+.status.warn   { background: #FFF6E5; color: #8A5A00; border-color: #F3D27A; }
+.status.saving { background: #EEF1F7; color: #55607A; border-color: #D9DBE4; }
+/* 保存された瞬間に一度だけ光らせて、変化に気づけるようにする */
+.status.ok.flash { animation: save-flash 1.1s ease-out 1; }
+@keyframes save-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(27,127,59,.45); transform: scale(1); }
+  35%  { box-shadow: 0 0 0 9px rgba(27,127,59,0); transform: scale(1.03); }
+  100% { box-shadow: 0 0 0 0 rgba(27,127,59,0); transform: scale(1); }
+}
+/* 未保存のあいだは保存ボタン自身にも注意を出す */
+.btn-pink.unsaved { box-shadow: 0 0 0 3px #F3D27A; }
 
 /* ── ログ ─────────────────────────────── */
 .autoscroll { font-size: 13px; color: #5a6072; display: flex; align-items: center; gap: 6px; }
@@ -272,3 +302,21 @@ hr { border: none; border-top: 1px solid #E8E9EF; margin: 20px 0 26px; }
 }
 .diag-reason { font-size: 14px; line-height: 1.7; margin-bottom: 12px; }
 .diag-order { font-size: 13px; color: #5a6072; margin-bottom: 12px; }
+
+/* ── ズームゲージ（センサークロップの無劣化範囲可視化） ── */
+.zoom-range {
+  width: 100%;
+  height: 6px;
+  margin: 6px 0 2px;
+  border-radius: 4px;
+  accent-color: var(--pink);
+  cursor: pointer;
+}
+.zoom-quality { font-size: 12px; color: #6b7080; min-height: 16px; }
+.zoom-quality.warn { color: #b5811e; font-weight: 700; }
+
+/* ── 低照度警告（ライブビュー平均輝度からiOSビニングのリスクを可視化） ── */
+.lux-indicator { font-size: 12px; margin-top: 6px; min-height: 16px; }
+.lux-indicator.ok  { color: #1c7a52; }
+.lux-indicator.dim { color: #b5811e; font-weight: 700; }
+.lux-indicator.low { color: #c0392b; font-weight: 700; }

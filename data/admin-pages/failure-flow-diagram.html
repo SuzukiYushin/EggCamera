@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>失敗発生時フロー（再送・再合成）</title>
+<style>
+  @page { size: A4 landscape; margin: 0; }
+  html,body { margin:0; padding:0; background:#eef1f5; }
+  .sheet { width:297mm; height:210mm; margin:0 auto; background:#fff; box-shadow:0 2px 12px rgba(0,0,0,.15); }
+  svg { width:100%; height:100%; display:block; font-family:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif; }
+  @media print { body{background:#fff;} .sheet{box-shadow:none;} }
+</style>
+</head>
+<body>
+<div class="sheet">
+<svg viewBox="0 0 1123 794" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrBlue" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#2563eb"/></marker>
+    <marker id="arrGreen" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#059669"/></marker>
+    <marker id="arrRed" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 z" fill="#e11d48"/></marker>
+  </defs>
+  <text x="40" y="42" style="font-size:22px;font-weight:800;fill:#0f172a;">EggCamera ― 合成/アップロード失敗時のフロー（再送・再合成）</text>
+  <text x="40" y="64" style="font-size:12px;fill:#64748b;">青=通常フロー　緑=自動アップロード(最大24hリトライ)　赤=失敗時の手動救済</text>
+
+  <!-- Cloudflare cloud -->
+  <ellipse cx="535" cy="104" rx="108" ry="52" fill="#fff7ed" stroke="#f59e0b" stroke-width="2.5"/>
+  <ellipse cx="470" cy="118" rx="46" ry="34" fill="#fff7ed" stroke="#f59e0b" stroke-width="2.5"/>
+  <ellipse cx="602" cy="120" rx="44" ry="30" fill="#fff7ed" stroke="#f59e0b" stroke-width="2.5"/>
+  <rect x="430" y="108" width="210" height="40" fill="#fff7ed"/>
+  <text x="535" y="92" text-anchor="middle" style="font-size:14px;font-weight:800;fill:#b45309;">Cloudflare</text>
+  <text x="535" y="111" text-anchor="middle" style="font-size:12px;fill:#b45309;">R2（写真ストレージ）</text>
+  <text x="535" y="128" text-anchor="middle" style="font-size:10px;fill:#92400e;">Pages /download ＋ QR</text>
+
+  <!-- お客様 -->
+  <circle cx="92" cy="556" r="17" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <path d="M66,612 a26,30 0 0,1 52,0 z" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+  <text x="92" y="638" text-anchor="middle" style="font-size:13px;font-weight:700;fill:#0f172a;">お客様</text>
+
+  <!-- iPad -->
+  <rect x="172" y="486" width="120" height="200" rx="14" fill="#0f172a"/>
+  <rect x="180" y="498" width="104" height="160" rx="4" fill="#eff6ff"/>
+  <rect x="188" y="506" width="88" height="58" rx="3" fill="#bfdbfe"/>
+  <circle cx="232" cy="535" r="13" fill="#60a5fa"/>
+  <rect x="196" y="572" width="72" height="9" rx="3" fill="#cbd5e1"/>
+  <rect x="196" y="586" width="56" height="9" rx="3" fill="#cbd5e1"/>
+  <rect x="196" y="612" width="80" height="26" rx="6" fill="#2563eb"/>
+  <text x="236" y="629" text-anchor="middle" style="font-size:10px;fill:#fff;font-weight:700;">これで決定</text>
+  <text x="232" y="706" text-anchor="middle" style="font-size:13px;font-weight:700;fill:#0f172a;">ユーザ操作画面</text>
+  <text x="232" y="722" text-anchor="middle" style="font-size:10.5px;fill:#475569;">(iPad / お客様が操作)</text>
+
+  <!-- Mac mini -->
+  <rect x="372" y="556" width="172" height="96" rx="10" fill="#f1f5f9" stroke="#334155" stroke-width="2"/>
+  <circle cx="392" cy="640" r="4" fill="#94a3b8"/>
+  <text x="458" y="588" text-anchor="middle" style="font-size:13px;font-weight:700;fill:#0f172a;">Mac mini</text>
+  <text x="458" y="606" text-anchor="middle" style="font-size:10.5px;fill:#475569;">撮影core / サーバ合成worker</text>
+  <text x="458" y="622" text-anchor="middle" style="font-size:10.5px;fill:#475569;">:3000（合成→自動アップロード）</text>
+  <text x="458" y="638" text-anchor="middle" style="font-size:10.5px;fill:#475569;">管理API :3001</text>
+
+  <!-- ノートPC (画面=管理画面 失敗一覧) -->
+  <rect x="712" y="372" width="282" height="196" rx="10" fill="#0f172a"/>
+  <rect x="722" y="382" width="262" height="176" rx="4" fill="#ffffff"/>
+  <rect x="722" y="382" width="262" height="26" fill="#111827"/>
+  <text x="734" y="400" style="font-size:11px;fill:#fff;font-weight:700;">管理画面 / 失敗画像タブ</text>
+  <text x="966" y="400" text-anchor="end" style="font-size:9px;fill:#9ca3af;">localhost:3001</text>
+  <rect x="732" y="418" width="118" height="128" rx="6" fill="#fef2f2" stroke="#fecaca"/>
+  <rect x="742" y="428" width="98" height="58" rx="3" fill="#fecdd3"/>
+  <text x="791" y="500" text-anchor="middle" style="font-size:9px;fill:#b91c1c;font-weight:700;">状態: 合成失敗</text>
+  <rect x="742" y="510" width="98" height="22" rx="5" fill="#e11d48"/>
+  <text x="791" y="525" text-anchor="middle" style="font-size:10px;fill:#fff;font-weight:700;">再合成</text>
+  <rect x="858" y="418" width="118" height="128" rx="6" fill="#fff7ed" stroke="#fed7aa"/>
+  <rect x="868" y="428" width="98" height="58" rx="3" fill="#fde68a"/>
+  <text x="917" y="500" text-anchor="middle" style="font-size:9px;fill:#b45309;font-weight:700;">状態: アップ失敗</text>
+  <rect x="868" y="510" width="46" height="22" rx="5" fill="#475569"/>
+  <text x="891" y="525" text-anchor="middle" style="font-size:8.5px;fill:#fff;font-weight:700;">DL</text>
+  <rect x="920" y="510" width="46" height="22" rx="5" fill="#e11d48"/>
+  <text x="943" y="525" text-anchor="middle" style="font-size:8.5px;fill:#fff;font-weight:700;">再送</text>
+  <path d="M694,568 L1012,568 L1030,600 L676,600 z" fill="#cbd5e1" stroke="#334155" stroke-width="2"/>
+  <text x="853" y="624" text-anchor="middle" style="font-size:13px;font-weight:700;fill:#0f172a;">管理画面閲覧PC（ノートPC）</text>
+  <text x="853" y="640" text-anchor="middle" style="font-size:10.5px;fill:#475569;">スタッフが操作・このPCの回線でR2へ直接送信</text>
+
+  <!-- スタッフ -->
+  <circle cx="1058" cy="486" r="16" fill="#ffe4e6" stroke="#e11d48" stroke-width="2"/>
+  <path d="M1034,540 a24,28 0 0,1 48,0 z" fill="#ffe4e6" stroke="#e11d48" stroke-width="2"/>
+  <text x="1058" y="566" text-anchor="middle" style="font-size:13px;font-weight:700;fill:#0f172a;">スタッフ</text>
+
+  <!-- A お客様→iPad -->
+  <path d="M118,592 L168,560" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrBlue)"/>
+  <rect x="96" y="518" width="86" height="20" rx="5" fill="#fff" stroke="#cbd5e1"/><text x="139" y="532" text-anchor="middle" style="font-size:11px;fill:#0f172a;">①撮影・決定</text>
+
+  <!-- B iPad→Mac -->
+  <path d="M292,600 L368,600" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrBlue)"/>
+  <rect x="296" y="566" width="74" height="20" rx="5" fill="#fff" stroke="#cbd5e1"/><text x="333" y="580" text-anchor="middle" style="font-size:11px;fill:#0f172a;">/compose</text>
+
+  <!-- C Mac→R2 自動アップロード -->
+  <path d="M470,556 C486,420 492,260 506,156" fill="none" stroke="#059669" stroke-width="2.4" marker-end="url(#arrGreen)"/>
+  <rect x="486" y="348" width="170" height="38" rx="5" fill="#fff" stroke="#cbd5e1"/>
+  <text x="571" y="363" text-anchor="middle" style="font-size:11px;fill:#0f172a;">②自動アップロード</text>
+  <text x="571" y="378" text-anchor="middle" style="font-size:10px;fill:#475569;">最大24hリトライ（裏で継続）</text>
+  <circle cx="492" cy="300" r="11" fill="#fff" stroke="#e11d48" stroke-width="2"/><text x="492" y="304" text-anchor="middle" style="font-size:12px;font-weight:800;fill:#e11d48;">✕</text>
+  <text x="448" y="304" text-anchor="end" style="font-size:9.5px;fill:#e11d48;">失敗あり</text>
+
+  <!-- E Mac→ノートPC画面 失敗一覧 -->
+  <path d="M544,576 L708,470" fill="none" stroke="#e11d48" stroke-width="2.4" marker-end="url(#arrRed)"/>
+  <rect x="556" y="484" width="150" height="52" rx="5" fill="#fff" stroke="#cbd5e1"/>
+  <text x="631" y="499" text-anchor="middle" style="font-size:11px;fill:#0f172a;">✕合成失敗 / アップ失敗</text>
+  <text x="631" y="513" text-anchor="middle" style="font-size:10px;fill:#475569;">→失敗一覧に表示（1h超）</text>
+  <text x="631" y="527" text-anchor="middle" style="font-size:10px;fill:#475569;">48h未完了で自動削除</text>
+
+  <!-- G スタッフ→ノートPC -->
+  <path d="M1040,500 L998,500" fill="none" stroke="#e11d48" stroke-width="2.2" marker-end="url(#arrRed)"/>
+  <rect x="996" y="452" width="74" height="20" rx="5" fill="#fff" stroke="#cbd5e1"/><text x="1033" y="466" text-anchor="middle" style="font-size:11px;fill:#0f172a;">③対応</text>
+
+  <!-- H ノートPC→Mac :3001 -->
+  <path d="M710,612 C620,648 560,648 470,630" fill="none" stroke="#e11d48" stroke-width="2.2" marker-end="url(#arrRed)"/>
+  <rect x="500" y="660" width="226" height="36" rx="5" fill="#fff" stroke="#cbd5e1"/>
+  <text x="613" y="675" text-anchor="middle" style="font-size:11px;fill:#0f172a;">素材JPEG・署名URL(presign)を取得</text>
+  <text x="613" y="689" text-anchor="middle" style="font-size:10px;fill:#475569;">管理API :3001（再合成/再送の準備）</text>
+
+  <!-- I ノートPC→R2 直PUT -->
+  <path d="M770,372 C700,300 640,220 590,158" fill="none" stroke="#e11d48" stroke-width="2.6" marker-end="url(#arrRed)"/>
+  <rect x="610" y="230" width="212" height="52" rx="5" fill="#fff" stroke="#cbd5e1"/>
+  <text x="716" y="245" text-anchor="middle" style="font-size:11px;fill:#0f172a;">④PCの回線で R2 へ直接 PUT</text>
+  <text x="716" y="259" text-anchor="middle" style="font-size:10px;fill:#475569;">再合成＝ブラウザ合成（名前/日数/枠）</text>
+  <text x="716" y="273" text-anchor="middle" style="font-size:10px;fill:#475569;">再送＝DL後にネット切替→送信</text>
+
+  <!-- D R2→お客様 -->
+  <path d="M452,132 C250,150 120,300 96,520" fill="none" stroke="#2563eb" stroke-width="2.2" marker-end="url(#arrBlue)"/>
+  <rect x="118" y="298" width="152" height="36" rx="5" fill="#fff" stroke="#cbd5e1"/>
+  <text x="194" y="313" text-anchor="middle" style="font-size:11px;fill:#0f172a;">QRコードでダウンロード</text>
+  <text x="194" y="327" text-anchor="middle" style="font-size:10px;fill:#475569;">完了後にお客様へ提示</text>
+
+  <!-- legend -->
+  <rect x="36" y="726" width="470" height="40" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+  <line x1="46" y1="746" x2="74" y2="746" stroke="#2563eb" stroke-width="3"/><text x="80" y="750" style="font-size:10.5px;fill:#475569;">通常フロー</text>
+  <line x1="160" y1="746" x2="188" y2="746" stroke="#059669" stroke-width="3"/><text x="194" y="750" style="font-size:10.5px;fill:#475569;">自動アップロード(24h)</text>
+  <line x1="340" y1="746" x2="368" y2="746" stroke="#e11d48" stroke-width="3"/><text x="374" y="750" style="font-size:10.5px;fill:#475569;">失敗時の手動救済</text>
+</svg>
+</div>
+</body>
+</html>

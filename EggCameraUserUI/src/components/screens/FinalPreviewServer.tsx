@@ -20,6 +20,8 @@ interface Props {
   photoId: string | null;
   nickname: string;
   days: number;
+  // 満月齢。フレームの区分はこの値で選ばれる（日数ではない）
+  months: number;
   onConfirmed: (result: SessionResult, jobId: string) => void;
   onError: () => void;
 }
@@ -43,7 +45,7 @@ function WaitBar() {
 // 合成待ちが長引いたら文言を進める（サーバからの進捗イベントは無いので経過時間ベース）
 const COMPOSE_SLOW_MS = 4_000;
 
-export function FinalPreviewServer({ sessionId, photoId, nickname, days, onConfirmed, onError }: Props) {
+export function FinalPreviewServer({ sessionId, photoId, nickname, days, months, onConfirmed, onError }: Props) {
   const { T } = useLang();
   const daysText = days > 0 ? T.preview.daysSinceBirth(days) : '';
 
@@ -76,7 +78,7 @@ export function FinalPreviewServer({ sessionId, photoId, nickname, days, onConfi
     if (!sessionId || !photoId) { onErrorRef.current(); return; }
     let cancelled = false;
     setPhase('composing');
-    composePreview(sessionId, { photoId, nickname, daysText, days })
+    composePreview(sessionId, { photoId, nickname, daysText, days, months })
       .then(({ jobId, thumbDataUrl }) => {
         if (cancelled) return;
         setJobId(jobId);
@@ -85,7 +87,7 @@ export function FinalPreviewServer({ sessionId, photoId, nickname, days, onConfi
       })
       .catch(err => { if (!cancelled) fail('composePreview', err); });
     return () => { cancelled = true; };
-  }, [sessionId, photoId, nickname, daysText, days, fail]);
+  }, [sessionId, photoId, nickname, daysText, days, months, fail]);
 
   const handleConfirm = () => {
     if (phase !== 'ready' || !sessionId || !jobId) return;
@@ -99,7 +101,7 @@ export function FinalPreviewServer({ sessionId, photoId, nickname, days, onConfi
 
   return (
     <IPad step={5} totalSteps={5} animKey="preview">
-      <Page data-section="preview-screen" style={{ paddingTop: 50, paddingBottom: 28 }}>
+      <Page data-section="preview-screen" style={{ paddingTop: 50 }}>
 
         <div data-ui="preview-header" style={{ marginBottom: 0, flexShrink: 0, textAlign: 'center' }}>
           <div className="t-eyebrow" style={{ marginBottom: 40, marginLeft: 0, textAlign: 'left' }}>{T.preview.step}</div>
@@ -146,7 +148,7 @@ export function FinalPreviewServer({ sessionId, photoId, nickname, days, onConfi
           </div>
         </div>
 
-        <div style={{ flexShrink: 0, marginTop: 14 }}>
+        <div className="screen-actions" style={{ marginTop: 14 }}>
           <button className="btn-primary" onClick={handleConfirm} disabled={busy}>
             {phase === 'confirming' ? T.preview.issuingQr : busy ? T.preview.saving : T.preview.save}
           </button>

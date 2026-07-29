@@ -14,10 +14,10 @@ export function PhotoSelect({ photos, onNext, onBack }: PhotoSelectProps) {
   const [sel, setSel] = useState<string | null>(photos[1]?.photoId ?? photos[0]?.photoId ?? null);
 
   return (
-    <IPad step={4} totalSteps={7} animKey="photosel">
+    <IPad step={4} totalSteps={5} animKey="photosel">
       <div data-section="photoselect-screen" style={{
         flex: 1, display: 'flex', flexDirection: 'column',
-        padding: '50px 40px 40px',
+        padding: '50px 40px 0',
       }}>
 
         {/* Step */}
@@ -78,7 +78,7 @@ export function PhotoSelect({ photos, onNext, onBack }: PhotoSelectProps) {
         </div>
 
         {/* Decide button */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 32 }}>
+        <div className="screen-actions" style={{ marginTop: 32 }}>
           <button
             className="btn-primary"
             disabled={sel === null}

@@ -17,6 +17,25 @@ note=""
 
 echo "==== $(date '+%F %T') iPad恒久setup 再起動後検証 ===="
 
+# 0) Wi-Fiモード(USB切断期間・2026-07-12〜): USBトンネル系の検証は無意味なので、
+#    代わりにWi-Fi WDA構成(xcodebuild+フォワーダ)を再建して判定する。
+#    Mac再起動でシェル起動のWDA/フォワーダは必ず消えているため、ここでの再建が
+#    直後のpost-boot検証テスト(ipad-test.js直接実行)の成立条件になる。
+if [ -f "/Users/eggcamera/EggCamera/ops/ipad/.wda-wifi-mode" ]; then
+  echo "— Wi-Fiモード検出: USBトンネル検証をスキップしWi-Fi WDA構成を再建 —"
+  if /Users/eggcamera/EggCamera/ops/ipad/wda-wifi-recovery.sh; then
+    echo "==== ✅ 合格(Wi-Fiモード): WDA構成 再建OK ===="
+    curl -s -m 8 -X POST http://127.0.0.1:3000/api/test-report -H 'Content-Type: application/json' \
+      --data '{"level":"info","text":"DEPLOY-MARKER(verify-after-reboot): Wi-FiモードWDA構成の再建OK(USB切断期間)"}' >/dev/null 2>&1
+    exit 0
+  else
+    echo "==== ⚠ 不合格(Wi-Fiモード): WDA構成 再建失敗 ===="
+    curl -s -m 8 -X POST http://127.0.0.1:3000/api/test-report -H 'Content-Type: application/json' \
+      --data '{"level":"alert","text":"DEPLOY-MARKER(verify-after-reboot): Wi-FiモードWDA構成の再建失敗(iPad電源/Wi-Fi要確認)"}' >/dev/null 2>&1
+    exit 1
+  fi
+fi
+
 # 1) daemon 自動起動
 if launchctl print system/com.eggcamera.appium-tunnel 2>/dev/null | grep -q 'state = running'; then
   echo "✅ 1) daemon(com.eggcamera.appium-tunnel) 稼働中"

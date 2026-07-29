@@ -12,6 +12,13 @@ final class CameraController: NSObject {
     private let videoQueue = DispatchQueue(label: "com.eggcamera.iphone.preview-frames")
     private weak var logger: AppLogger?
     private var device: AVCaptureDevice?
+    // 撮影時センサークロップズーム(光学品質)。crop.zoom がトリガ/wake で渡る。
+    // sessionQueue 上でのみ読み書きする。activeFormat 変更で videoZoomFactor は 1.0 に
+    // リセットされるため、フォーマット確定後に毎回 applyZoomLocked() で再適用する。
+    private var requestedZoom: CGFloat = 1.0
+    // 撮影時露出補正(EV)。exposure.bias がトリガ/wake で渡る。sessionQueue 上でのみ
+    // 読み書きし、ズームと同様フォーマット確定後に applyExposureBiasLocked() で再適用する。
+    private var requestedExposureBias: Float = 0
     private var activeDelegates: [PhotoCaptureDelegate] = []
     private let delegateLock = NSLock()
 
@@ -20,6 +27,18 @@ final class CameraController: NSObject {
     // 復帰は wake()（iPad のスタート押下で呼ばれる）または撮影時の遅延起動。
     private var idleTimer: DispatchSourceTimer?
     private static let idleTimeout: TimeInterval = 180
+
+    // ── 12MPフォーマットrace恒久対策（2026-07-04）─────────────────────────
+    // セッション cold-start 直後は 48MP フォーマットの列挙/適用が撮影と競走し、初回1枚だけ
+    // 12MP になる確率的 race がある（warmup は発生率低減の緩和策で根絶はできない）。対策は2層:
+    //   1) cold-start 後の撮影は photoOutput.maxPhotoDimensions が 48MP 級になるまで待つ
+    //   2) それでも低解像で出てきたら1回だけ即時リテイク（この時点でセッションは温まっている）
+    // ※ 低照度ビニング(暗所で12MP)は仕様であり対象外。リテイクが発火するのは cold-start
+    //   直後の1枚だけなので、暗所では追加1枚(どちらも12MP)を撮るだけで実害はない。
+    private var lastSessionStartAt: CFTimeInterval = 0
+    private static let coldStartWindow: CFTimeInterval = 10   // 起動後この秒数内の撮影を cold とみなす
+    private static let fullResReadyTimeout: CFTimeInterval = 2.5
+    private static let fullResMinArea = 40_000_000            // 48MP級の下限(8064x6048≈48.8M)。12MP≈12.2M
 
     // ブラウザのライブプレビュー用: 最新フレームのJPEGを保持（GET /frame が読む）
     private let frameLock = NSLock()
@@ -62,6 +81,7 @@ final class CameraController: NSObject {
         sessionQueue.async {
             if !self.session.isRunning {
                 self.session.startRunning()
+                self.lastSessionStartAt = CACurrentMediaTime() // 割り込み復帰も cold-start 扱い
                 Task { @MainActor in
                     self.logger?.log("AVCaptureSession restarted after interruption")
                 }
@@ -102,6 +122,28 @@ final class CameraController: NSObject {
         }
     }
 
+    // 管理画面スライダー / wake?zoom= からのリアルタイムズーム。撮影を待たず
+    // プレビュー(videoOutput)にも反映する。セッション未起動時は requestedZoom だけ
+    // 更新し、次の ensureRunning/capture 後の applyZoomLocked で反映される。
+    func setZoom(_ zoom: Double) {
+        sessionQueue.async {
+            self.requestedZoom = CGFloat(zoom)
+            guard self.session.isRunning else { return }
+            self.applyZoomLocked()
+        }
+    }
+
+    // 管理画面スライダー / wake?ev= からのリアルタイム露出補正。撮影を待たず
+    // プレビュー(videoOutput)にも反映する。セッション未起動時は requestedExposureBias
+    // だけ更新し、次の ensureRunning/capture 後の applyExposureBiasLocked で反映される。
+    func setExposureBias(_ bias: Double) {
+        sessionQueue.async {
+            self.requestedExposureBias = Float(bias)
+            guard self.session.isRunning else { return }
+            self.applyExposureBiasLocked()
+        }
+    }
+
     // プレビュー取得など、稼働中のアクティビティでアイドル時間を延長する
     // （稼働していなければ何もしない＝/frame だけでは起動しない）。
     func noteActivity() {
@@ -128,6 +170,7 @@ final class CameraController: NSObject {
         guard !session.isRunning else { return }
         try configureSessionIfNeeded()
         session.startRunning()
+        lastSessionStartAt = CACurrentMediaTime() // cold-start判定の起点（12MP race対策）
         Task { @MainActor in self.logger?.log("AVCaptureSession started") }
     }
 
@@ -155,39 +198,114 @@ final class CameraController: NSObject {
         return values.isEmpty ? "-" : values.joined(separator: ", ")
     }
 
-    func capture(preferredWidth: Int?, preferredHeight: Int?) async throws -> (CaptureIntermediate, CaptureCandidate?) {
+    func capture(preferredWidth: Int?, preferredHeight: Int?, zoom: Double?, exposureBias: Double?) async throws -> (CaptureIntermediate, CaptureCandidate?) {
         try await withCheckedThrowingContinuation { continuation in
             sessionQueue.async {
-                // 念のための遅延起動: wake を取りこぼしても撮影は成立させる
-                do {
-                    try self.ensureRunningLocked()
-                } catch {
-                    continuation.resume(throwing: error)
-                    return
+                self.captureAttemptLocked(preferredWidth: preferredWidth,
+                                          preferredHeight: preferredHeight,
+                                          zoom: zoom,
+                                          exposureBias: exposureBias,
+                                          attempt: 1) { result in
+                    continuation.resume(with: result)
                 }
-                self.scheduleIdleStopLocked()
-                self.applyBestPhotoFormatLocked() // 撮影ごとに最高画質を保証(12MP固定を自己修復)
+            }
+        }
+    }
 
-                let candidate = self.chooseCandidate(preferredWidth: preferredWidth, preferredHeight: preferredHeight)
-                let settings = self.makePhotoSettings(candidate: candidate)
+    // sessionQueue 上で呼ぶこと。attempt=1 で cold-start 低解像を検知したら attempt=2 を1回だけ再帰発火する。
+    private func captureAttemptLocked(preferredWidth: Int?,
+                                      preferredHeight: Int?,
+                                      zoom: Double?,
+                                      exposureBias: Double?,
+                                      attempt: Int,
+                                      completion: @escaping (Result<(CaptureIntermediate, CaptureCandidate?), Error>) -> Void) {
+        // 念のための遅延起動: wake を取りこぼしても撮影は成立させる
+        do {
+            try ensureRunningLocked()
+        } catch {
+            completion(.failure(error))
+            return
+        }
+        scheduleIdleStopLocked()
+        applyBestPhotoFormatLocked() // 撮影ごとに最高画質を保証(12MP固定を自己修復)
+        let coldStart = CACurrentMediaTime() - lastSessionStartAt < Self.coldStartWindow
+        if coldStart {
+            waitForFullResReadyLocked() // race対策1: フォーマット確定前にシャッターを切らない
+        }
+        if let zoom { self.requestedZoom = CGFloat(zoom) }
+        applyZoomLocked() // activeFormat変更でzoomがリセットされるため、フォーマット確定後に再適用
+        if let exposureBias { self.requestedExposureBias = Float(exposureBias) }
+        if applyExposureBiasLocked() {
+            waitForExposureSettleLocked() // バイアスを今変えた時だけAE収束を待つ(通常撮影は遅延ゼロ)
+        }
 
-                let delegate = PhotoCaptureDelegate(selectedDimensions: candidate?.dimensions) { [weak self] result in
-                    self?.remove(delegate: result.delegate)
-                    switch result.payload {
-                    case .success(let payload):
-                        continuation.resume(returning: (payload, candidate))
-                    case .failure(let error):
-                        continuation.resume(throwing: error)
+        let candidate = chooseCandidate(preferredWidth: preferredWidth, preferredHeight: preferredHeight)
+        let settings = makePhotoSettings(candidate: candidate)
+        let expectedArea = area(photoOutput.maxPhotoDimensions)
+
+        let delegate = PhotoCaptureDelegate(selectedDimensions: candidate?.dimensions) { [weak self] result in
+            self?.remove(delegate: result.delegate)
+            switch result.payload {
+            case .success(let payload):
+                // race対策2: cold-start直後の1枚が「要求の半分未満の実寸」なら即時リテイク(1回のみ)。
+                // この時点でセッションは温まっているため2枚目は正常解像度になる。
+                // self が無い場合も completion は必ず呼ぶ（continuation を漏らさない）。
+                if let self, attempt == 1, coldStart, expectedArea > 0 {
+                    let got = self.area(payload.deliveredDimensions)
+                    if got > 0, got * 2 < expectedArea {
+                        Task { @MainActor in
+                            self.logger?.log("cold-start低解像を検知 got=\(self.describe(payload.deliveredDimensions)) expectedArea=\(expectedArea) → 即時リテイク")
+                        }
+                        self.sessionQueue.async {
+                            self.captureAttemptLocked(preferredWidth: preferredWidth,
+                                                      preferredHeight: preferredHeight,
+                                                      zoom: zoom,
+                                                      exposureBias: exposureBias,
+                                                      attempt: 2,
+                                                      completion: completion)
+                        }
+                        return
                     }
                 }
+                completion(.success((payload, candidate)))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
 
-                self.store(delegate: delegate)
-                let outMax = self.describe(self.photoOutput.maxPhotoDimensions)
-                let setMax = self.describe(settings.maxPhotoDimensions)
-                self.photoOutput.capturePhoto(with: settings, delegate: delegate)
+        store(delegate: delegate)
+        let outMax = describe(photoOutput.maxPhotoDimensions)
+        let setMax = describe(settings.maxPhotoDimensions)
+        photoOutput.capturePhoto(with: settings, delegate: delegate)
+        Task { @MainActor in
+            self.logger?.log("capturePhoto fired attempt=\(attempt) cold=\(coldStart) selected=\(self.describe(candidate?.dimensions)) settingsMax=\(setMax) outputMax=\(outMax) deferredEnabled=\(candidate?.autoDeferredEnabled == true)")
+        }
+    }
+
+    // sessionQueue 上で呼ぶこと。cold-start直後、photoOutput.maxPhotoDimensions が48MP級に
+    // 到達するまで applyBestPhotoFormatLocked を再試行しながら最大 fullResReadyTimeout 待つ。
+    // 起動直後は device.formats に48MPフォーマットがまだ列挙されていないことがあり、
+    // 「最高画質を適用」しても12MPが最高、という一瞬が存在する（=raceの正体）。
+    // 到達できないままタイムアウトした場合はそのまま撮影に進む（fail-open。従来と同じ挙動＋ログ）。
+    private func waitForFullResReadyLocked() {
+        let deadline = CACurrentMediaTime() + Self.fullResReadyTimeout
+        var polls = 0
+        while area(photoOutput.maxPhotoDimensions) < Self.fullResMinArea {
+            if CACurrentMediaTime() >= deadline {
+                let cur = describe(photoOutput.maxPhotoDimensions)
                 Task { @MainActor in
-                    self.logger?.log("capturePhoto fired selected=\(self.describe(candidate?.dimensions)) settingsMax=\(setMax) outputMax=\(outMax) deferredEnabled=\(candidate?.autoDeferredEnabled == true)")
+                    self.logger?.log("⚠ full-res ready 待ちタイムアウト(\(Self.fullResReadyTimeout)s) outputMax=\(cur) のまま撮影続行")
                 }
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+            applyBestPhotoFormatLocked()
+            polls += 1
+        }
+        if polls > 0 {
+            let waited = String(format: "%.1f", Double(polls) * 0.1)
+            Task { @MainActor in
+                self.logger?.log("full-res ready 待ち \(waited)s で48MP級に到達（raceを回避）")
             }
         }
     }
@@ -231,6 +349,8 @@ final class CameraController: NSObject {
         }
 
         applyBestPhotoFormatLocked()
+        applyZoomLocked() // 初回構成・ライブプレビュー時にも要求ズームを反映
+        applyExposureBiasLocked()
     }
 
     // 最高画質(最大の写真エリア)のフォーマットを activeFormat に設定し、photoOutput.maxPhotoDimensions も合わせる。
@@ -268,6 +388,67 @@ final class CameraController: NSObject {
         Task { @MainActor in
             self.logger?.log("最高画質を適用(自己修復): maxPhotoDimensions=\(lg) switchedFormat=\(needFormatSwitch)")
         }
+    }
+
+    // sessionQueue 上で呼ぶこと。requestedZoom を device.videoZoomFactor へ反映する。
+    // videoZoomFactor はデバイス級プロパティで photoOutput(撮影)と videoOutput(/frame)の
+    // 両方に同時適用される。lockForConfiguration のみで足りる(beginConfiguration不要・ちらつき回避)。
+    private func applyZoomLocked() {
+        guard let device else { return }
+        // 上限は端末の物理上限(maxAvailableVideoZoomFactor)まで許容する。無劣化範囲の
+        // 提示は管理画面のズームゲージ側で行う方針のため、ここでは物理上限のみで保護する。
+        let lo = device.minAvailableVideoZoomFactor
+        let maxAvail = device.maxAvailableVideoZoomFactor
+        let hi = maxAvail
+        let z = max(lo, min(requestedZoom, hi))
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = z
+            device.unlockForConfiguration()
+            Task { @MainActor in self.logger?.log("zoom適用: videoZoomFactor=\(z) 最大\(maxAvail)") }
+        } catch {
+            Task { @MainActor in self.logger?.log("zoom lock失敗: \(error.localizedDescription)") }
+        }
+    }
+
+    // sessionQueue 上で呼ぶこと。requestedExposureBias を device.setExposureTargetBias へ反映する。
+    // 露出バイアスはデバイス級プロパティで photoOutput(撮影)と videoOutput(/frame)の両方に効く。
+    // 自動露出(AE)の目標値をずらす方式なので、AEモード自体は連続オートのまま維持される。
+    // 戻り値: バイアス値を実際に変更したか（変更時は撮影前に waitForExposureSettleLocked が必要）。
+    @discardableResult
+    private func applyExposureBiasLocked() -> Bool {
+        guard let device else { return false }
+        let lo = device.minExposureTargetBias
+        let hi = device.maxExposureTargetBias
+        let b = max(lo, min(requestedExposureBias, hi))
+        guard abs(device.exposureTargetBias - b) > 0.001 else { return false } // 冪等(未変更なら触らない)
+        do {
+            try device.lockForConfiguration()
+            device.setExposureTargetBias(b, completionHandler: nil)
+            device.unlockForConfiguration()
+            Task { @MainActor in self.logger?.log("露出補正適用: exposureTargetBias=\(b)EV (範囲\(lo)〜\(hi))") }
+            return true
+        } catch {
+            Task { @MainActor in self.logger?.log("露出補正 lock失敗: \(error.localizedDescription)") }
+            return false
+        }
+    }
+
+    // sessionQueue 上で呼ぶこと。setExposureTargetBias は非同期で、AE(ISO/シャッター)が
+    // 追従するまで数百msかかる。収束を待たずにシャッターを切ると旧露出のまま写る
+    // （2026-07-27 実測: ライブは反映・撮影は無反映のズレの原因）。バイアス変更時のみ呼ぶ。
+    // タイムアウト時はそのまま撮影続行（fail-open）。
+    private func waitForExposureSettleLocked() {
+        guard let device else { return }
+        let deadline = CACurrentMediaTime() + 1.2
+        while device.isAdjustingExposure {
+            if CACurrentMediaTime() >= deadline {
+                Task { @MainActor in self.logger?.log("⚠ 露出収束待ちタイムアウト(1.2s) そのまま撮影続行") }
+                return
+            }
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        Thread.sleep(forTimeInterval: 0.15) // AE確定直後の残り香を吸収
     }
 
     private func chooseCandidate(preferredWidth: Int?, preferredHeight: Int?) -> CaptureCandidate? {

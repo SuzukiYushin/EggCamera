@@ -13,8 +13,8 @@ final class AppRuntime {
                                                            store: store)
     private lazy var triggerServer: TriggerReceiverServer? = {
         guard let port = configuration.triggerPort else { return nil }
-        return TriggerReceiverServer(port: port, logger: logger) { [weak self] triggerId in
-            await self?.sendCapture(triggerId: triggerId)
+        return TriggerReceiverServer(port: port, logger: logger) { [weak self] triggerId, zoom, exposureBias in
+            await self?.sendCapture(triggerId: triggerId, zoom: zoom, exposureBias: exposureBias)
         }
     }()
     private var loopTask: Task<Void, Never>?
@@ -64,7 +64,7 @@ final class AppRuntime {
         }
     }
 
-    private func sendCapture(triggerId: String = "-") async {
+    private func sendCapture(triggerId: String = "-", zoom: Double? = nil, exposureBias: Double? = nil) async {
         guard !isSending else {
             logger.log("[\(triggerId)] Capture skipped because a request is already in flight")
             return
@@ -83,7 +83,9 @@ final class AppRuntime {
                                                             port: self.configuration.iphonePort,
                                                             callbackURL: "",
                                                             preferredWidth: self.configuration.preferredWidth,
-                                                            preferredHeight: self.configuration.preferredHeight)
+                                                            preferredHeight: self.configuration.preferredHeight,
+                                                            zoom: zoom,
+                                                            exposureBias: exposureBias)
                 }
                 group.addTask {
                     try await Task.sleep(for: .seconds(20))

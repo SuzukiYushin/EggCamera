@@ -1,7 +1,10 @@
 {
   "crop": {
-    "zoom": 1.75,
+    "zoom": 1,
     "offsetX": 0,
     "offsetY": 0
+  },
+  "exposure": {
+    "bias": 0
   }
 }

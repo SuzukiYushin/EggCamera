@@ -6,6 +6,8 @@ struct CaptureCommand: Codable {
     let callbackURL: String
     let preferredWidth: Int?
     let preferredHeight: Int?
+    let zoom: Double?  // 撮影時センサークロップズーム倍率(1.0〜2.0)。省略/nil は等倍(後方互換)。
+    let exposureBias: Double?  // 撮影時露出補正(EV)。省略/nil は補正なし(後方互換)。
 }
 
 struct CaptureMetadata: Codable {
@@ -39,6 +41,14 @@ struct CaptureCandidate {
 enum CaptureIntermediate {
     case photo(data: Data, dimensions: CMVideoDimensions, fileType: String, deferred: Bool)
     case deferredProxy(data: Data, selectedDimensions: CMVideoDimensions, fileType: String)
+
+    // 実際に配信された画像の実寸（cold-start低解像リテイクの判定に使う）
+    var deliveredDimensions: CMVideoDimensions {
+        switch self {
+        case .photo(_, let dimensions, _, _): return dimensions
+        case .deferredProxy(_, let selectedDimensions, _): return selectedDimensions
+        }
+    }
 }
 
 struct FinalPhotoPayload {

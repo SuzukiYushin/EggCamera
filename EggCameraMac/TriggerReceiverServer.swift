@@ -4,16 +4,18 @@ import Network
 final class TriggerReceiverServer {
     private struct TriggerBody: Decodable {
         let triggerId: String
+        let zoom: Double?
+        let exposureBias: Double?
     }
 
     private let queue = DispatchQueue(label: "com.eggcamera.mac.trigger")
     private weak var logger: AppLogger?
-    private let onCapture: @Sendable (String) async -> Void
+    private let onCapture: @Sendable (String, Double?, Double?) async -> Void
     private var listener: NWListener?
 
     let port: UInt16
 
-    init(port: UInt16, logger: AppLogger, onCapture: @escaping @Sendable (String) async -> Void) {
+    init(port: UInt16, logger: AppLogger, onCapture: @escaping @Sendable (String, Double?, Double?) async -> Void) {
         self.port = port
         self.logger = logger
         self.onCapture = onCapture
@@ -76,15 +78,21 @@ final class TriggerReceiverServer {
 
         let body = Data(data[range.upperBound...])
         let triggerId: String
+        let zoom: Double?
+        let exposureBias: Double?
         if let parsed = try? JSONDecoder().decode(TriggerBody.self, from: body) {
             triggerId = parsed.triggerId
+            zoom = parsed.zoom
+            exposureBias = parsed.exposureBias
         } else {
             triggerId = "unknown"
+            zoom = nil
+            exposureBias = nil
         }
 
         HTTPMessage.sendStatus(202, "Accepted", on: connection)
         Task {
-            await self.onCapture(triggerId)
+            await self.onCapture(triggerId, zoom, exposureBias)
         }
     }
 }

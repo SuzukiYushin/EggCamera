@@ -39,19 +39,16 @@ function ensureSeeded() {
         const id = newId();
         const file = `${id}.png`;
         fs.copyFileSync(src, path.join(FRAMES_DIR, file));
-        frames.push({ id, name, file, active: true, addedAt: Date.now() });
+        frames.push({ id, name, file, addedAt: Date.now() });
     }
     saveMeta(frames);
     console.log(`[${ts()}] frames seeded: ${frames.length} frame(s)`);
 }
 
+// 一覧にあるフレームはすべて撮影時のランダム選択対象（使用中/非表示の区別は持たない）
 function listFrames() {
     ensureSeeded();
     return (loadMeta() || []).filter(f => fs.existsSync(path.join(FRAMES_DIR, f.file)));
-}
-
-function listActiveFrames() {
-    return listFrames().filter(f => f.active);
 }
 
 function addFrameFromBuffer(buffer, name, ext) {
@@ -60,7 +57,7 @@ function addFrameFromBuffer(buffer, name, ext) {
     const id = newId();
     const file = `${id}${ext}`;
     fs.writeFileSync(path.join(FRAMES_DIR, file), buffer);
-    const frame = { id, name: name || `フレーム ${frames.length + 1}`, file, active: true, addedAt: Date.now() };
+    const frame = { id, name: name || `フレーム ${frames.length + 1}`, file, addedAt: Date.now() };
     frames.push(frame);
     saveMeta(frames);
     console.log(`[${ts()}] frame added: ${frame.name} (${file})`);
@@ -88,21 +85,9 @@ function deleteFrame(id) {
     return frame;
 }
 
-function setFrameActive(id, active) {
-    const frames = listFrames();
-    const frame = frames.find(f => f.id === id);
-    if (!frame) throw new Error('frame_not_found');
-    frame.active = !!active;
-    saveMeta(frames);
-    console.log(`[${ts()}] frame ${active ? 'activated' : 'hidden'}: ${frame.name}`);
-    return frame;
-}
-
 module.exports = {
     listFrames,
-    listActiveFrames,
     addFrameFromBuffer,
     addFrameFromPath,
     deleteFrame,
-    setFrameActive,
 };

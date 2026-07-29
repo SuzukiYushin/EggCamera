@@ -1,28 +1,6 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { PROTO } from '../api';
-
-const DESIGN_WIDTH = 768;
-const DESIGN_HEIGHT = 1024;
-
-// プロトタイプでは上部の画面選択ナビのぶんだけキャンバスを小さくする
-const NAV_OFFSET = PROTO ? 64 : 0;
-
-// Scales the fixed-size (768×1024) design canvas to fit the real device
-// viewport, preserving aspect ratio (letterboxed via .app-viewport).
-export function useFitScale() {
-  const [scale, setScale] = useState(1);
-
-  useEffect(() => {
-    const update = () => {
-      setScale(Math.min(window.innerWidth / DESIGN_WIDTH, (window.innerHeight - NAV_OFFSET) / DESIGN_HEIGHT));
-    };
-    update();
-    window.addEventListener('resize', update);
-    return () => window.removeEventListener('resize', update);
-  }, []);
-
-  return scale;
-}
+import { useFitScale } from './viewport';
 
 interface IPadProps {
   step?: number;

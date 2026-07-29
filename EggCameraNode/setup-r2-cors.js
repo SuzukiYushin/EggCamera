@@ -13,16 +13,32 @@ const r2 = new S3Client({
     },
 });
 
+// 管理画面ブラウザからの直PUT（再送/再合成）を許可するオリジン。
+// 書き込み認可は pre-signed 署名で担保されるため、ここは CORS プリフライト通過用。
+// 限定したい場合は .env の ADMIN_CORS_ORIGINS（カンマ区切り, 例
+// "http://192.168.0.10:3001,http://localhost:3001"）を設定する。未設定なら '*'。
+const ADMIN_CORS_ORIGINS = (process.env.ADMIN_CORS_ORIGINS || '*')
+    .split(',').map(s => s.trim()).filter(Boolean);
+
 async function main() {
     await r2.send(new PutBucketCorsCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         CORSConfiguration: {
-            CORSRules: [{
-                AllowedOrigins: [process.env.PAGES_BASE_URL],
-                AllowedMethods: ['GET', 'HEAD'],
-                AllowedHeaders: ['*'],
-                MaxAgeSeconds: 86400,
-            }],
+            CORSRules: [
+                { // ダウンロード（Pages 経由の閲覧）
+                    AllowedOrigins: [process.env.PAGES_BASE_URL],
+                    AllowedMethods: ['GET', 'HEAD'],
+                    AllowedHeaders: ['*'],
+                    MaxAgeSeconds: 86400,
+                },
+                { // 管理画面ブラウザからの直PUT（再送/再合成）。認可は pre-signed 署名で担保。
+                    AllowedOrigins: ADMIN_CORS_ORIGINS,
+                    AllowedMethods: ['PUT', 'GET', 'HEAD'],
+                    AllowedHeaders: ['*'],
+                    ExposeHeaders: ['ETag'],
+                    MaxAgeSeconds: 86400,
+                },
+            ],
         },
     }));
 

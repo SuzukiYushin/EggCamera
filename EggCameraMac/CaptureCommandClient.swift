@@ -21,13 +21,17 @@ final class CaptureCommandClient {
                      port: Int,
                      callbackURL: String,
                      preferredWidth: Int?,
-                     preferredHeight: Int?) async throws -> Data {
+                     preferredHeight: Int?,
+                     zoom: Double?,
+                     exposureBias: Double?) async throws -> Data {
         let endpoint = try await resolveEndpoint(host: host, port: port)
 
         let command = CaptureCommand(requestID: UUID().uuidString,
                                      callbackURL: callbackURL,
                                      preferredWidth: preferredWidth,
-                                     preferredHeight: preferredHeight)
+                                     preferredHeight: preferredHeight,
+                                     zoom: zoom,
+                                     exposureBias: exposureBias)
 
         let body = try JSONEncoder.iso8601.encode(command)
         let requestHeader = [

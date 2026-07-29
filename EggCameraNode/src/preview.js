@@ -143,9 +143,15 @@ function startDiscovery() { /* USB直結: 探索不要 */ }
 
 // iPad のスタート押下時に、iPhone のカメラを先行起動させる（撮影ページの
 // 待ち時間をなくすため）。投げっぱなしで良く、失敗しても撮影時の遅延起動が保険になる。
-function wake() {
+function wake(zoom, exposureBias) {
+    const z = Number(zoom);
+    const ev = Number(exposureBias);
+    const params = [];
+    if (Number.isFinite(z) && z > 0) params.push(`zoom=${z}`);
+    if (Number.isFinite(ev)) params.push(`ev=${ev}`);
+    const path = params.length ? `/wake?${params.join('&')}` : '/wake';
     const req = http.request({
-        host: IPHONE_HOST, port: IPHONE_PORT, path: '/wake', method: 'POST', timeout: 2000,
+        host: IPHONE_HOST, port: IPHONE_PORT, path, method: 'POST', timeout: 2000,
     }, r => r.resume());
     req.on('timeout', () => req.destroy());
     req.on('error', () => { /* 起動できなくても撮影時に遅延起動する */ });

@@ -161,12 +161,31 @@
       line-height: 1.8;
     }
 
+    /* 言語切替（右上固定・小型） */
+    .lang-btn {
+      position: fixed;
+      top: 14px;
+      right: 14px;
+      z-index: 10;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid var(--color-brand-200);
+      border-radius: 99px;
+      padding: 6px 14px;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-brand-600);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .btn-download:active { transform: none; }
     }
   </style>
 </head>
 <body>
+  <button id="lang-btn" class="lang-btn" type="button">EN</button>
   <div class="brand">
     <!-- familiar ロゴ（EggCameraUserUI/src/assets/familiar_logo.svg、fill は currentColor 化） -->
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 123.35 24.84" fill="currentColor" role="img" aria-label="familiar">
@@ -188,32 +207,102 @@
     <img id="photo" alt="お写真">
   </div>
 
-  <p id="notice" class="notice" style="display:none;">24時間以内にダウンロードしてください。</p>
+  <p id="notice" class="notice" style="display:none;" data-t="notice">24時間以内にダウンロードしてください。</p>
 
   <!-- クレーム対応時にどの写真か特定できるようファイル名を表示 -->
   <p id="filename" class="filename" style="display:none;"></p>
 
-  <button id="dl-btn" class="btn-download" style="display:none;">↓ 写真を保存する</button>
+  <button id="dl-btn" class="btn-download" style="display:none;" data-t="dlBtn">↓ 写真を保存する</button>
 
-  <p id="hint" class="hint" style="display:none;">
+  <p id="hint" class="hint" style="display:none;" data-t="hint">
     保存できない場合は、写真を長押し →「写真に追加」
   </p>
 
   <!-- まだアップロードされていない（電波不安定での後追い中）場合の案内 -->
   <div id="pending" class="error" style="display:none;">
-    <p class="t-heading">写真を準備しています</p>
-    <p class="t-body">通信状況により、表示まで時間がかかることがあります。<br>時間をおいてから、もう一度このページを開いてダウンロードしてください。</p>
-    <button id="retry-btn" class="btn-download" style="margin-top:8px;">再読み込み</button>
+    <p class="t-heading" data-t="pendingTitle">写真を準備しています</p>
+    <p class="t-body" data-t="pendingBody">通信状況により、表示まで時間がかかることがあります。<br>時間をおいてから、もう一度このページを開いてダウンロードしてください。</p>
+    <button id="retry-btn" class="btn-download" style="margin-top:8px;" data-t="retry">再読み込み</button>
+  </div>
+
+  <!-- 保存期限（24時間）切れの案内。「準備しています」と誤誘導しないための明示表示 -->
+  <div id="expired" class="error" style="display:none;">
+    <p class="t-heading" data-t="expiredTitle">保存期限が過ぎました</p>
+    <p class="t-body" data-t="expiredBody">写真の保存期間（撮影から24時間）を過ぎたため、<br>ダウンロードできなくなりました。</p>
   </div>
 
   <div id="error" class="error" style="display:none;">
-    <p class="t-heading">お写真が見つかりませんでした</p>
-    <p class="t-body">URLが正しくない可能性があります。</p>
+    <p class="t-heading" data-t="errorTitle">お写真が見つかりませんでした</p>
+    <p class="t-body" data-t="errorBody">URLが正しくない可能性があります。</p>
   </div>
 
   <script>
     const params = new URLSearchParams(location.search);
     const id     = params.get('id');
+
+    // ── 日英文言。lang-btn でいつでも切替。初期値はスマホの言語設定から推定 ──
+    const I18N = {
+      ja: {
+        notice:      '24時間以内にダウンロードしてください。',
+        dlBtn:       '↓ 写真を保存する',
+        dlBtnBusy:   '準備中...',
+        hint:        '保存できない場合は、写真を長押し →「写真に追加」',
+        pendingTitle:'写真を準備しています',
+        pendingBody: '通信状況により、表示まで時間がかかることがあります。<br>時間をおいてから、もう一度このページを開いてダウンロードしてください。',
+        retry:       '再読み込み',
+        expiredTitle:'保存期限が過ぎました',
+        expiredBody: '写真の保存期間（撮影から24時間）を過ぎたため、<br>ダウンロードできなくなりました。',
+        errorTitle:  'お写真が見つかりませんでした',
+        errorBody:   'URLが正しくない可能性があります。',
+        filename:    (id) => `ファイル名: ${id}.jpg`,
+        langBtn:     'EN',
+      },
+      en: {
+        notice:      'Please download within 24 hours.',
+        dlBtn:       '↓ Save photo',
+        dlBtnBusy:   'Preparing...',
+        hint:        'If saving fails, press and hold the photo → "Add to Photos"',
+        pendingTitle:'Preparing your photo',
+        pendingBody: 'Due to network conditions, it may take a while.<br>Please open this page again later to download.',
+        retry:       'Reload',
+        expiredTitle:'Download period has ended',
+        expiredBody: 'This photo is no longer available because the 24-hour<br>download period (from the time of shooting) has passed.',
+        errorTitle:  'Photo not found',
+        errorBody:   'The URL may be incorrect.',
+        filename:    (id) => `File name: ${id}.jpg`,
+        langBtn:     '日本語',
+      },
+    };
+    let lang = (navigator.language || '').toLowerCase().startsWith('ja') ? 'ja' : 'en';
+    const T = () => I18N[lang];
+
+    function applyLang() {
+      document.documentElement.lang = lang;
+      document.querySelectorAll('[data-t]').forEach(el => {
+        const v = T()[el.dataset.t];
+        if (typeof v === 'string') el.innerHTML = v;
+      });
+      document.getElementById('lang-btn').textContent = T().langBtn;
+      const fn = document.getElementById('filename');
+      if (fn.style.display !== 'none' && id) fn.textContent = T().filename(id);
+    }
+    document.getElementById('lang-btn').addEventListener('click', () => {
+      lang = lang === 'ja' ? 'en' : 'ja';
+      applyLang();
+    });
+    applyLang();
+
+    // ── 期限切れ判定 ──
+    // id 例: familia_EggCamera_2026.07.04.03.25.27（JSTの撮影時刻）。R2の保持は
+    // アップロード時刻+24h で、アップロードは撮影直後のため、撮影から25h（余裕1h）超なら
+    // 期限切れとみなす。この判定は「画像が取得できなかった時」の案内分岐にのみ使う＝
+    // 画像が実際に読めればこの表示は出ない（時計ずれ等での誤表示を構造的に防ぐ）。
+    function isExpiredId() {
+      const m = /(\d{4})\.(\d{2})\.(\d{2})\.(\d{2})\.(\d{2})\.(\d{2})$/.exec(id || '');
+      if (!m) return false;
+      const utcMs = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4] - 9, +m[5], +m[6]); // JST→UTC
+      return Date.now() - utcMs > 25 * 3600 * 1000;
+    }
 
     // 画像が読めない＝未アップロード（後追い中）か期限切れ。何度か再試行してから案内を出す。
     const RETRY_DELAYS_MS = [4000, 8000, 15000]; // ページ滞在中の自動再試行
@@ -227,30 +316,57 @@
     }
 
     function loadPhoto() {
-      const imgUrl = `/image/${id}.jpg`;
-      const img    = document.getElementById('photo');
+      const imgUrl     = `/image/${id}.jpg`;
+      const previewUrl = `/image/${id}_preview.jpg`; // 縮小版（数十KB）。本画像より必ず後にR2へ上がる
+      const img        = document.getElementById('photo');
+      let fullDone = false;
+
+      // 表示処理は冪等（プレビュー→フル差し替えで onload が2回発火する）。
+      // 保存ボタンは常にフル解像度(imgUrl)を取得するので、表示がプレビューでも保存物は原寸。
       img.onload = () => {
         hide('pending');
         show('photo-wrap');
         show('notice');
         const fn = document.getElementById('filename');
-        fn.textContent = `ファイル名: ${id}.jpg`;
+        fn.textContent = T().filename(id);
         show('filename');
+        hide('expired');
         show('dl-btn');
         show('hint');
         document.getElementById('dl-btn').onclick = () => savePhoto(imgUrl, id);
       };
-      img.onerror = () => {
+
+      // フル解像度は裏の Image で読み込み、完了したら差し替える（キャッシュ済みなので一瞬）。
+      // 未アップロード（後追い中）の再試行もフル側で行う。img 本体には検証済みURLしか入れない
+      // ＝プレビュー404が「写真を準備しています」誤表示を誘発しない。
+      let fullUrl = imgUrl;
+      const full = new Image();
+      full.onload = () => { fullDone = true; img.src = fullUrl; };
+      full.onerror = () => {
+        // 撮影から24h超のIDは「準備しています（待てば来る）」ではなく期限切れを明示する。
+        // 誤誘導（永遠の再読み込み）を防ぐ。プレビュー表示済みでも保存はできないため案内する。
+        if (isExpiredId()) {
+          if (!img.src) hide('pending');
+          hide('photo-wrap'); hide('notice'); hide('dl-btn'); hide('hint');
+          show('expired');
+          return;
+        }
         if (retryIndex < RETRY_DELAYS_MS.length) {
           // 自動で少し待って再試行（後追いアップロードの完了を待つ）
-          show('pending');
-          setTimeout(() => { img.src = `${imgUrl}?t=${Date.now()}`; }, RETRY_DELAYS_MS[retryIndex++]);
+          if (!fullDone && !img.src) show('pending');
+          setTimeout(() => { fullUrl = `${imgUrl}?t=${Date.now()}`; full.src = fullUrl; }, RETRY_DELAYS_MS[retryIndex++]);
         } else {
           // 一定回数試しても来なければ「時間をおいて」案内のまま据え置き
-          show('pending');
+          if (!img.src) show('pending');
         }
       };
-      img.src = imgUrl;
+      full.src = fullUrl;
+
+      // 低解像度プレビューを並行で読み、フルより先に来たら先に表示して体感を短縮。
+      // 無い場合（過去分・生成失敗）は何も起きず、従来どおりフル解像度を待つ。
+      const pre = new Image();
+      pre.onload = () => { if (!fullDone) { hide('pending'); img.src = previewUrl; } };
+      pre.src = previewUrl;
     }
 
     function show(id) { document.getElementById(id).style.display = ''; }
@@ -259,7 +375,7 @@
     async function savePhoto(imgUrl, id) {
       const btn = document.getElementById('dl-btn');
       btn.disabled    = true;
-      btn.textContent = '準備中...';
+      btn.textContent = T().dlBtnBusy;
 
       try {
         const res  = await fetch(imgUrl);
@@ -284,11 +400,11 @@
         // 保存時にまだ来ていなければ「時間をおいて」案内へ（AbortErrorはキャンセルなので無視）
         if (e && e.name !== 'AbortError' && String(e.message).includes('not ready')) {
           hide('photo-wrap'); hide('notice'); hide('dl-btn'); hide('hint');
-          show('pending');
+          show(isExpiredId() ? 'expired' : 'pending');
         }
       } finally {
         btn.disabled    = false;
-        btn.textContent = '↓ 写真を保存する';
+        btn.textContent = T().dlBtn;
       }
     }
   </script>

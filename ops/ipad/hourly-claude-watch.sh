@@ -44,7 +44,18 @@ python3 -c "import json,os;p=os.path.expanduser('~/.claude.json');d=json.load(op
 
 PROMPT="$(cat "$PROMPT_FILE")"
 
+# ── 認証: 無人ジョブは長期トークンを優先して使う ──
+# ~/.claude/.credentials.json は VSCode拡張・復旧Claude・本ジョブで共有され、アクセストークンは
+# 8時間で失効する。誰かがリフレッシュするとトークンがローテートされ、古い値を握った他プロセスが
+# 巻き添えで失効する。`claude setup-token` の1年トークンを .env.claude に置けば競合から外れる。
+# 未設置なら従来どおり共有credentialsで動く（post-boot 側と同じ扱い）。
+CLAUDE_ENV="/Users/eggcamera/EggCamera/.env.claude"
+if [ -f "$CLAUDE_ENV" ]; then
+  export CLAUDE_CODE_OAUTH_TOKEN="$(grep -E '^CLAUDE_CODE_OAUTH_TOKEN=' "$CLAUDE_ENV" | head -1 | cut -d= -f2- | tr -d '"'\'' ')"
+fi
+
 # claude -p をバックグラウンド実行し、MAX_SEC で打ち切る（timeout コマンドが無いため自前）。
+LOG_LINES_BEFORE=$(wc -l < "$LOG" 2>/dev/null || echo 0)
 "$CLAUDE" -p --dangerously-skip-permissions "$PROMPT" >> "$LOG" 2>&1 &
 CPID=$!
 ( sleep "$MAX_SEC"; kill -TERM "$CPID" 2>/dev/null; sleep 5; kill -KILL "$CPID" 2>/dev/null ) &
@@ -52,5 +63,21 @@ WPID=$!
 wait "$CPID" 2>/dev/null
 RC=$?
 kill "$WPID" 2>/dev/null  # claude が時間内に終わったら打ち切りタイマーを解除
+
+# ── 認証切れの検知 ──
+# 認証が切れていると claude は "Login expired · Please run /login" だけを出して即終了し、
+# rc=0 のまま点検が丸ごと飛ぶ。正常時は無通知の設計なので、黙って止まると誰も気づけない
+# (2026-07-13、post-boot 側の同じ事故に10時間気づかなかった)。この時だけは人を呼ぶ。
+if tail -n +$((LOG_LINES_BEFORE + 1)) "$LOG" 2>/dev/null | grep -qiE 'login expired|not logged in'; then
+  MSG="hourly-claude-watch が認証切れで点検できていない(Login expired)。恒久対処: claude setup-token で長期トークンを発行し .env.claude に置く。"
+  echo "==== $(date '+%F %T') ❌ $MSG ====" >> "$LOG"
+  curl -s -m 8 -X POST http://127.0.0.1:3000/api/test-report -H 'Content-Type: application/json' \
+    --data "$(printf '{"level":"alert","text":"DEPLOY-MARKER(hourly-claude-watch): %s"}' "$MSG")" >/dev/null 2>&1
+  if [ -f "/Users/eggcamera/EggCamera/.env.slack" ]; then
+    url=$(grep -E '^SLACK_WEBHOOK_URL=' "/Users/eggcamera/EggCamera/.env.slack" | head -1 | cut -d= -f2- | tr -d '"'\'' ')
+    [ -n "$url" ] && curl -s -m 8 -X POST -H 'Content-Type: application/json' \
+      --data "$(printf '{"text":":wrench: *要修正：手動ログインが必要*\n*hourly-claude-watch* %s"}' "$MSG")" "$url" >/dev/null 2>&1
+  fi
+fi
 
 echo "==== $(date '+%F %T') hourly-claude-watch 終了(rc=$RC) ====" >> "$LOG"

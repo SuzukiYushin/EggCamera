@@ -55,54 +55,56 @@ document.querySelectorAll('.tab').forEach(btn => {
   });
 });
 
-/* ── フレーム管理 ──────────────────────── */
-async function loadFrames() {
-  const frames = await api.get('/frames');
-  const grid = $('#frame-grid');
-  grid.innerHTML = '';
-  for (const f of frames) {
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `
-      <img class="thumb" src="${f.url}" alt="">
-      <div class="name"></div>
-      <button class="del" title="削除">x</button>`;
-    card.querySelector('.name').textContent = f.name;
-    card.querySelector('.del').addEventListener('click', async () => {
-      if (!confirm(`「${f.name}」を一覧から削除しますか？\n（ファイルは Mac mini 内に残ります）`)) return;
-      await api.del(`/frames/${f.id}`);
-      loadFrames();
-    });
-    grid.appendChild(card);
-  }
-}
-
-/* ── 成長するファミちゃん（年齢連動9種＋レア2種） ── */
+/* ── 成長するファミちゃん（年齢連動9種＋レア2種） ──
+   ※ 旧「フレーム一覧（ランダム）」とその追加モーダルは廃止済み。
+      合成で使うのは成長フレーム＋レアアイテムのみ。 */
 async function loadGrowthFrames() {
   let data;
   try { data = await api.get('/growth-frames'); } catch { return; }
   const section = $('#growth-section');
-  if (!data || !data.growth || !data.growth.length) { section.hidden = true; return; }
+  if (!data || !Array.isArray(data.growth)) { section.hidden = true; return; }
+  growthCategories = data.categories || [];
+  rarePresets = data.rarePresets || [];
+  // 0件でもセクションは隠さない。隠すと「+ 追加」ボタンごと消えてしまい、全部削除した
+  // あとに管理画面から登録し直せなくなる（2026-07-29に実際に発生）。
   section.hidden = false;
   const pct = Math.round((data.rareProbability || 0) * 100);
+  const state = !data.growth.length
+    ? '【成長フレームが0件です。0件の間は完成画像にサンプル枠が使われます。下の「+ 成長フレームを追加」から登録してください】'
+    : data.enabled
+      ? '【現在このモードが有効です】'
+      : '【現在は無効。.env に GROWTH_FRAMES=1 を設定して再起動すると有効化されます】';
   $('#growth-hint').textContent =
-    `生後日数(days)に応じて9種類を自動選択し、レアは約${pct}%でランダム表示します。`
-    + (data.enabled
-        ? '【現在このモードが有効です／上のランダム一覧より優先されます】'
-        : '【現在は無効。.env に GROWTH_FRAMES=1 を設定して再起動すると有効化されます（既定は無効＝上のランダム一覧が使われます）】');
-  const fill = (sel, items, labelFn) => {
+    `生後日数(days)に応じて9種類を自動選択し、レアは約${pct}%でランダム表示します。x で削除（ファイルは Mac mini 内に残ります）。`
+    + state;
+  const fill = (sel, items, labelFn, onDelete) => {
     const grid = $(sel);
     grid.innerHTML = '';
     for (const f of items) {
       const card = document.createElement('div');
       card.className = 'card';
-      card.innerHTML = `<img class="thumb" src="${f.url}" alt=""><div class="name"></div>`;
+      card.innerHTML = `<img class="thumb" src="${f.url}" alt=""><div class="name"></div><button class="del" title="削除">x</button>`;
       card.querySelector('.name').textContent = labelFn(f);
+      card.querySelector('.del').addEventListener('click', async () => {
+        if (!confirm(`「${labelFn(f)}」を削除しますか？\n（ファイルは Mac mini 内に残ります）`)) return;
+        await onDelete(f);
+        // 全体を読み直すと残りカードのサムネイル(数MB×十数枚)まで取り直すことになり、
+        // 連続削除でレート上限に達する。消したカードだけ外し、成長フレームが空に
+        // なった時だけ読み直してヒントと表示状態を更新する。
+        card.remove();
+        if (!$('#growth-grid').children.length) loadGrowthFrames();
+      });
       grid.appendChild(card);
     }
   };
-  fill('#growth-grid', data.growth, f => `Lv${f.level}・${f.minDays}〜${f.maxDays}days`);
-  fill('#rare-grid',   data.rare,   f => f.label);
+  const cardLabel = f => {
+    const c = growthCategories.find(x => x.level === f.level);
+    return c ? growthLabel(c) : `${f.minDays}days（Lv${f.level}）`;
+  };
+  fill('#growth-grid', data.growth, cardLabel,
+       f => api.del(`/growth-frames/growth/${f.level}`));
+  fill('#rare-grid',   data.rare,   f => f.label,
+       f => api.del(`/growth-frames/rare/${encodeURIComponent(f.key)}`));
 }
 
 async function loadDisk() {
@@ -115,93 +117,120 @@ async function loadDisk() {
   }
 }
 
-/* ── フレーム追加モーダル ────────────────── */
-let browseDir = null;
-let selectedServerPath = null;
+/* ── 成長フレーム追加モーダル ──────────────── */
+// 月齢の区分はサーバ側の固定表（/growth-frames の categories）から作る。開始/終了日の
+// 手入力は廃止（選べる区分は9種で決まっており、手入力は取り違えの元だった）。
+let growthCategories = [];
+let rarePresets = [];
 
-$('#btn-add').addEventListener('click', () => {
-  $('#modal').hidden = false;
-  $('#add-name').value = '';
-  $('#add-file').value = '';
-  $('#add-status').textContent = '';
-  selectedServerPath = null;
-  $('#browse-selected').textContent = '';
-  browse(null);
-});
-$('#modal-close').addEventListener('click', () => { $('#modal').hidden = true; });
-$('#modal').addEventListener('click', e => { if (e.target === $('#modal')) $('#modal').hidden = true; });
+// 表示は素材ファイル名（270days / 331days …）と同じ days 表記を先頭にする。
+// 月齢は補足として括弧内に出し、どの区分か取り違えないようにする。
+function growthLabel(c) {
+  return `${c.minDays}days（${c.label}）`;
+}
 
-document.querySelectorAll('.src-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.src-tab').forEach(b => b.classList.toggle('active', b === btn));
-    $('#src-pc').hidden = btn.dataset.src !== 'pc';
-    $('#src-server').hidden = btn.dataset.src !== 'server';
-  });
-});
-
-async function browse(dir) {
-  const q = dir ? `?dir=${encodeURIComponent(dir)}` : '';
-  const data = await api.get(`/browse${q}`);
-  browseDir = data.dir;
-  $('#browse-path').textContent = data.dir;
-  const ul = $('#browse-list');
-  ul.innerHTML = '';
-  if (data.parent) {
-    const li = document.createElement('li');
-    li.className = 'dir';
-    li.textContent = '.. （上へ）';
-    li.addEventListener('click', () => browse(data.parent));
-    ul.appendChild(li);
-  }
-  for (const d of data.dirs) {
-    const li = document.createElement('li');
-    li.className = 'dir';
-    li.textContent = d;
-    li.addEventListener('click', () => browse(`${data.dir}/${d}`));
-    ul.appendChild(li);
-  }
-  for (const f of data.files) {
-    const li = document.createElement('li');
-    li.className = 'file';
-    li.textContent = f;
-    li.addEventListener('click', () => {
-      selectedServerPath = `${browseDir}/${f}`;
-      ul.querySelectorAll('li').forEach(x => x.classList.remove('selected'));
-      li.classList.add('selected');
-      $('#browse-selected').textContent = `選択中: ${selectedServerPath}`;
-    });
-    ul.appendChild(li);
+function fillGrowthLevelOptions() {
+  const sel = $('#growth-level');
+  sel.innerHTML = '';
+  for (const c of growthCategories) {
+    const o = document.createElement('option');
+    o.value = c.level;
+    o.textContent = `${growthLabel(c)}${c.registered ? '（登録済み → 差し替え）' : ''}`;
+    sel.appendChild(o);
   }
 }
 
-$('#btn-upload').addEventListener('click', async () => {
-  const name = $('#add-name').value.trim();
-  const status = $('#add-status');
-  const fromPC = !$('#src-pc').hidden;
+function fillRareKeyOptions() {
+  const sel = $('#rare-key');
+  sel.innerHTML = '';
+  for (const r of rarePresets) {
+    const o = document.createElement('option');
+    o.value = r.key;
+    o.textContent = `${r.label}${r.registered ? '（登録済み → 差し替え）' : ''}`;
+    sel.appendChild(o);
+  }
+}
+
+$('#btn-add-growth').addEventListener('click', async () => {
+  $('#growth-modal').hidden = false;
+  $('#growth-file').value = '';
+  $('#growth-add-status').textContent = '';
+  if (!growthCategories.length) await loadGrowthFrames(); // 初回描画前に押された場合の保険
+  fillGrowthLevelOptions();
+});
+$('#growth-modal-close').addEventListener('click', () => { $('#growth-modal').hidden = true; });
+$('#growth-modal').addEventListener('click', e => { if (e.target === $('#growth-modal')) $('#growth-modal').hidden = true; });
+
+$('#btn-growth-upload').addEventListener('click', async () => {
+  const status = $('#growth-add-status');
   status.className = 'status';
   try {
-    if (fromPC) {
-      const file = $('#add-file').files[0];
-      if (!file) throw new Error('ファイルを選択してください');
-      status.textContent = 'アップロード中…';
-      const res = await fetch('/api/admin/frames', {
-        method: 'POST',
-        headers: {
-          'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
-          'X-Frame-Name': encodeURIComponent(name || file.name.replace(/\.[^.]+$/, '')),
-          ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
-        },
-        body: file,
-      });
-      if (!res.ok) throw new Error('アップロードに失敗しました');
-    } else {
-      if (!selectedServerPath) throw new Error('Mac mini 内のファイルを選択してください');
-      status.textContent = '追加中…';
-      await api.post('/frames/from-server', { path: selectedServerPath, name });
+    const file = $('#growth-file').files[0];
+    if (!file) throw new Error('ファイルを選択してください');
+    const level = $('#growth-level').value;
+    if (!level) throw new Error('月齢の区分を選んでください');
+    status.textContent = 'アップロード中…';
+    const res = await fetch(`/api/admin/growth-frames/growth?level=${encodeURIComponent(level)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
+        ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      let code = 'アップロードに失敗しました';
+      try { const j = await res.json(); if (j.error) code = j.error; } catch {}
+      throw new Error(code);
     }
     status.textContent = '追加しました';
-    await loadFrames();
-    setTimeout(() => { $('#modal').hidden = true; }, 500);
+    await loadGrowthFrames();
+    setTimeout(() => { $('#growth-modal').hidden = true; }, 500);
+  } catch (err) {
+    status.className = 'status err';
+    status.textContent = err.message;
+  }
+});
+
+/* ── レアアイテム追加モーダル ────────────────── */
+$('#btn-add-rare').addEventListener('click', async () => {
+  $('#rare-modal').hidden = false;
+  $('#rare-file').value = '';
+  $('#rare-add-status').textContent = '';
+  if (!rarePresets.length) await loadGrowthFrames();
+  fillRareKeyOptions();
+});
+$('#rare-modal-close').addEventListener('click', () => { $('#rare-modal').hidden = true; });
+$('#rare-modal').addEventListener('click', e => { if (e.target === $('#rare-modal')) $('#rare-modal').hidden = true; });
+
+$('#btn-rare-upload').addEventListener('click', async () => {
+  const status = $('#rare-add-status');
+  status.className = 'status';
+  try {
+    const file = $('#rare-file').files[0];
+    if (!file) throw new Error('ファイルを選択してください');
+    const key = $('#rare-key').value;
+    const label = (rarePresets.find(r => r.key === key) || {}).label || key;
+    if (!key) throw new Error('種類を選んでください');
+    status.textContent = 'アップロード中…';
+    const res = await fetch('/api/admin/growth-frames/rare', {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
+        'X-Rare-Key': encodeURIComponent(key),
+        'X-Rare-Label': encodeURIComponent(label),
+        ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
+      },
+      body: file,
+    });
+    if (!res.ok) {
+      let code = 'アップロードに失敗しました';
+      try { const j = await res.json(); if (j.error) code = j.error; } catch {}
+      throw new Error(code);
+    }
+    status.textContent = '追加しました';
+    await loadGrowthFrames();
+    setTimeout(() => { $('#rare-modal').hidden = true; }, 500);
   } catch (err) {
     status.className = 'status err';
     status.textContent = err.message;
@@ -223,6 +252,9 @@ async function loadSettings() {
     $('#crop-zoom-range').value = s.crop.zoom;
     $('#crop-ox').value = s.crop.offsetX;
     $('#crop-oy').value = s.crop.offsetY;
+    const ev = s.exposure?.bias ?? 0;
+    $('#crop-ev').value = ev;
+    $('#crop-ev-range').value = ev;
     updateZoomGauge();
   } catch {}
 }
@@ -234,6 +266,25 @@ function currentCrop() {
     offsetY: parseFloat($('#crop-oy').value) || 0,
   };
 }
+
+function currentExposure() {
+  return { bias: parseFloat($('#crop-ev').value) || 0 };
+}
+
+/* プレビュー枠を完成画像と同じ比に揃える。
+   drawCropPreview は TARGET_ASPECT で切り出した矩形を canvas 全面へ描くので、
+   canvas の描画バッファ／表示枠(.crop-stage)がこの比と違うと映像が引き伸ばされる
+   （2/3 のままだと横に伸びる＝「縦につぶれて見える」）。HTML/CSS に比を直書きせず
+   ここで TARGET_ASPECT から導出し、単一の真実にする。 */
+(function initCropStageAspect() {
+  const canvas = $('#crop-canvas');
+  if (!canvas) return;
+  const W = 692;                                     // 描画バッファ幅（表示は CSS が縮小）
+  canvas.width  = W;
+  canvas.height = Math.round(W / TARGET_ASPECT);     // 692 x 1500
+  const stage = canvas.closest('.crop-stage');
+  if (stage) stage.style.aspectRatio = String(TARGET_ASPECT);
+})();
 
 /* 合成段と同じクロップ計算（TARGET_ASPECT cover → offset 適用）。
    完成画像は iPhone 画面比(2768:6000)。compose.js の TARGET_ASPECT と揃えること。
@@ -285,14 +336,15 @@ function updateZoomGauge() {
   }
 }
 
-// ズーム値をライブビュー中のカメラへデバウンス送信（撮影前にプレビューへ反映）
+// ズーム・露出補正をライブビュー中のカメラへデバウンス送信（撮影前にプレビューへ反映）
 let zoomWakeTimer = null;
 function pushZoomToCamera() {
   if (!liveTimer) return; // ライブビュー中のみ（停止中はカメラを起こさない）
   const z = parseFloat($('#crop-zoom').value) || 1;
+  const ev = parseFloat($('#crop-ev').value) || 0;
   clearTimeout(zoomWakeTimer);
   zoomWakeTimer = setTimeout(() => {
-    fetch(withToken(`/api/preview/wake?zoom=${z}`), { method: 'POST' }).catch(() => {});
+    fetch(withToken(`/api/preview/wake?zoom=${z}&ev=${ev}`), { method: 'POST' }).catch(() => {});
   }, 250);
 }
 
@@ -300,13 +352,16 @@ function onCropInput() {
   // 数値入力時はレンジを追従させる（レンジ操作時は range 側で数値を更新済み）
   const zr = $('#crop-zoom-range');
   if (zr && document.activeElement !== zr) zr.value = $('#crop-zoom').value;
+  const er = $('#crop-ev-range');
+  if (er && document.activeElement !== er) er.value = $('#crop-ev').value;
   drawCropPreview();
   updateZoomGauge();
   pushZoomToCamera();
-  // 値を変えたら古い「保存しました」を消して未保存を明示
+  // 値を変えたら古い「保存しました」を消して未保存を明示（緑のままだと保存済みと誤読される）
   const status = $('#crop-status');
-  status.className = 'status';
-  status.textContent = '未保存の変更があります';
+  status.className = 'status warn';
+  status.textContent = '未保存 — 「設定を保存」を押すまで反映されません';
+  $('#btn-save-crop').classList.add('unsaved');
 }
 
 // 数値入力 ↔ レンジスライダーの双方向同期
@@ -315,7 +370,12 @@ $('#crop-zoom-range').addEventListener('input', () => {
   onCropInput();
 });
 
-['crop-zoom', 'crop-ox', 'crop-oy'].forEach(id => {
+$('#crop-ev-range').addEventListener('input', () => {
+  $('#crop-ev').value = $('#crop-ev-range').value;
+  onCropInput();
+});
+
+['crop-zoom', 'crop-ox', 'crop-oy', 'crop-ev'].forEach(id => {
   $(`#${id}`).addEventListener('input', onCropInput);
 });
 
@@ -382,7 +442,10 @@ function stopLiveView() {
   const btn = $('#btn-liveview');
   if (btn) { btn.textContent = 'ライブビュー開始'; btn.style.background = ''; }
   const status = $('#crop-status');
-  if (status && status.classList.contains('err') === false) {
+  // 未保存の警告・保存結果・エラーは上書きしない（消すと保存し忘れに気づけない）
+  if (status && !status.classList.contains('err')
+             && !status.classList.contains('warn')
+             && !status.classList.contains('ok')) {
     status.className = 'status';
     status.textContent = 'ライブビュー停止中';
   }
@@ -392,7 +455,7 @@ function startLiveView() {
   const btn = $('#btn-liveview');
   const status = $('#crop-status');
   // カメラ先行起動（黒画面の短縮）。失敗しても撮影/プレビュー時に遅延起動するので無視。
-  fetch(withToken(`/api/preview/wake?zoom=${parseFloat($('#crop-zoom').value) || 1}`), { method: 'POST' }).catch(() => {});
+  fetch(withToken(`/api/preview/wake?zoom=${parseFloat($('#crop-zoom').value) || 1}&ev=${parseFloat($('#crop-ev').value) || 0}`), { method: 'POST' }).catch(() => {});
   status.className = 'status';
   status.textContent = 'ライブビュー接続中…';
   liveImg.onerror = () => {
@@ -421,15 +484,24 @@ $('#btn-liveview').addEventListener('click', () => {
 
 $('#btn-save-crop').addEventListener('click', async () => {
   const status = $('#crop-status');
+  const btn = $('#btn-save-crop');
+  status.className = 'status saving';
+  status.textContent = '保存中…';
   try {
-    const saved = await api.put('/settings', { crop: currentCrop() });
+    const saved = await api.put('/settings', { crop: currentCrop(), exposure: currentExposure() });
     savedCrop = saved.crop;
-    status.className = 'status';
+    btn.classList.remove('unsaved');
     const t = new Date().toLocaleTimeString('ja-JP');
-    status.textContent = `保存しました ${t}（次の撮影から反映）`;
+    const c = saved.crop;
+    const evb = saved.exposure?.bias ?? 0;
+    // 何がどの値で保存されたかまで出す（「保存しました」だけだと何が反映されたか分からない）
+    status.className = 'status ok flash';
+    status.textContent =
+      `✓ 保存しました（${t}）ズーム${c.zoom}倍・横${c.offsetX}・縦${c.offsetY}・露出${evb >= 0 ? '+' : ''}${evb}EV — 次の撮影から反映されます`;
+    setTimeout(() => status.classList.remove('flash'), 1200);
   } catch (err) {
     status.className = 'status err';
-    status.textContent = `保存失敗: ${err.message}`;
+    status.textContent = `保存できませんでした: ${err.message}（設定は変更されていません）`;
   }
 });
 
@@ -826,10 +898,17 @@ function maybePopupDiag(diag) {
   $('#diag-modal').hidden = false;
 }
 
-$('#diag-close').addEventListener('click', () => { $('#diag-modal').hidden = true; });
-$('#diag-ignore').addEventListener('click', () => { diagDismissed = lastDiagSig; $('#diag-modal').hidden = true; });
-$('#diag-goto').addEventListener('click', () => {
+// ×・無視・推奨ボタンへ、いずれで閉じても「今出ている内容」は再表示しない。
+// 閉じただけでは diagDismissed が更新されず、20秒後の再診断（checkDiagBadge）で同じ
+// 内容がまた開き、押しても消えないように見えていた。未対応であることは赤バッジが示す。
+function closeDiag() {
+  diagDismissed = lastDiagSig;
   $('#diag-modal').hidden = true;
+}
+$('#diag-close').addEventListener('click', closeDiag);
+$('#diag-ignore').addEventListener('click', closeDiag);
+$('#diag-goto').addEventListener('click', () => {
+  closeDiag();
   document.querySelector('.tab[data-tab="restart"]').click();
   $('#restart-grid').scrollIntoView({ behavior: 'smooth' });
 });
@@ -878,7 +957,6 @@ $('#restart-resume').addEventListener('click', async () => {
 });
 
 /* ── 初期化 ───────────────────────────── */
-loadFrames();
 loadGrowthFrames();
 loadDisk();
 loadSettings();

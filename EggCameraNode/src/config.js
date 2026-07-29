@@ -3,7 +3,11 @@ require('dotenv').config();
 const path = require('node:path');
 
 // ── Paths ──────────────────────────────────────────────
-const DATA_DIR       = path.resolve(__dirname, '../../data');
+// 既定は <repo>/data。env DATA_DIR で差し替え可能（ローカル検証用の別データディレクトリ等。
+// 本番は未設定なので従来どおり）。配下の RAW/JOBS/FRAMES… はすべてこれを基準に派生する。
+const DATA_DIR       = process.env.DATA_DIR
+    ? path.resolve(process.env.DATA_DIR)
+    : path.resolve(__dirname, '../../data');
 const RAW_DIR        = path.join(DATA_DIR, 'raw');
 const PREVIEW_DIR    = path.join(RAW_DIR, '.preview');
 const COMPOSITED_DIR = path.join(DATA_DIR, 'composited');
@@ -34,8 +38,14 @@ const DEFERRED_MAX_MS = 60 * 60 * 1000; // 1時間
 
 // サーバ合成ジョブ: 未確定(プレビュー合成のみで決定タップされず放置)を掃除するTTL。
 const JOB_PENDING_TTL_MS = 30 * 60 * 1000; // 30分
-// アップロード/合成が成功するまでの再試行バックオフ（上限5分・無期限リトライ）。
+// アップロード/合成が成功するまでの再試行バックオフ（上限5分）。
 const JOB_RETRY_DELAYS_MS = [0, 3_000, 10_000, 30_000, 60_000, 120_000, 300_000];
+// 失敗ジョブのライフサイクル（確定 confirmedAt 起点）:
+//   ・確定から JOB_AUTO_RETRY_MS(24h) までは自動リトライを継続する。
+//   ・24h で完了しなければ自動リトライを止め「要対応」として一覧に残す（手動救済待ち）。
+//   ・確定から JOB_HARD_TTL_MS(48h) で、未完了でもファイルごと自動削除する。
+const JOB_AUTO_RETRY_MS = 24 * 60 * 60 * 1000; // 24時間
+const JOB_HARD_TTL_MS   = 48 * 60 * 60 * 1000; // 48時間
 
 // サーバ側合成フロー(/compose・/confirm)を有効化するフラグ。
 // 未設定(=0)ならクライアントは従来の canvas 合成(/composite)を使う。
@@ -104,7 +114,7 @@ module.exports = {
     FRAMES_DIR, FLAME_PATH,
     FRAMES_META, FRAMES_TRASH, SETTINGS_PATH, LOG_DIR, ADMIN_DIR,
     MAX_COMPOSITED, MAX_RAW, LOG_RETAIN_DAYS, DISK_WARN_BYTES, DEFERRED_MAX_MS,
-    JOB_PENDING_TTL_MS, JOB_RETRY_DELAYS_MS,
+    JOB_PENDING_TTL_MS, JOB_RETRY_DELAYS_MS, JOB_AUTO_RETRY_MS, JOB_HARD_TTL_MS,
     SERVER_COMPOSITE,
     ADMIN_TOKEN, ADMIN_USER, ADMIN_PASSWORD, REBOOT_PASSWORD, PROXY_SECRET,
     PORT, ADMIN_PORT, STATIC_DIR,

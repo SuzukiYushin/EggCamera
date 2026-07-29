@@ -1,5 +1,7 @@
 #!/bin/zsh
-# 週次・3台一括再起動（スクリプトベース／Claude非依存）。
+# 3台一括再起動（スクリプトベース／Claude非依存）。
+# 周期: launchd(com.eggcamera.reboot-test, 毎日15:00発火) ＋ 下の周期ゲート(≥40h)で実質2日毎。
+#       手動で即時実行したい場合は FORCE_REBOOT=1 を付けてゲートを無視する。
 # 流れ: 前リフレッシュ値ログ → iPad再起動+Safari → iPhone再起動+カメラ復帰 →
 #        肥大ログtruncate → Mac mini再起動（最後・このスクリプトもここで終了）。
 # Mac復帰後の復旧確認・後リフレッシュ値は post-boot-verify / post-boot-claude（launchd）が自動実行。
@@ -12,8 +14,20 @@ IPAD_UDID="00008132-001E2934019A401C"
 TOKEN=$(grep -E "^ADMIN_TOKEN=" /Users/eggcamera/EggCamera/EggCameraNode/.env 2>/dev/null | cut -d= -f2)
 MARK="http://127.0.0.1:3000/api/test-report"
 sz() { stat -f%z "$1" 2>/dev/null || echo 0; }
+STATE="$HOME/Library/Logs/eggcamera-reboot-test.last"   # 周期ゲート: 前回Mac再起動を実行した時刻(epoch)
+MIN_H=${REBOOT_TEST_MIN_INTERVAL_H:-40}                 # これ未満の経過なら実行しない(毎日15:00発火→実質2日毎)
 
 {
+# ── 周期ゲート: launchdは「2日毎」を表現できないため毎日発火＋ここで間引く。
+#    stampはMac再起動を実行した時のみ更新→中止/スキップ回は翌日15:00に自動リトライされる。
+if [ "${FORCE_REBOOT:-0}" != 1 ]; then
+  last=$(cat "$STATE" 2>/dev/null || echo 0)
+  elapsed=$(( $(date +%s) - last ))
+  if [ "$elapsed" -lt $(( MIN_H * 3600 )) ]; then
+    echo "==== $(date '+%F %T') 周期ゲート: 前回Mac再起動から$(( elapsed / 3600 ))h (<${MIN_H}h) → 今回スキップ ===="
+    exit 0
+  fi
+fi
 echo "==== $(date '+%F %T') 週次3台再起動 開始 ===="
 
 # テスト実行中ならスキップ（RemoteXPC競合＋テスト中断回避、次回に持ち越し）。
@@ -42,6 +56,7 @@ curl -s -m 8 -X POST "$MARK" -H 'Content-Type: application/json' \
 echo "[pre] metrics = $(curl -s -m 5 -H "X-Admin-Token: $TOKEN" http://127.0.0.1:3000/api/admin/metrics 2>/dev/null)"
 echo "[pre] disk    = $(curl -s -m 5 -H "X-Admin-Token: $TOKEN" http://127.0.0.1:3001/api/admin/disk 2>/dev/null)"
 echo "[pre] logs    = iproxy:$(sz "$HOME/Library/Logs/eggcamera-iproxy.out") appium:$(sz "$HOME/Library/Logs/eggcamera-appium.out") tmpappium:$(sz /tmp/appium.log)"
+echo "[pre] swap    = $(sysctl -n vm.swapusage 2>/dev/null) tmpdir:$(du -sk /tmp 2>/dev/null | cut -f1)KB"
 
 # ── iPad + iPhone 再起動（検証済みスクリプトを再利用）──
 /Users/eggcamera/EggCamera/ops/reboot-all-test.sh
@@ -72,6 +87,7 @@ for f in "$HOME/Library/Logs/eggcamera-iproxy.out" "$HOME/Library/Logs/eggcamera
 done
 
 # ── Mac mini 再起動（iPad/iPhone復帰確認済みなので実行）──
+date +%s > "$STATE"   # 周期ゲートstamp: 実際にMac再起動へ進む時のみ更新
 echo "==== $(date '+%F %T') iPad/iPhone復帰OK → Mac mini 再起動 → 復旧はpost-boot-verify/claudeが確認 ===="
 curl -s -m 8 -X POST "$MARK" -H 'Content-Type: application/json' \
   --data '{"level":"info","text":"DEPLOY-MARKER(weekly-reboot): iPad/iPhone復帰確認済→Mac mini再起動。launchd自動復旧をpost-bootが確認する。"}' >/dev/null 2>&1

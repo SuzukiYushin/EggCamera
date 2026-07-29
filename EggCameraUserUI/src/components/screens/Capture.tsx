@@ -4,7 +4,7 @@ import { useLang } from '../../LangContext';
 import { capturePhoto, ApiError, PROTO } from '../../api';
 import type { SessionPhoto } from '../../api';
 import { reportClientError } from '../../clientLog';
-import { ParticleEl, makeBurst, type Burst } from '../ParticleBurst';
+import { ParticleEl, makeBurst, CANVAS_REACH, type Burst } from '../ParticleBurst';
 import babyImg from '../../assets/baby_illustrator.png';
 
 interface CaptureProps {
@@ -17,14 +17,19 @@ const MAX_SHOTS = 3;
 const SHOT_INTERVAL = 600;
 
 const PARTICLE_COLORS = [
-  '#FF6B35', '#FF9E2C', '#FFD166', '#FF5C8D',
-  '#FF4E50', '#FFC857', '#FF7B54', '#FFCF5C',
-  '#FF8C42', '#FF3E7F', '#FFB300', '#FF6F61',
+  '#4C9BF0', '#5B8EDB', '#3E7FC1', '#6FA8DC',
+  '#4ADE80', '#34D399', '#22C55E', '#6EE7B7',
+  '#FFD166', '#FBBF24', '#FDE047', '#EAB308',
 ];
 
+// 飛距離は画面（＝設計キャンバス）の中心〜四隅を基準にした比率で決める。実寸pxを直接
+// 書くと端末や出力解像度が変わったときに「画面いっぱい」にならない。
 const shotBurst = () => makeBurst({
   colors: PARTICLE_COLORS,
-  dist: [225, 270], size: [30, 36], duration: [600, 300], delayMax: 60, jitterDeg: 18,
+  count: 24,
+  dist: [CANVAS_REACH * 0.6, CANVAS_REACH * 0.7],   // 中心から四隅の 60〜130%
+  size: [CANVAS_REACH * 0.05, CANVAS_REACH * 0.055],
+  duration: [700, 350], delayMax: 60, jitterDeg: 18,
 });
 
 // ── iPhoneのリアルタイム映像 ───────────────────────────────────────
@@ -37,17 +42,38 @@ const PREVIEW_INTERVAL_MS = 333; // poll フォールバックは ~3fps に抑�
 const PREVIEW_RETRY_MS = 1500;
 const STREAM_LOAD_TIMEOUT_MS = 2500; // この間に1枚も表示されなければ MJPEG 非対応とみなし poll へ
 
+// 完成画像のアスペクト比（compose.js の TARGET_ASPECT と揃えること）。
+// ライブビューはこの比の枠内に cover 表示することで、完成画像に写る範囲だけを見せる
+// （枠外は合成で捨てられる領域＝見せると「写ると思ったのに切れた」事故になる）。
+const FINAL_ASPECT = 2768 / 6000;
+// プレビュー映像は常に 3:4 縦（CameraController videoOutput の縦向き固定）。
+// 管理画面で横オフセット(pan)が設定された場合に、合成と同じ範囲を見せるための換算係数。
+const PREVIEW_ASPECT = 3 / 4;
+
 const COVER_STYLE = {
   position: 'absolute' as const, inset: 0,
   width: '100%', height: '100%',
   objectFit: 'cover' as const, display: 'block',
 };
 
-function LiveCameraView() {
+interface LiveCameraViewProps {
+  // ライブ映像を実際に表示できているかを親へ通知する。プロト時は常に true
+  // （同梱イラストはプロト仕様であり未接続エラーではないため）。
+  onReadyChange: (ready: boolean) => void;
+  // 合成の横pan(crop.offsetX)を反映した objectPosition。既定は中央クロップ。
+  objectPosition?: string;
+}
+
+function LiveCameraView({ onReadyChange, objectPosition = '50% 50%' }: LiveCameraViewProps) {
   // 'stream' = MJPEG / 'poll' = 単写真ポーリング(MJPEG非対応の fallback)
   const [mode, setMode] = useState<'stream' | 'poll'>('stream');
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
   const streamLoaded = useRef(false);
+
+  useEffect(() => {
+    if (PROTO) onReadyChange(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // MJPEG が規定時間内に1枚も表示されなければ poll へ切替（iOS Safari 等の非対応対策）
   useEffect(() => {
@@ -77,12 +103,14 @@ function LiveCameraView() {
           if (cancelled) break;
           const url = URL.createObjectURL(blob);
           setFrameUrl(url);
+          onReadyChange(true);
           if (prevUrl) URL.revokeObjectURL(prevUrl);
           prevUrl = url;
           await sleep(Math.max(0, PREVIEW_INTERVAL_MS - (Date.now() - t0)));
         } catch {
           if (cancelled) break;
           setFrameUrl(null); // イラストにフォールバック
+          onReadyChange(false); // 準備中メッセージ表示＋シャッター無効化。ループは継続し自動リトライ
           await sleep(PREVIEW_RETRY_MS);
         }
       }
@@ -92,22 +120,22 @@ function LiveCameraView() {
       cancelled = true;
       if (prevUrl) URL.revokeObjectURL(prevUrl);
     };
-  }, [mode]);
+  }, [mode, onReadyChange]);
 
   if (!PROTO && mode === 'stream') {
     return (
       <img
         src="/api/preview/stream"
         alt="camera preview"
-        onLoad={() => { streamLoaded.current = true; }}
-        onError={() => setMode('poll')}
-        style={COVER_STYLE}
+        onLoad={() => { streamLoaded.current = true; onReadyChange(true); }}
+        onError={() => { onReadyChange(false); setMode('poll'); }}
+        style={{ ...COVER_STYLE, objectPosition }}
       />
     );
   }
 
   if (!PROTO && mode === 'poll' && frameUrl) {
-    return <img src={frameUrl} alt="camera preview" style={COVER_STYLE} />;
+    return <img src={frameUrl} alt="camera preview" style={{ ...COVER_STYLE, objectPosition }} />;
   }
 
   // フォールバック（プロトタイプ / iPhone未接続・プレビュー取得失敗時）
@@ -130,11 +158,33 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
   const [flashKey, setFlashKey] = useState(0);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const [started, setStarted] = useState(false);
+  // ライブ映像を実際に表示できているか（プロトは常に true）。false の間はシャッターを
+  // 無効化し「準備中」を表示する。true/false 待ちを繰り返してもプレビュー側が自動リトライを続ける。
+  const [cameraReady, setCameraReady] = useState(false);
+  // 合成の横pan(crop.offsetX)をライブビューにも反映するための objectPosition。
+  // 縦(offsetY)はプレビュー・raw とも縦全高が写るため合成側で常に効かず、反映不要。
+  const [previewObjectPos, setPreviewObjectPos] = useState('50% 50%');
+
+  useEffect(() => {
+    if (PROTO) return;
+    (async () => {
+      try {
+        const res = await fetch('/api/settings', { cache: 'no-store' });
+        const s = await res.json();
+        const offsetX = Number(s?.crop?.offsetX) || 0;
+        // offsetX(クロップ幅に対する%)→objectPosition% 換算。p% は「画像の p% 点を
+        // 枠の p% 点へ合わせる」ため、中央50% + 移動量×(クロップ幅/余白幅)。
+        const factor = FINAL_ASPECT / (PREVIEW_ASPECT - FINAL_ASPECT);
+        const p = Math.max(0, Math.min(100, 50 + offsetX * factor));
+        setPreviewObjectPos(`${p}% 50%`);
+      } catch { /* 取得失敗時は中央クロップのまま（設定変更時はSSEリロードで再取得される） */ }
+    })();
+  }, []);
   // 連打の即時ガード。started(state)は再描画後にしか反映されず、撮影ボタンを高速連打すると
   // 再描画前に shoot() が複数走って余計なシャッターが鳴る。ref は同期で即反映されるので隙が無い。
   const startedRef = useRef(false);
 
-  const canShoot = !!sessionId && !started && photos.length < MAX_SHOTS;
+  const canShoot = !!sessionId && !started && cameraReady && photos.length < MAX_SHOTS;
 
   // iPhoneのシャッターはトリガー送信の直後に切れる（レスポンスはHEIC転送・変換後で
   // 数秒遅れる）ので、エフェクトは完了を待たず送信直後+補正分の遅延で発火させる
@@ -177,12 +227,35 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
   const shutterLabel = started ? T.capture.capturing : T.capture.shutter;
 
   return (
-    <IPad animKey="capture">
-      {/* Full-bleed camera view */}
-      <div data-section="camera-screen" style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+    <IPad step={3} totalSteps={5} animKey="capture">
+      {/* Full-bleed camera view。ライブビュー枠(完成画像比)の左右余白はトップページと同じ青 */}
+      <div data-section="camera-screen" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: 'var(--color-brand-500)' }}>
 
-        {/* iPhoneのリアルタイム映像（未接続時はイラストにフォールバック） */}
-        <LiveCameraView />
+        {/* iPhoneのリアルタイム映像（未接続時はイラストにフォールバック＋準備中表示）。
+            完成画像(2768:6000)と同じ範囲だけを見せる枠に収める。枠外(左右)は合成で
+            捨てられる領域のため、見せると「写ると思ったのに切れた」事故になる。 */}
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, left: '50%',
+          transform: 'translateX(-50%)',
+          aspectRatio: String(FINAL_ASPECT),
+          overflow: 'hidden',
+        }}>
+          <LiveCameraView onReadyChange={setCameraReady} objectPosition={previewObjectPos} />
+        </div>
+
+        {/* カメラ準備中（未接続/再接続中）: シャッター無効化と合わせて状態を正直に伝える */}
+        {!cameraReady && (
+          <div style={{
+            position: 'absolute', top: 84, left: '50%', transform: 'translateX(-50%)',
+            padding: '10px 20px', borderRadius: 999,
+            background: 'rgba(6,35,111,0.78)',
+            fontFamily: "var(--font-ui)", fontSize: 14, fontWeight: 600,
+            color: '#fff', textAlign: 'center', whiteSpace: 'pre-line', lineHeight: 1.4,
+            pointerEvents: 'none',
+          }}>
+            {T.capture.cameraPreparing}
+          </div>
+        )}
 
         {/* Instruction text at top */}
         <div style={{
@@ -227,14 +300,33 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
           </div>
         ))}
 
-        {/* Shot counter */}
-        {photos.length > 0 && (
+        {/* Shot progress — 連写シーケンス中の無言区間をなくす（ドット＋「n枚目を撮影中…」）。
+            1枚あたりサーバ応答に数秒かかるため、タップ直後から常時表示して固まった印象を防ぐ。 */}
+        {(started || photos.length > 0) && (
           <div style={{
-            position: 'absolute', bottom: 116, left: 0, right: 0,
-            textAlign: 'center',
-            fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600,
-            color: '#FF3B30',
-          }}>{photos.length} / {MAX_SHOTS}</div>
+            position: 'absolute', bottom: 108, left: 0, right: 0,
+            textAlign: 'center', pointerEvents: 'none',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
+              {Array.from({ length: MAX_SHOTS }, (_, i) => (
+                <div key={i} style={{
+                  width: 12, height: 12, borderRadius: '50%',
+                  background: i < photos.length ? '#FF3B30' : 'rgba(6,35,111,0.25)',
+                  transition: 'background 0.3s ease',
+                }} />
+              ))}
+            </div>
+            <div style={{
+              fontFamily: "var(--font-ui)", fontSize: 15, fontWeight: 600,
+              color: '#FF3B30',
+            }}>
+              {photos.length >= MAX_SHOTS
+                ? T.capture.allShotsDone
+                : started
+                  ? T.capture.shootingNth(photos.length + 1)
+                  : `${photos.length} / ${MAX_SHOTS}`}
+            </div>
+          </div>
         )}
 
         {/* Circular shutter button — outer navy ring + inner blue circle with label */}

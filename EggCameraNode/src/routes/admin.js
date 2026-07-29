@@ -11,9 +11,11 @@ const { DATA_DIR, FAILED_DIR, REBOOT_PASSWORD, PORT, ts } = require('../config')
 const adminAuth = require('./adminAuth');
 const { diagnose } = require('../diagnose');
 const ops = require('../ops');
-const { listFailedUploads, retryFailedUpload } = require('../composite');
+const { listFailedUploads, retryFailedUpload, presignPutUrl, r2ObjectExists } = require('../composite');
+const { ensureRasterSource } = require('../compose');
 const jobsStore = require('../jobs');
 const frames   = require('../frames');
+const growthFrames = require('../growthFrames');
 const settings = require('../settings');
 const logger   = require('../logger');
 const slack    = require('../slack');
@@ -32,6 +34,69 @@ function frameToJson(f) {
 // ── フレーム一覧 ────────────────────────────────────────────────────────
 router.get('/frames', (req, res) => {
     res.json(frames.listFrames().map(frameToJson));
+});
+
+// ── 成長するファミちゃん（年齢連動9種＋レア2種）一覧 ─────────────────────
+// 有効時は年齢連動選択が上のランダム一覧より優先される（routes/sessions.js pickFrame）。
+router.get('/growth-frames', (req, res) => {
+    res.json(growthFrames.listAll());
+});
+
+function growthFrameToJson(f) {
+    return { ...f, url: `/frames/${f.file}` };
+}
+
+// ── 成長フレーム追加（月齢カテゴリ level を指定。画像バイナリを直接POST） ──
+// 日数範囲はサーバ側の固定カテゴリ表から決まる（管理画面はプルダウンで level を選ぶ）。
+router.post('/growth-frames/growth',
+    express.raw({ type: ['image/png', 'image/jpeg'], limit: '30mb' }),
+    (req, res) => {
+        if (!Buffer.isBuffer(req.body) || !req.body.length) {
+            return res.status(400).json({ error: 'invalid_image' });
+        }
+        const ext = req.get('Content-Type') === 'image/jpeg' ? '.jpg' : '.png';
+        try {
+            res.json(growthFrameToJson(growthFrames.addGrowthFrame({ level: req.query.level }, req.body, ext)));
+        } catch (err) {
+            console.error(`[${ts()}] growth frame add failed: ${err.message}`);
+            res.status(400).json({ error: err.message });
+        }
+    });
+
+// ── レアアイテム追加（key/label を指定。画像バイナリを直接POST） ──────────
+router.post('/growth-frames/rare',
+    express.raw({ type: ['image/png', 'image/jpeg'], limit: '30mb' }),
+    (req, res) => {
+        if (!Buffer.isBuffer(req.body) || !req.body.length) {
+            return res.status(400).json({ error: 'invalid_image' });
+        }
+        const ext = req.get('Content-Type') === 'image/jpeg' ? '.jpg' : '.png';
+        const key = decodeURIComponent(req.get('X-Rare-Key') || '');
+        const label = decodeURIComponent(req.get('X-Rare-Label') || '');
+        try {
+            res.json(growthFrameToJson(growthFrames.addRareFrame({ key, label }, req.body, ext)));
+        } catch (err) {
+            console.error(`[${ts()}] rare frame add failed: ${err.message}`);
+            res.status(400).json({ error: err.message });
+        }
+    });
+
+// ── 成長フレーム削除（一覧から外すだけ。実ファイルは .trash に残る） ───────
+router.delete('/growth-frames/growth/:level', (req, res) => {
+    try {
+        res.json(growthFrameToJson(growthFrames.deleteGrowthFrame(req.params.level)));
+    } catch (err) {
+        res.status(404).json({ error: err.message });
+    }
+});
+
+// ── レアアイテム削除 ─────────────────────────────────────────────────────
+router.delete('/growth-frames/rare/:key', (req, res) => {
+    try {
+        res.json(growthFrameToJson(growthFrames.deleteRareFrame(req.params.key)));
+    } catch (err) {
+        res.status(404).json({ error: err.message });
+    }
 });
 
 // ── フレーム追加（ブラウザのPCローカルから: 画像バイナリを直接POST） ──────
@@ -99,15 +164,6 @@ router.delete('/frames/:id', (req, res) => {
     }
 });
 
-// ── 使用中/非表示の切り替え ───────────────────────────────────────────────
-router.patch('/frames/:id', (req, res) => {
-    try {
-        res.json(frameToJson(frames.setFrameActive(req.params.id, req.body?.active)));
-    } catch (err) {
-        res.status(404).json({ error: err.message });
-    }
-});
-
 // ── HDD 空き容量 ─────────────────────────────────────────────────────────
 router.get('/disk', (req, res) => {
     fs.statfs(DATA_DIR, (err, st) => {
@@ -121,7 +177,14 @@ router.get('/disk', (req, res) => {
 // metrics / test-capture は adminCore.js(core:3000) 側。admin-server がプロキシする。
 
 // ── クロップ設定 ─────────────────────────────────────────────────────────
-router.get('/settings', (req, res) => res.json(settings.getSettings()));
+router.get('/settings', (req, res) => res.json({
+    ...settings.getSettings(),
+    // ズームゲージの無劣化範囲表示用メタ。無劣化上限 = captureLongEdge / outputLongEdge。
+    meta: {
+        captureLongEdge: 8064,  // iPhone17メイン 48MP の長辺(2:3クロップ後も不変)
+        outputLongEdge: parseInt(process.env.COMPOSE_MAX_HEIGHT || '3600', 10), // 完成画像の長辺
+    },
+}));
 router.put('/settings', (req, res) => {
     const saved = settings.saveSettings(req.body);
     // 設定変更を iPad Safari へリアルタイムプッシュ（SSE経由で core に通知）
@@ -187,6 +250,9 @@ router.get('/jobs', (req, res) => {
         lastError:   j.lastError,
         confirmedAt: j.confirmedAt,
         uploadedAt:  j.uploadedAt,
+        manualLock:        j.manualLock || false,
+        manualMode:        j.manualMode || null,
+        attentionRequired: j.attentionRequired || false,
         qrDataUrl:   j.result && j.result.qrDataUrl   || null,
         downloadUrl: j.result && j.result.downloadUrl || null,
         imageUrl:    `/api/admin/jobs/${j.jobId}/image`,
@@ -201,6 +267,91 @@ router.get('/jobs/:id/image', (req, res) => {
     if (!job || !fs.existsSync(p)) return res.status(404).json({ error: 'not_found' });
     if (req.query.download) res.set('Content-Disposition', `attachment; filename="${job.fileName}"`);
     res.sendFile(p);
+});
+
+// ── ブラウザ再合成に必要なパラメータ一式（crop/名前/日数/source URL） ──────────
+// フレームは別途 GET /api/admin/frames（一覧）＋ /frames/<file>（本体）から取得する。
+router.get('/jobs/:id/params', (req, res) => {
+    const id  = path.basename(req.params.id);
+    const job = jobsStore.readJob(id);
+    if (!job) return res.status(404).json({ error: 'not_found' });
+    res.json({
+        jobId:     job.jobId,
+        fileName:  job.fileName,
+        status:    job.status,
+        crop:      job.crop || { zoom: 1, offsetX: 0, offsetY: 0 },
+        nickname:  job.nickname || '',
+        daysText:  job.daysText || '',
+        days:      job.days || 0,
+        sourceUrl: `/api/admin/jobs/${job.jobId}/source.jpg`,
+    });
+});
+
+// ── ブラウザ合成用に source を JPEG 化して提供（HEIC はブラウザ canvas で扱えない） ──
+router.get('/jobs/:id/source.jpg', async (req, res) => {
+    const id  = path.basename(req.params.id);
+    const job = jobsStore.readJob(id);
+    const src = job && jobsStore.sourcePathOf(job);
+    if (!src) return res.status(404).json({ error: 'source_not_found' });
+    try {
+        const { rasterPath, cleanup } = await ensureRasterSource(src);
+        res.sendFile(rasterPath, (err) => {
+            if (cleanup) fs.rm(rasterPath, { force: true }, () => {});
+            if (err && !res.headersSent) res.status(500).end();
+        });
+    } catch (err) {
+        console.error(`[${ts()}] source.jpg failed (${id}): ${err.message}`);
+        res.status(500).json({ error: 'source_convert_failed' });
+    }
+});
+
+// ── 直R2アップロード用の署名付きPUT URLを発行（手動救済の開始） ─────────────────
+// mode='reupload'(再送) は切替前に取得して保持し切替後にPUT、'recompose'(再合成) は
+// 合成後すぐPUT。発行と同時に manualLock を立て worker の自動リトライを止める（排他）。
+router.post('/jobs/:id/presign', async (req, res) => {
+    const id  = path.basename(req.params.id);
+    const job = jobsStore.readJob(id);
+    if (!job) return res.status(404).json({ error: 'not_found' });
+    if (job.status === 'done') return res.status(409).json({ error: 'already_done' });
+    const mode = (req.body && req.body.mode === 'recompose') ? 'recompose' : 'reupload';
+    try {
+        const presign = await presignPutUrl(job.fileName, { expiresIn: 900 });
+        // ロックに期限を付ける（署名15分＋PUT完了余裕10分）。スタッフが発行後に操作を
+        // 放棄すると worker の自動リトライが恒久停止する穴を塞ぐ（期限切れは
+        // checkManualUploads が解除して自動リトライへ戻す）。
+        jobsStore.updateJob(id, {
+            manualLock: true, manualMode: mode,
+            manualLockUntil: Date.now() + 25 * 60_000,
+        });
+        console.log(`[${ts()}] job ${id}: manual ${mode} started (presigned PUT issued)`);
+        res.json({
+            uploadUrl: presign.url, key: job.fileName,
+            expiresIn: presign.expiresIn, expiresAt: presign.expiresAt,
+        });
+    } catch (err) {
+        console.error(`[${ts()}] presign failed (${id}): ${err.message}`);
+        res.status(500).json({ error: 'presign_failed' });
+    }
+});
+
+// ── 手動アップロード完了の即時通知（従経路）。R2 HEAD で実在確認して done 化 ──────
+// ネット復帰後にブラウザが叩く。未検出は 409（ブラウザは数秒後にリトライ、
+// または worker の HEAD ループが最終的に done 化する）。
+router.post('/jobs/:id/complete', async (req, res) => {
+    const id  = path.basename(req.params.id);
+    const job = jobsStore.readJob(id);
+    if (!job) return res.status(404).json({ error: 'not_found' });
+    if (job.status === 'done') {
+        return res.json({ ok: true, status: 'done',
+            qrDataUrl: job.result?.qrDataUrl || null, downloadUrl: job.result?.downloadUrl || null });
+    }
+    let exists = false;
+    try { exists = await r2ObjectExists(job.fileName); } catch { exists = false; }
+    if (!exists) return res.status(409).json({ error: 'not_uploaded_yet' });
+    const done = jobsStore.markManualDone(id);
+    console.log(`[${ts()}] job ${id}: manual ${job.manualMode || ''} confirmed (complete API) → done`);
+    res.json({ ok: true, status: 'done',
+        qrDataUrl: done?.result?.qrDataUrl || null, downloadUrl: done?.result?.downloadUrl || null });
 });
 
 // ── Slack 通知（監視ループ/エージェントからのバグ修正・人力対応報告用） ───

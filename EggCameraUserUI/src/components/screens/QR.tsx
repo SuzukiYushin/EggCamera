@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { IPad } from '../IPad';
+import { ConfirmDialog } from '../Modal';
 import { useLang } from '../../LangContext';
 import type { SessionResult } from '../../api';
 
@@ -15,6 +16,9 @@ const QR_TIMEOUT_SEC = 3 * 60;
 export function QR({ result, onDone, onRestart }: QRProps) {
   const { T } = useLang();
   const [secs, setSecs] = useState(QR_TIMEOUT_SEC);
+  // 「TOPに戻る」は押した瞬間にセッション終了＝QRが二度と表示できなくなるため、
+  // 誤タップ・受け取り忘れ防止の確認ダイアログを必ず挟む。
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     const startedAt = Date.now();
@@ -35,7 +39,7 @@ export function QR({ result, onDone, onRestart }: QRProps) {
     <IPad animKey="qr">
       <div data-section="qr-screen" style={{
         flex: 1, display: 'flex', flexDirection: 'column',
-        padding: '50px 60px 44px',
+        padding: '50px 60px 0',
       }}>
 
         {/* Step label */}
@@ -102,9 +106,21 @@ export function QR({ result, onDone, onRestart }: QRProps) {
         </div>
 
         {/* Restart */}
-        <div style={{ flexShrink: 0 }}>
-          <button className="btn-ghost" onClick={onRestart}>{T.qr.restart}</button>
+        <div className="screen-actions">
+          <button className="btn-ghost" onClick={() => setAsking(true)}>{T.qr.restart}</button>
         </div>
+
+        {asking && (
+          <ConfirmDialog
+            dataSection="qr-quit-confirm"
+            title={T.qr.confirmTitle}
+            body={T.qr.confirmBody}
+            cancelLabel={T.qr.confirmCancel}
+            confirmLabel={T.qr.confirmOk}
+            onCancel={() => setAsking(false)}
+            onConfirm={onRestart}
+          />
+        )}
 
       </div>
     </IPad>

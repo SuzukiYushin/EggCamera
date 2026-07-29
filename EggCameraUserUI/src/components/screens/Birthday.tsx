@@ -2,12 +2,10 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { IPad } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
-import butterflyPink from '../../assets/butterfly_pink.png';
-import butterflyBlue from '../../assets/butterfly_blue.png';
 
 interface BirthdayProps {
   nickname?: string;
-  onNext: (days: number) => void;
+  onNext: (days: number, months: number) => void;
   onSkip: () => void;
 }
 
@@ -19,6 +17,15 @@ function calcDays(year: number, month: number, day: number): number {
 
 function daysInMonth(year: number, month: number): number {
   return new Date(year, month, 0).getDate();
+}
+
+// 満月齢（暦ベース）。同じ「◯ヶ月」でも実日数はお誕生日によって変わる。
+// 例) 2/28生まれ → 1ヶ月未満は 2/28〜4/27(59日間) / 7/1生まれ → 7/1〜8/31(62日間)。
+function monthsSinceBirth(year: number, month: number, day: number): number {
+  const today = new Date();
+  let m = (today.getFullYear() - year) * 12 + (today.getMonth() + 1 - month);
+  if (today.getDate() < day) m -= 1;   // 応当日前なら1ヶ月未満
+  return Math.max(0, m);
 }
 
 const YEARS = Array.from({ length: 7 }, (_, i) => 2020 + i); // 2020–2026
@@ -37,9 +44,11 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
 
   const maxDay = daysInMonth(year, month);
   const safeDay = Math.min(day, maxDay);
-  // 表示する数字は「妊娠期間の約270days」＋「誕生日後の日数」の合計（＝1000daysの考え方）
-  const daysSinceBirth = calcDays(year, month, safeDay);
-  const days = daysSinceBirth + 270;
+  // 表示する数字は「お誕生日から撮影日までの日数」そのもの（2026-07-29クライアント確定。
+  // 以前の 1000days の考え方＝妊娠期間270日を足す方式は廃止）。
+  const days = calcDays(year, month, safeDay);
+  // フレームは月齢で選ぶ（暦の月数なので、対象期間はお誕生日によって長さが変わる）。
+  const months = monthsSinceBirth(year, month, safeDay);
 
   const handleYearChange = (i: number) => setYear(YEARS[i]);
   const handleMonthChange = (i: number) => {
@@ -62,7 +71,7 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
   );
 
   return (
-    <IPad step={2} totalSteps={7} animKey="bday">
+    <IPad step={2} totalSteps={5} animKey="bday">
       <Page data-section="birthday-screen" style={{ paddingTop: 50 }}>
         <div className="t-eyebrow" style={{ marginBottom: 50, marginLeft: 12 }}>{T.birthday.step}</div>
         <div className="t-heading" style={{ marginBottom: 30, whiteSpace: 'pre-line' }}>
@@ -97,10 +106,10 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
 
         <div className="t-body" style={{ marginBottom: 10 }}>{T.birthday.body}</div>
 
-        {/* Days since birth */}
+        {/* Days since birth（生まれ日ラベル＋日数をブロックごと 70px 下げる） */}
         <div data-ui="birthday-result" style={{
           marginBottom: 10,
-          marginTop: 70,
+          marginTop: 140,
           position: 'relative',
           textAlign: 'center',
         }}>
@@ -122,30 +131,16 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
             }}>
 
               {dateLabel}
-
-              <img src={butterflyBlue} alt="" aria-hidden="true" style={{
-                position: 'absolute',
-                left: 'calc(100% + 40px)',
-                top: '30%',
-                transform: 'translateY(-50%)',
-                width: 58, height: 'auto',
-              }} />
             </span>
           </div>
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '1fr auto 1fr',
+            gridTemplateColumns: 'auto auto',
+            justifyContent: 'center',
             alignItems: 'center',
             columnGap: 10,
           }}>
-            {/* Pink butterfly — left of centered number */}
-            <img src={butterflyPink} alt="" aria-hidden="true" style={{
-              justifySelf: 'end',
-              width: 58, height: 'auto',
-              alignSelf: 'end',
-            }} />
-
             <span key={days} style={{
               fontFamily: "'Futura', 'Century Gothic', sans-serif",
               fontWeight: 700,
@@ -171,18 +166,6 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
             </span>
           </div>
 
-          {/* 内訳: 妊娠期間の270days ＋ 誕生日後の日数（小さめ表示） */}
-          <div style={{
-            fontFamily: "'Futura', 'Century Gothic', sans-serif",
-            fontSize: 18, fontWeight: 700,
-            color: C.number,
-            letterSpacing: '0.04em',
-            marginTop: 12,
-            opacity: 0.85,
-          }}>
-            270 ＋ {daysSinceBirth}
-          </div>
-
           {nickname && (
             <div style={{
               fontFamily: 'var(--font-ui)',
@@ -196,21 +179,11 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
           )}
         </div>
 
-        {/* 1000days の説明（生後日数＋270 の意味を補足） */}
-        <div style={{
-          fontFamily: 'var(--font-ui)',
-          color: 'var(--color-ink-600)',
-          fontSize: 16, fontWeight: 500,
-          marginLeft: 25,
-          marginRight: 25,
-          marginTop: 10,
-          marginBottom: 'auto',
-        }}>
-          {T.birthday.about1000days}
-        </div>
+        {/* 1000days の説明文は廃止（カウントが「お誕生日から撮影日までの日数」になったため） */}
+        <div style={{ marginBottom: 'auto' }} />
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 36, marginTop: 20 }}>
-          <button className="btn-primary" onClick={() => onNext(days)}>{T.birthday.next}</button>
+        <div className="screen-actions" style={{ marginTop: 20 }}>
+          <button className="btn-primary" onClick={() => onNext(days, months)}>{T.birthday.next}</button>
           <button className="btn-ghost" onClick={onSkip}>{T.birthday.skip}</button>
         </div>
       </Page>

@@ -9,7 +9,8 @@ const sharp = require('sharp');
 // concurrency=1でも実用上スループットに影響しない。
 sharp.cache(false);
 sharp.concurrency(1);
-const { S3Client, PutObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, HeadObjectCommand, ListObjectsV2Command, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { NodeHttpHandler } = require('@smithy/node-http-handler');
 const QRCode = require('qrcode');
 
@@ -174,6 +175,27 @@ async function uploadToR2(filePath, key) {
         ContentType: 'image/jpeg',
     }));
     console.log(`[${ts()}] R2 uploaded → ${key}`);
+}
+
+// ── 管理画面ブラウザからの「直R2アップロード」用 署名付きPUT URL ─────────────
+// 管理PCのネット回線で直接R2へPUTさせるため。Key/ContentType はサーバが固定して
+// 署名する（クライアントが任意キーへ書き込めない・改ざんで SignatureDoesNotMatch）。
+// 短命（既定15分）。ネット切替前に発行→保持し、切替後にPUTする運用。
+async function presignPutUrl(key, { expiresIn = 900 } = {}) {
+    const cmd = new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, ContentType: 'image/jpeg' });
+    const url = await getSignedUrl(r2, cmd, { expiresIn });
+    return { url, expiresIn, expiresAt: Date.now() + expiresIn * 1000 };
+}
+
+// R2 にオブジェクトが実在するか（手動アップロード後の done 確定確認に使う）。
+// ブラウザがサーバ不達でも、worker の HEAD 確認で done に到達できる。
+async function r2ObjectExists(key) {
+    try {
+        await r2.send(new HeadObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 // 任意ファイルをR2へ（バックアップ用・ContentType指定可）
@@ -341,6 +363,8 @@ module.exports = {
     generateQRDataUrl,
     uploadToR2,
     uploadFileToR2,
+    presignPutUrl,
+    r2ObjectExists,
     deferredUploadToR2,
     listFailedUploads,
     retryFailedUpload,

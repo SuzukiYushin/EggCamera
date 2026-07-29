@@ -25,15 +25,37 @@ body {
   overflow: hidden;
 }
 
-/* ── Fullscreen viewport — centers the design canvas on the real device ── */
+/* ── Fullscreen viewport — centers the design canvas on the real device ──
+   長さ単位(100vh/100dvh)ではなく position:fixed + inset:0 で画面全面に張り付ける。
+   ホーム画面追加(standalone)の iOS では 100dvh / window.innerHeight が実画面より
+   小さい値を返し、しかも起動後に resize が飛ばないため補正もされない。その結果
+   キャンバス下に body 背景がむき出しになる(ライブビュー下の白帯)。fixed なら
+   レイアウトビューポートに常に一致するのでこのズレが起きない。 */
 .app-viewport {
-  width: 100vw;
-  height: 100dvh;
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
 }
+
+/* ホーム画面追加(standalone)の実測（iPad・2026-07-29）:
+     画面 1024×1366 / レイアウトビューポート 1024×1334 / safe-area-inset-top 32px
+   ステータスバーぶん短い領域がコンテンツ用に与えられ、原点は画面上端(y=0)にあるため、
+   不足分の32ptが画面下端に残る（写真のピクセル計測でも 32.7pt）。
+   枠の高さを 1366 まで伸ばして要素上は画面全体に到達させたが（実測 live=0..1366）、
+   実機では下端32ptに絵が出なかった＝iOS はその領域にコンテンツを描画しない。
+   ページ側では埋められないと確認できたので、余計な下方向のクロップを避けるため
+   ビューポート枠は inset:0（＝与えられた領域ぴったり）に戻す。
+   残る帯を消す手段は、アイコン再追加によるマニフェスト(display:fullscreen)の適用か、
+   ステータスバーを不透過にして帯を画面上部へ移す方法のみ。 */
+
+/* 確定事項（2026-07-29 実機検証）: standalone ではレイアウトビューポートの外側
+   （下端32pt）にコンテンツは描画されない。赤帯を bottom:-32px に置いて目視したが
+   見えなかった。ページ背景だけがその領域に届く（＝色は変えられるが絵は出せない）。
+   したがって帯を消す手段はページ側には無く、ホーム画面追加時のマニフェスト
+   (display:fullscreen) か、ステータスバーを不透過にして帯を上部へ移す方法のみ。 */
 
 /* ── App canvas — fixed-size design (768×1024), scaled to fit the viewport ── */
 .ipad-shell {
@@ -48,11 +70,37 @@ body {
   transform-origin: center;
 }
 
-/* Start screen: extend its background to the canvas + letterbox so the
-   slide-in animation and any device-aspect letterbox don't reveal a seam */
+/* ── 画面外(ビューポート外)の帯を、その画面の端の色に合わせる ──────────────
+   ホーム画面に追加した全画面表示(standalone)では、レイアウトビューポートが実機の
+   画面より短くなる（iPad実測: 画面 1024×1366 に対しビューポート 1024×1334＝下端32pt）。
+   このはみ出し分は要素では塗れず、ブラウザがページ(body)の背景色で塗る。よって
+   フルブリードの青い画面で body がクリーム色のままだと、下端に白い帯として見える。
+   ＝各画面の端の色を body にも与えて帯を目立たなくする。
+   （キャンバス側の .ipad-shell はスライドイン時の継ぎ目対策も兼ねる） */
 body:has([data-section="start-screen"]),
 .ipad-shell:has([data-section="start-screen"]) {
   background: var(--color-brand-500);
+}
+
+/* End (Thanks) screen: same treatment — extend the blue to the canvas +
+   letterbox so the topmost element matches and no cream seam shows */
+body:has([data-section="end-screen"]),
+.ipad-shell:has([data-section="end-screen"]) {
+  background: var(--color-brand-500);
+}
+
+/* 撮影画面: ライブビューを囲む青がそのまま端の色。ここが合っていないと
+   「ライブビューの下に白い帯」に見える（2026-07-29 実機で確認）。 */
+body:has([data-section="camera-screen"]),
+.ipad-shell:has([data-section="camera-screen"]) {
+  background: var(--color-brand-500);
+}
+
+/* 全画面オーバーレイ（お詫び/メンテナンス）は濃い青が端の色 */
+body:has([data-section="error-overlay"]),
+body:has([data-section="local-maintenance"]),
+body:has([data-section="maintenance-lock"]) {
+  background: var(--color-brand-600);
 }
 
 /* ── クライアント確認用プロトタイプ: 画面選択ナビ ── */
@@ -88,10 +136,10 @@ body:has([data-section="start-screen"]),
   color: #fff;
   font-weight: 500;
 }
-/* ナビのぶん下げてキャンバスと重ならないようにする */
+/* ナビのぶん下げてキャンバスと重ならないようにする（bottom:0 のままなので
+   高さは自動でナビぶん縮む＝JS側で NAV_OFFSET を引く必要がない） */
 .app-viewport.proto-viewport {
-  height: calc(100dvh - 64px);
-  margin-top: 64px;
+  top: 64px;
 }
 /* iPad縦向き(768×1024)の画面範囲が分かるように枠線を表示 */
 .proto-viewport .ipad-shell {
@@ -115,11 +163,27 @@ body:has([data-section="start-screen"]),
   display: block;
 }
 
+/* ── 画面下部のアクションボタン群（次へ/スキップ・決定/戻る・保存する 等） ──
+   画面ごとに余白を書いていたため下端からの距離が 28/32/36/40/44px とバラついていた
+   （2026-07-29 実機計測）。ここで一元管理し、どの画面でも一番下のボタンが同じ高さに
+   来るようにする。位置を変えるときはこの値だけを触ること。 */
+.screen-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 36px;
+  flex-shrink: 0;
+}
+
 /* Progress bar */
+/* 進捗バーは画面の上に重ねる（フロー上に置くと、その2px分だけ画面本体が下がり、
+   撮影画面ではライブビューの上に数pxの余白として見えてしまう）。 */
 .prog-bar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
   height: 2px;
   background: rgba(0,0,0,0.06);
-  flex-shrink: 0;
+  z-index: 50;
 }
 .prog-fill {
   height: 100%;
@@ -390,6 +454,12 @@ body:has([data-section="start-screen"]),
 @keyframes countPop {
   0%   { transform: scale(0.85); opacity: 0.6; }
   100% { transform: scale(1);    opacity: 1; }
+}
+
+/* 合成/確定待ちの不確定プログレスバー（FinalPreviewServer） */
+@keyframes composeBarSlide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
 }
 
 /* ── Frame grid scrollbar ── */

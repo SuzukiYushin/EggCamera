@@ -54,7 +54,9 @@ const PRICE_PER_GB    = 0.015;
     const warns = [];
     if (gb > FREE_STORAGE_GB * 0.9) warns.push(`▲ ストレージが無料枠に接近/超過: ${gb.toFixed(2)}GB`);
     if (count > 3000) warns.push(`▲ オブジェクト数が異常: ${count}件（24h保持なら~1000件想定）`);
-    if (ageH > 26) warns.push(`▲ 24時間保持を超えた残留: 最古${ageH.toFixed(1)}時間前 — cleanup不全の可能性`);
+    // 設計上の最大滞留は 24h保持 + cleanup間隔3h = 27h。26h だと正常巡回中でも
+    // 周期的に偽警告が出る（2026-07-04 実測 26.3h で誤検知）ため、余裕を見て 28h。
+    if (ageH > 28) warns.push(`▲ 24時間保持を超えた残留: 最古${ageH.toFixed(1)}時間前 — cleanup不全の可能性`);
 
     if (warns.length) {
         console.log('\n--- 要注意 ---');

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  機械化ヘルスチェック（Claude非依存・2026-07-04新設）。毎時:40に ops/health-watch.sh を実行。
+  hourly-claude-watch(:50, claude -p)の機械化可能な項目(node死活/RSS/disk/肥大ログ/毎時テスト
+  連続失敗)をshellで常時代替する。Claude Codeが使えない本番運用でも生きる監視レイヤ。
+  異常時のみ Slack + /api/test-report(alert)。正常時は無通知。
+  インストール:
+    cp ops/launchd/com.eggcamera.health-watch.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.eggcamera.health-watch.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.eggcamera.health-watch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>/Users/eggcamera/EggCamera/ops/health-watch.sh</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Minute</key><integer>40</integer></dict>
+  </array>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>/Users/eggcamera/Library/Logs/eggcamera-health-watch.out</string>
+  <key>StandardErrorPath</key><string>/Users/eggcamera/Library/Logs/eggcamera-health-watch.err</string>
+</dict>
+</plist>

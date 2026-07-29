@@ -12,6 +12,7 @@ const { execSync } = require('node:child_process');
 const fs           = require('node:fs');
 const path         = require('node:path');
 const http         = require('node:http');
+const os           = require('node:os');
 
 // ── 設定 ───────────────────────────────────────────────────────────────────
 const TARGET_URL     = 'http://192.168.10.104:3000/';
@@ -19,7 +20,16 @@ const SERVER_BASE    = 'http://localhost:3000';
 const ADMIN_BASE     = 'http://localhost:3001';
 const SCREENSHOT_DIR = path.join(__dirname, '../../data/test-screenshots');
 const SCREENSHOT_KEEP = 100; // 診断スクショは新しい順にこの枚数だけ保持（無制限蓄積を防ぐ）
-const CYCLES         = parseInt(process.argv[2] || process.env.CYCLES || '6', 10);
+// Wi-Fiモード(.wda-wifi-modeフラグ)中のデフォルトは1サイクル(バッテリー温存・2026-07-12)。
+// 引数/env指定があればそちらが優先。USB復旧(フラグ削除)で自動的に6へ戻る。
+const CYCLES         = parseInt(process.argv[2] || process.env.CYCLES ||
+    (fs.existsSync('/Users/eggcamera/EggCamera/ops/ipad/.wda-wifi-mode') ? '1' : '6'), 10);
+// フォルト/スキップの途中終了サイクルは通常フローのQR待機185秒を経ず即returnするため、
+// session系API(/api/sessions=60秒20回/IP=sessionLimiter)へのリクエストが密集する。連続すると
+// C6等の正当サイクルが 429(too_many_requests) に巻き込まれ偽失敗する(2026-07-08 13:00枠でC4/C5
+// フォルト連続→C6被弾)。本番の実客は1フロー数分で間隔十分＝この密度に達しない(実測でも実客IPの
+// 429は0件)。途中終了サイクルの後に本番相当の間隔を確保し、rate-limitへ構造的に到達させない。
+const RATE_LIMIT_COOLDOWN_MS = parseInt(process.env.IPAD_TEST_RATE_LIMIT_COOLDOWN_MS || '30000', 10);
 
 const CAPS = {
     platformName:                   'iOS',
@@ -40,6 +50,22 @@ const CAPS = {
     'appium:shouldTerminateApp':    false,
     'appium:forceAppLaunch':        false,
 };
+
+// USB切断時のWi-Fi経由テスト(2026-07-11): IPAD_TEST_WDA_URL に稼働中WDAのURL
+// (例 http://127.0.0.1:18100 = launchdのAppiumはローカルネットワーク権限が無いため
+// シェル権限のフォワーダ経由)を指定すると、xcodebuildによるWDA起動をスキップして
+// 直接接続する。usbmuxdへのiPad登録(EnableWifiConnections=true)が別途必要。
+// envが無くてもフラグファイル(.wda-wifi-mode)があれば自動適用する — post-boot検証等の
+// 直接実行(node tools/ipad-test.js)でもWi-Fiモードが漏れないようにするため(2026-07-12)。
+const WIFI_MODE_FLAG = '/Users/eggcamera/EggCamera/ops/ipad/.wda-wifi-mode';
+const WDA_URL = process.env.IPAD_TEST_WDA_URL ||
+    (fs.existsSync(WIFI_MODE_FLAG) ? 'http://127.0.0.1:18100' : null);
+if (WDA_URL) {
+    CAPS['appium:webDriverAgentUrl'] = WDA_URL;
+    CAPS['appium:skipLogCapture']    = true;
+    delete CAPS['appium:usePrebuiltWDA'];
+    delete CAPS['appium:derivedDataPath'];
+}
 
 function readEnv(key) {
     for (const line of fs.readFileSync(path.join(__dirname, '../.env'), 'utf8').split('\n')) {
@@ -237,8 +263,9 @@ async function checkAdminLogs(cycleStartIso) {
 
 // ── 1サイクル ───────────────────────────────────────────────────────────────
 // 戻り値: 'completed' | 'skipped' | 'fault-ok'
-async function runCycle(browser, cycleNum) {
-    const label      = `[C${cycleNum}/${CYCLES}]`;
+async function runCycle(browser, cycleNum, opts = {}) {
+    const warmup     = opts.warmup === true; // 捨てサイクル: cold-start吸収用のカウント外クリーン周回
+    const label      = warmup ? '[warmup]' : `[C${cycleNum}/${CYCLES}]`;
     const cycleStart = ts();
 
     // adminBusy チェック
@@ -261,13 +288,20 @@ async function runCycle(browser, cycleNum) {
         await withTimeout(resetPage(browser), 30000, 'reset-stale-overlay').catch(() => {});
     }
 
-    const plan        = harness.buildPlan();
+    // warmupは常にクリーン周回（フォルト/quirk/goBackなし）＝cold-start吸収に専念する。
+    const plan        = warmup
+        ? { faults: [], quirk: null, goBack: false, backDone: false }
+        : harness.buildPlan();
     const faultLabels = plan.faults.map(f => f.label).join(' + ');
-    log(`${label} 計画: goBack=${plan.goBack} fault=${faultLabels || 'なし'} quirk=${plan.quirk || 'なし'}`);
+    log(warmup
+        ? `${label} 計画: クリーン1周（cold-start吸収・カウント外）`
+        : `${label} 計画: goBack=${plan.goBack} fault=${faultLabels || 'なし'} quirk=${plan.quirk || 'なし'}`);
 
-    // フォルト注入
-    await harness.armServerFaults(plan.faults);
-    await harness.injectHookAndArm(browser, plan.faults);
+    // フォルト注入（warmupはクリーン周回なので注入しない）
+    if (!warmup) {
+        await harness.armServerFaults(plan.faults);
+        await harness.injectHookAndArm(browser, plan.faults);
+    }
 
     const tap  = async (xpath) => { const el = await browser.$(xpath); await el.click(); };
     const btns = () => browser.execute(() =>
@@ -284,6 +318,23 @@ async function runCycle(browser, cycleNum) {
 
     await tap('//button[text()="スキップ"]');
     await tap('//button[text()="スキップ"]');
+
+    // カメラ未接続中はシャッターボタンがdisabled化される仕様(2026-07-15)。disabled要素への
+    // click()はonClickを発火しない＝空振りする。スキップ連打でCapture画面に一瞬で到達すると
+    // ライブ映像<img>のonLoad(→有効化)が間に合わず「決定ボタンが出現しなかった」偽失敗になる
+    // (2026-07-16判明)。実際のお客様の指もdisabledボタンは押せないので、実機と同じく
+    // 有効化を待ってからクリックする(最大10秒。それでも有効化しなければ実際のバグとして
+    // 従来どおり後段の決定ボタン待機タイムアウトで失敗検出される)。
+    let shutterEnabled = false;
+    for (let i = 0; i < 20; i++) {
+        shutterEnabled = await browser.execute(() => {
+            const b = document.querySelector('button');
+            return !!b && !b.disabled;
+        });
+        if (shutterEnabled) break;
+        await sleep(500);
+    }
+    if (!shutterEnabled) log(`${label} ⚠ シャッターボタンが10秒待っても有効化されず → そのままクリック試行`);
 
     if (plan.quirk === 'shutter-mash') {
         log(`${label} ◇ QUIRK: 撮影ボタン連打 x6`);
@@ -305,6 +356,17 @@ async function runCycle(browser, cycleNum) {
         await tap('//button[text()="はじめる"]');
         await tap('//button[text()="スキップ"]');
         await tap('//button[text()="スキップ"]');
+        // リロード後もCapture画面は再マウントされるため、上と同じくシャッター有効化待ちが要る。
+        let reloadShutterEnabled = false;
+        for (let i = 0; i < 20; i++) {
+            reloadShutterEnabled = await browser.execute(() => {
+                const b = document.querySelector('button');
+                return !!b && !b.disabled;
+            });
+            if (reloadShutterEnabled) break;
+            await sleep(500);
+        }
+        if (!reloadShutterEnabled) log(`${label} ⚠ リロード後シャッターボタンが10秒待っても有効化されず → そのままクリック試行`);
         await browser.execute(() => { const b = document.querySelector('button'); b?.click(); });
         log(`${label} リロード後: 撮影クリック`);
     }
@@ -337,9 +399,29 @@ async function runCycle(browser, cycleNum) {
         await browser.execute(() => { const b = document.querySelector('button'); b?.click(); });
         log(`${label} goBack後: 撮影クリック`);
         decided = false;
+        // goBack(撮りなおし)は camera-screen で createSession を呼ぶ。「セッション作成API失敗」等の
+        // client/expectOverlay フォルトはここに命中し、アプリは決定ボタンに進めず ErrorOverlay もしくは
+        // TOP へフェイルセーフ復帰する（＝設計通りの自己復旧・本番実害なし）。決定ボタンだけを待つと
+        // 30秒 timeout で誤失敗するため、他の待機ループ(決定待ち/保存後/TOP復帰時)と同様に
+        // オーバーレイ／TOP復帰も fault-ok として拾う。
+        // （goBack×createSessionフォルトの複合サイクルギャップ。2026-07-08 02:00枠で48h初出）
+        const expectClientFault = plan.faults.some(f => f.kind === 'client' && f.expectOverlay);
         for (let i = 0; i < 6; i++) {
             await sleep(5000);
-            if ((await btns()).includes('決定')) { decided = true; break; }
+            const bs = await btns();
+            if (bs.includes('決定')) { decided = true; break; }
+            if (expectClientFault) {
+                if (await harness.checkOverlay(browser)) {
+                    log(`${label} ★ フォルト後オーバーレイ確認OK（goBack後の再セッション作成）(${faultLabels})`);
+                    await testReport('info', `[iPad-TEST] ${label} フォルト検証OK(goBack後): ${faultLabels} → オーバーレイ確認`);
+                    return 'fault-ok';
+                }
+                if (bs.includes('はじめる')) {
+                    log(`${label} ★ フォルト後TOP復帰確認OK（goBack後の再セッション作成失敗→フェイルセーフ）(${faultLabels})`);
+                    await testReport('info', `[iPad-TEST] ${label} フォルト検証OK(goBack後TOP復帰): ${faultLabels}`);
+                    return 'fault-ok';
+                }
+            }
         }
         if (!decided) throw new Error('goBack後の決定ボタンが出現しなかった');
     }
@@ -420,6 +502,10 @@ async function runCycle(browser, cycleNum) {
     await tap('//button[text()="はじめに戻る"]');
     log(`${label} Thanks画面OK → TOP戻り`);
 
+    // warmup（捨てサイクル）はここまででcold-start吸収の役目を完了。Phase 4(DL検証/報告)は
+    // 走らせない＝監視にC0の報告を出さず、カウントもしない。TOPに戻った状態でC1へ引き継ぐ。
+    if (warmup) { log(`${label} cold-start吸収完了 → 本サイクルへ`); return 'completed'; }
+
     // 「はじめに戻る」(restart) は start-screen で次セッションを作成する(newSession→createSession)。
     // 「セッション作成API失敗」等の expectOverlay クライアントフォルトは、撮影/保存では createSession を
     // 呼ばないためフロー中に発火せず、ここで初めて発火しうる。発火を放置すると ErrorOverlay が残り、
@@ -497,6 +583,36 @@ async function main() {
         // cold-start吸収: 再起動直後の高負荷/張りたてトンネルが落ち着くまで待ってからサイクル開始。
         await withTimeout(warmupTunnel(browser), 100000, 'warmup-gate').catch(() => {});
 
+        // 捨てサイクル(warmup): warmupTunnel の数秒プローブでは cold-start を取りきれない
+        // （通過直後にトンネルが冷え戻り、C1のQR待機中に execute/keepalive が詰まる。postboot
+        // 2026-07-01 実測: warmup 85ms通過→90s後にC1で無応答→セッション再生成再試行で回収）。
+        // カウント外のクリーン1周を先に流して真の cold-start を吸収し、C1を常にクリーンにする。
+        // ウォームな毎時テストには課さないよう、再起動直後(uptime小)限定で走らせる
+        // （IPAD_TEST_WARMUP_CYCLE=1 で強制ON / =0 で強制OFF / 未指定は uptime で自動判定）。
+        const warmupEnv     = process.env.IPAD_TEST_WARMUP_CYCLE;
+        const doWarmupCycle = warmupEnv === '1' || (warmupEnv !== '0' && os.uptime() < 1800);
+        if (doWarmupCycle) {
+            log(`\n${'─'.repeat(40)}`);
+            log(`捨てサイクル(warmup) 開始 — cold-start吸収・カウント外 (uptime=${Math.round(os.uptime())}s)`);
+            try {
+                await runCycle(browser, 0, { warmup: true });
+            } catch (err) {
+                // 捨てサイクルは失敗しても良い（185秒のQR待機を経た時点でトンネルは温まる）。C1へ進む。
+                log(`捨てサイクル: 想定内エラー（warmupの役目は達成済）→続行: ${err.message}`);
+            }
+            // 捨てサイクルでセッションが死んだ場合は作り直してからC1へ（C1をクリーンに保つ）。
+            const wAlive = await withTimeout(browser.getUrl(), 10000, 'warmup-liveness').then(() => true).catch(() => false);
+            if (!wAlive) {
+                log('捨てサイクル後: セッション無効 → 再生成');
+                await withTimeout(browser.deleteSession(), 10000, 'warmup-del').catch(() => {});
+                browser = await openSession();
+                await withTimeout(browser.url(TARGET_URL), 30000, 'warmup-reopen').catch(() => {});
+            }
+            // 途中終了でもC1は必ずクリーンなTOPから始める。
+            await withTimeout(resetPage(browser), 30000, 'warmup-reset').catch(() => {});
+            log(`捨てサイクル完了 → 本サイクル開始（トンネル温め済）`);
+        }
+
         for (let i = 0; i < CYCLES; i++) {
             log(`\n${'─'.repeat(40)}`);
             log(`サイクル ${i + 1} / ${CYCLES}`);
@@ -514,6 +630,12 @@ async function main() {
                     // fault-ok / skipped は途中終了なのでページをリセット
                     if (result !== 'completed') {
                         await withTimeout(resetPage(browser), 30000, 'resetPage').catch(() => {});
+                        // 途中終了サイクルは185秒QR待機を経ずリクエストが密集する。次サイクルがあるなら
+                        // 本番相当の間隔を空けて sessionLimiter(429) を構造的に回避する(最終サイクルは不要)。
+                        if (i < CYCLES - 1 && RATE_LIMIT_COOLDOWN_MS > 0) {
+                            log(`途中終了サイクル → 次サイクル前 rate-limit クールダウン ${Math.round(RATE_LIMIT_COOLDOWN_MS / 1000)}s`);
+                            await sleep(RATE_LIMIT_COOLDOWN_MS);
+                        }
                     }
                     break; // このサイクルは決着
                 } catch (err) {

@@ -23,7 +23,9 @@ final class CapturePipeline {
         }
 
         let (intermediate, candidate) = try await cameraController.capture(preferredWidth: command.preferredWidth,
-                                                                           preferredHeight: command.preferredHeight)
+                                                                           preferredHeight: command.preferredHeight,
+                                                                           zoom: command.zoom,
+                                                                           exposureBias: command.exposureBias)
 
         let finalPhoto = makeFinalPhoto(from: intermediate)
         let metadata = CaptureMetadata(

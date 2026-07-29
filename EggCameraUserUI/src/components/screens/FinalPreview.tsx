@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { IPad, useFitScale } from '../IPad';
+import { IPad } from '../IPad';
+import { useFitScale } from '../viewport';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
 import { getFrames, getGrowthFrames, getCropSettings } from '../../api';
@@ -245,7 +246,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
 
   return (
     <IPad step={5} totalSteps={5} animKey="preview">
-      <Page data-section="preview-screen" style={{ paddingTop: 50, paddingBottom: 28 }}>
+      <Page data-section="preview-screen" style={{ paddingTop: 50 }}>
 
         {/* Header */}
         <div data-ui="preview-header" style={{ marginBottom: 0, flexShrink: 0, textAlign: 'center' }}>
@@ -286,7 +287,7 @@ export function FinalPreview({ nickname, days, photoUrl, onNext }: FinalPreviewP
           </div>
         </div>
 
-        <div style={{ flexShrink: 0, marginTop: 14 }}>
+        <div className="screen-actions" style={{ marginTop: 14 }}>
           {exportFailed && (
             <div data-ui="export-error" style={{
               marginBottom: 10, textAlign: 'center', color: '#FF4E50',

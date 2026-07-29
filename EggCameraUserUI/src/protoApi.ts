@@ -1,7 +1,9 @@
 // クライアント確認用プロトタイプのAPIモック。
 // バックエンド（Mac mini）なしで全画面のフローを通せるよう、
 // api.ts の各関数を PROTO 時にこちらへ差し替える。
-import babyImg from './assets/baby_illustrator.png';
+import babyA from './assets/baby_a.png';
+import babyB from './assets/baby_b.png';
+import babyC from './assets/baby_c.png';
 import { PROTO_QR } from './assets/protoQr';
 import type { SessionPhoto, SessionState, FrameInfo, CropSettings } from './api';
 
@@ -16,10 +18,13 @@ export async function createSession(): Promise<{ sessionId: string }> {
   return { sessionId: 'proto-session' };
 }
 
+// 撮影後の写真選択で 3 種を並べて見せるためのモック候補（実写3枚）。
+const protoShots = [babyA, babyB, babyC];
 export async function capturePhoto(): Promise<SessionPhoto> {
   await delay(1100); // 実機の撮影テンポを再現
+  const url = protoShots[shotCount % protoShots.length];
   shotCount += 1;
-  return { photoId: `proto-${shotCount}`, url: babyImg };
+  return { photoId: `proto-${shotCount}`, url };
 }
 
 export async function getSession(sessionId: string): Promise<SessionState> {

@@ -75,7 +75,10 @@ async function runCycle(i) {
     // サーバ合成（真ん中の1枚を選択）
     const t0 = Date.now();
     const compose = await api('POST', `${BASE}/api/sessions/${sessionId}/compose`, {
+        // months はフレームの区分選択に使われる（本番と同じ経路を通す）。
+        // ここでは days からの概算で十分（暦ベースの厳密さはクライアント側の責務）。
         photoId: photos[1], nickname: NICK, daysText: `生後${days}日`, days,
+        months: Math.floor(days / 30.44),
     });
     const composeMs = Date.now() - t0;
     if (!compose.thumbDataUrl) throw new Error('compose: thumbDataUrl が空');

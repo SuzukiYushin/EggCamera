@@ -14,19 +14,19 @@ sharp.cache(false);
 sharp.concurrency(1);
 const { heicToJpeg } = require('./capture');
 
-// ── クライアント FinalPreview.tsx から移植したレイアウト定数 ────────────────
-// 文字サイズ/位置は「設計上の写真コンテナ幅(px)」基準。クライアントは
-// containerWidthDesign(=実DOM幅/scale)で k=cw/containerWidthDesign を作るが、
-// サーバには DOM が無いので設計コンテナ幅を定数化する（768x1024 設計・2:3コンテナ）。
-// ※初期値は概算。サンプル目視で微調整する想定（TUNABLE）。
-const DESIGN_PHOTO_W = 413;       // TUNABLE: 設計空間での写真コンテナ幅(px)
-const NAME_TOP_RATIO       = 0.58;
-const NAME_LEFT_PX         = 50;
-const NICKNAME_FONT_PX     = 50;
-const NICKNAME_LINE_HEIGHT = 1.1;
-const DAYS_FONT_PX         = 28;
-const DAYS_LINE_HEIGHT     = 1.2;
-const TEXT_GAP_PX          = 1;
+// ── 文字レイアウト（全フレーム共通・デザイン参考画像に準拠） ────────────────
+// フレーム上部の帯に、ニックネームと日数を中央揃えで置く。位置・サイズはすべて
+// 出力幅 cw に対する比率で持つ（アスペクトは TARGET_ASPECT 固定なので高さ基準と等価。
+// 出力解像度を変えてもレイアウトが崩れない）。フレーム9種＋レアで共通の位置。
+// ※微調整はこの比率だけを触ればよい（TUNABLE）。
+const NAME_BASELINE_RATIO  = 0.182;   // ニックネームのベースライン(cw基準)
+const DAYS_BASELINE_RATIO  = 0.261;   // 日数のベースライン(cw基準)
+const NICKNAME_FONT_RATIO  = 0.069;   // ニックネームの文字サイズ(cw基準)
+const DAYS_FONT_RATIO      = 0.050;   // 日数の文字サイズ(cw基準)
+const NICKNAME_TRACKING_EM = 0.05;    // 字間(em)
+const DAYS_TRACKING_EM     = 0.03;
+const DAYS_LINE_HEIGHT     = 1.25;    // 日数が複数行になった場合の行送り
+const TEXT_COLOR           = '#8A8A8A'; // TUNABLE: デザイン指定のグレー
 // 完成画像のアスペクト。iPhone の画面比(1179:2556 ≒ 19.5:9)で縦いっぱいに切る＝
 // スマホの壁紙/全画面表示で余白なく収まる。高さ 6000 なら 2768×6000。
 // 旧値は 2/3(=4000×6000)。変更時は成長フレーム(gen-growth-frames.js)と
@@ -39,9 +39,10 @@ const TARGET_ASPECT        = 2768 / 6000;
 // 配信画質を変える値なので調整可（小さくするほど軽い: 3600=1661×3600≒6MP 等）。
 const MAX_OUTPUT_HEIGHT    = parseInt(process.env.COMPOSE_MAX_HEIGHT || '3600', 10);
 
-// CSS の --font-heading / --font-futura に対応するシステムフォント。
-const FONT_HEADING = "'Hiragino Kaku Gothic Pro', 'Hiragino Sans', sans-serif";
-const FONT_FUTURA  = "'Futura', 'Century Gothic', sans-serif";
+// デザインの幾何学サンセリフ（Futura系）。日本語のニックネームも入りうるので、
+// 欧文は Futura、日本語は Hiragino へフォールバックする並びにする。
+const FONT_NAME   = "'Futura', 'Century Gothic', 'Hiragino Kaku Gothic Pro', 'Hiragino Sans', sans-serif";
+const FONT_FUTURA = "'Futura', 'Century Gothic', sans-serif";
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(v, hi));
 const xmlEsc = s => String(s).replace(/[&<>"']/g, c =>
@@ -73,37 +74,32 @@ function computeCropGeometry(iw, ih, crop) {
     return { cw, ch, extract: { left, top, width, height } };
 }
 
-// ── 文字レイヤー(SVG) を作る。stroke を fill の下に置くため text を2重描画する ──
+// ── 文字レイヤー(SVG) を作る。中央揃えでフレーム上部の帯に載せる ──────────
 function buildTextSvg(cw, ch, nickname, daysText) {
-    const k = cw / DESIGN_PHOTO_W;
-    const x = NAME_LEFT_PX * k;
-    let y = ch * NAME_TOP_RATIO;
+    const x = cw / 2;
     const parts = [];
 
-    const textEl = (str, yTop, fontSize, family, weight, color, strokeW, letterSpacing) => {
-        const common =
-            `x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" font-family="${family}" ` +
-            `font-weight="${weight}" font-size="${fontSize.toFixed(1)}" ` +
-            `letter-spacing="${letterSpacing.toFixed(2)}" ` +
-            `dominant-baseline="text-before-edge" xml:space="preserve"`;
-        const safe = xmlEsc(str);
-        // 下: 縁取りのみ / 上: 塗りのみ（client の strokeText→fillText を再現）
+    // ベースライン指定（dominant-baseline は使わない）＋中央揃え。letter-spacing は
+    // 末尾の1文字ぶんも右に足されるため、その半分を左へ戻して見た目の中心を合わせる。
+    const textEl = (str, baseline, fontSize, family, weight, trackingEm) => {
+        const tracking = trackingEm * fontSize;
         return (
-            `<text ${common} fill="none" stroke="${color}" stroke-width="${strokeW.toFixed(2)}" ` +
-            `stroke-linejoin="round">${safe}</text>` +
-            `<text ${common} fill="${color}" stroke="none">${safe}</text>`
+            `<text x="${(x - tracking / 2).toFixed(1)}" y="${baseline.toFixed(1)}" ` +
+            `font-family="${family}" font-weight="${weight}" ` +
+            `font-size="${fontSize.toFixed(1)}" letter-spacing="${tracking.toFixed(2)}" ` +
+            `text-anchor="middle" fill="${TEXT_COLOR}" xml:space="preserve">${xmlEsc(str)}</text>`
         );
     };
 
     if (nickname) {
-        const fs = NICKNAME_FONT_PX * k;
-        parts.push(textEl(nickname, y, fs, FONT_HEADING, 900, '#000000', 2 * k, -0.01 * fs));
-        y += fs * NICKNAME_LINE_HEIGHT + TEXT_GAP_PX * k;
+        parts.push(textEl(nickname, cw * NAME_BASELINE_RATIO, cw * NICKNAME_FONT_RATIO,
+                          FONT_NAME, 700, NICKNAME_TRACKING_EM));
     }
     if (daysText) {
-        const fs = DAYS_FONT_PX * k;
+        const fs = cw * DAYS_FONT_RATIO;
+        let y = cw * DAYS_BASELINE_RATIO;
         for (const line of String(daysText).split('\n')) {
-            parts.push(textEl(line, y, fs, FONT_FUTURA, 600, 'rgba(0,0,0,0.95)', 0.6 * k, 0.01 * fs));
+            parts.push(textEl(line, y, fs, FONT_FUTURA, 700, DAYS_TRACKING_EM));
             y += fs * DAYS_LINE_HEIGHT;
         }
     }
@@ -245,5 +241,4 @@ module.exports = {
     computeCropGeometry,
     buildTextSvg,
     ensureRasterSource,
-    DESIGN_PHOTO_W,
 };

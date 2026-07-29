@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { IPad, useFitScale } from '../IPad';
+import { IPad } from '../IPad';
+import { useFitScale, useViewportSize } from '../viewport';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
 
@@ -14,13 +15,15 @@ interface NicknameProps {
 // from real device pixels to the 768×1024 design canvas's pixel space.
 function useKeyboardLift() {
   const scale = useFitScale();
+  // 基準の画面高は実測値を使う（standalone の window.innerHeight は当てにならない）
+  const { h: viewportHeight } = useViewportSize();
   const [kbHeight, setKbHeight] = useState(0);
 
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
     const update = () => {
-      setKbHeight(Math.max(0, window.innerHeight - vv.height - vv.offsetTop));
+      setKbHeight(Math.max(0, viewportHeight - vv.height - vv.offsetTop));
     };
     update();
     vv.addEventListener('resize', update);
@@ -29,7 +32,7 @@ function useKeyboardLift() {
       vv.removeEventListener('resize', update);
       vv.removeEventListener('scroll', update);
     };
-  }, []);
+  }, [viewportHeight]);
 
   return scale > 0 ? kbHeight / scale : 0;
 }
@@ -40,7 +43,7 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
   const kbLift = useKeyboardLift();
 
   return (
-    <IPad step={1} totalSteps={7} animKey="nick">
+    <IPad step={1} totalSteps={5} animKey="nick">
       <Page data-section="nickname-screen" style={{ paddingTop: 50 }}>
         <div className="t-eyebrow" style={{ marginBottom: 50, marginLeft: 0 }}>{T.nickname.step}</div>
         <div id="nickname-title" className="t-heading" style={{ marginBottom: 30, whiteSpace: 'pre-line' }}>
@@ -62,8 +65,11 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={T.nickname.placeholder}
-            // アルファベットのみ + iPadでASCII(英語配列)キーボードを出すための属性
-            inputMode="email"
+            // アルファベットのみ。iPad で英字QWERTY キーボードを強制。
+            // type="text" + pattern="[A-Za-z]*" で日本語IMEを排除し英字キーボードのみ出す。
+            type="text"
+            name="nickname"
+            inputMode="text"
             lang="en"
             pattern="[A-Za-z]*"
             autoCapitalize="none"
@@ -74,8 +80,8 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
         </div>
         <div className="t-body" style={{ marginBottom: 'auto' }}>{T.nickname.body}</div>
 
-        <div style={{
-          display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 32, marginTop: 24,
+        <div className="screen-actions" style={{
+          marginTop: 24,
           transform: `translateY(-${kbLift}px)`,
           transition: 'transform 0.25s ease',
         }}>

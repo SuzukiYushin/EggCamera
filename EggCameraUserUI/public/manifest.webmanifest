@@ -1,0 +1,13 @@
+{
+  "name": "Egg Camera",
+  "short_name": "Egg Camera",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#F2EDE8",
+  "theme_color": "#F0EDE8",
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

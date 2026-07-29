@@ -27,15 +27,32 @@ app.use((req, res, next) => {
     res.on('finish', onFinish);
     next();
 });
-// 1IP あたり60秒に60回まで
-const adminLimiter = rateLimit({
-    windowMs: 60 * 1000, max: 60,
+// フレーム画像(サムネ)の GET は「1画面の描画でまとめて十数件」飛ぶ性質のもので、
+// 操作回数とは無関係。これを操作系と同じ枠で数えると、フレームを連続削除しただけで
+// 枠を使い切り、以降の正当な操作や管理画面そのもの(/admin/)まで 429 になる
+// （2026-07-29: 成長フレーム9件の連続削除で発生。削除自体は9件とも成功していた）。
+// 画像は別枠の緩い上限に逃がし、操作/認証面は従来どおり上限で保護する。
+const isFrameAsset = (req) => req.method === 'GET' && req.path.startsWith('/frames/');
+const limitHandler = (kind) => (req, res) => {
+    console.warn(`[${ts()}] ⚠ rate-limit: admin(${kind}) ${req.ip} ${req.path}`);
+    res.status(429).json({ error: 'too_many_requests' });
+};
+// フレーム画像: 1IP あたり60秒に600回まで（読み取り専用の静的ファイル）
+const assetLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 600,
     standardHeaders: true, legacyHeaders: false,
-    handler: (req, res) => {
-        console.warn(`[${ts()}] ⚠ rate-limit: admin ${req.ip} ${req.path}`);
-        res.status(429).json({ error: 'too_many_requests' });
-    },
+    skip: (req) => !isFrameAsset(req),
+    handler: limitHandler('assets'),
 });
+// 操作・認証面: 1IP あたり60秒に180回まで（一括削除等のまとめ操作に耐える余裕を持たせつつ、
+// Basic認証への総当たりは引き続きバウンドする）
+const adminLimiter = rateLimit({
+    windowMs: 60 * 1000, max: 180,
+    standardHeaders: true, legacyHeaders: false,
+    skip: isFrameAsset,
+    handler: limitHandler('api'),
+});
+app.use(assetLimiter);
 app.use(adminLimiter);
 
 // core(:3000) へそのまま中継（ヘッダ=トークン含む・ボディはストリーム）
@@ -62,7 +79,9 @@ app.use('/api/preview', proxyToCore);
 app.use('/api/admin', adminRouter);
 
 // フレーム画像（共有ファイル。管理画面のサムネ表示用）
-app.use('/frames', express.static(FRAMES_DIR));
+// 一覧を描き直すたびに数MBのPNGを取り直さないよう短時間キャッシュする。追加/削除で
+// ファイル名は変わるため、この程度の猶予で古い画像が見え続けることはない。
+app.use('/frames', express.static(FRAMES_DIR, { maxAge: '60s' }));
 
 // 管理画面の静的UI（Basic認証で保護＝開いた瞬間にブラウザのログインダイアログ）
 app.use('/admin', adminAuth, express.static(ADMIN_DIR, {

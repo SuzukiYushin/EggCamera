@@ -102,48 +102,49 @@
       color: var(--orange-deep);
     }
 
+    /* 1ページ1ステップ。単一ステップをページ中央に配置（fr不使用＝印刷安定） */
     .grid {
       flex: 1 1 auto;
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto;
+      align-content: center;
       gap: 6mm;
     }
 
-    .grid.half {
-      grid-template-rows: 1fr;
+    /* 統合ページ（対応フロー＋知っておくと安心）は2ステップを縦積み */
+    .grid.stack {
+      flex: 0 0 auto;
+      grid-template-rows: auto auto;
+      align-content: start;
     }
 
     .step {
       display: flex;
       gap: 10px;
       align-items: flex-start;
-      background: #fff;
-      border: 1px solid var(--beige-line);
-      border-radius: 10px;
       padding: 9px 11px;
       break-inside: avoid;
       page-break-inside: avoid;
       min-height: 0;
     }
 
+    /* 枠は画像に密着（レターボックス余白なし）。全画像を同じ横幅に揃える（高さは画像ごと） */
     .shot {
-      flex: 0 0 52mm;
-      width: 52mm;
+      flex: 0 0 auto;
+      align-self: flex-start;
       background: #1e2230;
       border: 1px solid var(--beige-line);
-      border-radius: 8px;
+      border-radius: 9px;
       padding: 5px;
-      text-align: center;
+      box-shadow: 0 1px 4px rgba(34, 50, 74, .18);
     }
 
     .shot img {
-      width: 100%;
-      max-height: 46mm;
-      object-fit: contain;
+      width: 150mm;
+      height: auto;
       border-radius: 5px;
       display: block;
-      margin: 0 auto;
     }
 
     .desc {
@@ -344,13 +345,22 @@
       .sheet {
         margin: 0;
         box-shadow: none;
-        min-height: auto;
+        min-height: 200mm;
         padding: 10mm 12mm;
       }
 
       .page-break {
         page-break-before: always;
       }
+    }
+
+    .notes {
+      margin-left: auto;
+      max-width: 165mm;
+      text-align: right;
+      font-size: 9px;
+      color: var(--muted);
+      line-height: 1.5;
     }
   </style>
 </head>
@@ -394,6 +404,21 @@
         </div>
       </div>
 
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>1 / 9</span></div>
+  </div>
+
+  <!-- ============ ページ2 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid">
+
       <!-- 2 フレーム追加ポップアップ -->
       <div class="step">
         <div class="shot"><img src="admin-06-add-frame.png" alt="フレーム追加ポップアップ"></div>
@@ -418,6 +443,21 @@
         </div>
       </div>
 
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>2 / 9</span></div>
+  </div>
+
+  <!-- ============ ページ3 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid">
+
       <!-- 3 写真設定 -->
       <div class="step">
         <div class="shot"><img src="admin-02-photo-settings.png" alt="写真設定画面"></div>
@@ -439,6 +479,21 @@
         </div>
       </div>
 
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>3 / 9</span></div>
+  </div>
+
+  <!-- ============ ページ4 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid">
+
       <!-- 4 失敗画像 -->
       <div class="step">
         <div class="shot"><img src="admin-03-failed.png" alt="失敗画像画面"></div>
@@ -446,16 +501,28 @@
           <div class="step-head"><span class="badge">4</span>
             <h2>失敗画像</h2><span class="nav">失敗画像</span>
           </div>
-          <p class="role">▶ 2つのセクションがある</p>
-          <div class="say"><span class="lbl">内容：</span>
+          <p class="role">▶ できること</p>
+          <ul>
+            <li>アップロード、フォトフレームの合成に失敗した写真の一覧。お客様対応用。</li>
+          </ul>
+          <div class="say"><span class="lbl">①お問い合わせがある場合：</span>
             <ul>
-              <li><b>失敗画像</b>：アップロードに失敗した写真。<b>再送/ダウンロード</b>可。24時間継続し、成功で自動消去。</li>
-              <li><b>合成ジョブ（要確認）</b>：サーバ合成→アップロードで未完了/失敗中。「<b>合成失敗（再試行中）</b>」「アップロード中」等。完了でQR提示可。</li>
+              <li>
+                <b>アップロード失敗画像：</b>ダウンロードボタンから画像を取得し、PCのネットワークを切り替えてから「再送」ボタンを押す。ステータスが「完了」になったらQRコードを提示する。
+              </li>
+              <li>
+                <b>合成失敗画像：</b>「再合成」ボタンを押す。ステータスが「完了」になったらQRコードを提示して再度ダウンロードしてもらう。
+              </li>
             </ul>
           </div>
-          <div class="caution"><span class="lbl">サイン：</span>
+          <div class="caution"><span class="lbl">②お問い合わせがない場合：</span>
             <ul>
-              <li><b>合成失敗・アップロード失敗の両方</b>がここに出る。溜まる＝障害のサイン → ログ・再起動を確認。</li>
+              <li>
+                再アップロード：バックグラウンドで24時間自動的に継続し、成功時点でリストからは消去される。24時間以内にアップロード完了しなかった場合は、さらに24時間リストに残留し、その後、自動削除される。①でアップロードされた場合は、自動再アップロードは中止する
+              </li>
+              <li>
+                再合成は合成が成功するまでバックグラウンドで自動的に継続し、成功時点でアップロードが開始され、ステータスが「アップロード中」および「完了」になる。24時間以内に合成が完了しなかった場合は、さらに24時間リストに残留し、その後、自動削除される。①再合成された場合は、自動再合成は中止する。
+              </li>
             </ul>
           </div>
         </div>
@@ -463,10 +530,10 @@
 
     </div>
 
-    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>1 / 3</span></div>
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>4 / 9</span></div>
   </div>
 
-  <!-- ============ ページ2 ============ -->
+  <!-- ============ ページ5 ============ -->
   <div class="sheet page-break">
     <div class="pagehead">
       <span class="staff-badge">STAFF</span>
@@ -497,6 +564,21 @@
         </div>
       </div>
 
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>5 / 9</span></div>
+  </div>
+
+  <!-- ============ ページ6 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid">
+
       <!-- 6 エラー診断ポップアップ -->
       <div class="step">
         <div class="shot"><img src="admin-07-diag-popup.png" alt="エラー診断ポップアップ"></div>
@@ -518,6 +600,21 @@
           </div>
         </div>
       </div>
+
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>6 / 9</span></div>
+  </div>
+
+  <!-- ============ ページ7 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid">
 
       <!-- 7 パスワードポップアップ -->
       <div class="step">
@@ -541,6 +638,21 @@
         </div>
       </div>
 
+    </div>
+
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>7 / 9</span></div>
+  </div>
+
+  <!-- ============ ページ8 ============ -->
+  <div class="sheet page-break">
+    <div class="pagehead">
+      <span class="staff-badge">STAFF</span>
+      <span class="pb-tag">Photo Booth</span>
+      <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
+    </div>
+
+    <div class="grid">
+
       <!-- 8 ログ -->
       <div class="step">
         <div class="shot"><img src="admin-05-logs.png" alt="ログ画面"></div>
@@ -563,10 +675,10 @@
 
     </div>
 
-    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>2 / 3</span></div>
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>8 / 9</span></div>
   </div>
 
-  <!-- ============ ページ3 ============ -->
+  <!-- ============ ページ9 ============ -->
   <div class="sheet page-break">
     <div class="pagehead">
       <span class="staff-badge">STAFF</span>
@@ -574,7 +686,7 @@
       <span class="ttl">管理画面 操作手順書（スタッフ用）</span>
     </div>
 
-    <div class="grid half">
+    <div class="grid stack">
 
       <!-- 9 トラブル対応フロー -->
       <div class="step">
@@ -634,9 +746,7 @@
       </ul>
     </div>
 
-    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>3 / 3</span></div>
+    <div class="foot"><span>Photo Booth 管理画面 操作手順書（スタッフ用）</span><span>9 / 9</span></div>
   </div>
 
 </body>
-
-</html>

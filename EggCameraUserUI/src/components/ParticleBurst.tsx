@@ -32,6 +32,13 @@ export interface BurstOptions {
   jitterDeg?: number;
 }
 
+// 設計キャンバス(768×1024)は cover で必ず画面全体を覆うので、キャンバス基準＝画面基準になる。
+// 中心から四隅までの距離＝ここまで飛ばせばエフェクトが画面いっぱいに広がる。
+// 実寸ピクセルを直接書かず、この値の比率で指定すること（解像度・端末が変わっても追従する）。
+export const CANVAS_W = 768;
+export const CANVAS_H = 1024;
+export const CANVAS_REACH = Math.round(Math.hypot(CANVAS_W / 2, CANVAS_H / 2)); // = 640
+
 let burstCounter = 0;
 
 export function makeBurst(opts: BurstOptions): Burst {

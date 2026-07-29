@@ -5,6 +5,8 @@ struct CaptureCommand: Codable {
     let callbackURL: String
     let preferredWidth: Int?
     let preferredHeight: Int?
+    let zoom: Double?  // 撮影時センサークロップズーム倍率。省略/nil は等倍(後方互換)。
+    let exposureBias: Double?  // 撮影時露出補正(EV)。省略/nil は補正なし(後方互換)。
 }
 
 struct CaptureMetadata: Codable, Identifiable {
