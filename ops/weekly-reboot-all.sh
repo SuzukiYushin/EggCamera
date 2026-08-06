@@ -124,7 +124,11 @@ for f in "$HOME/Library/Logs/eggcamera-iproxy.out" "$HOME/Library/Logs/eggcamera
 done
 
 # ── Mac mini 再起動（iPad/iPhone復帰確認済みなので実行）──
-date +%s > "$STATE"   # 周期ゲートstamp: 実際にMac再起動へ進む時のみ更新
+# 周期ゲートstamp。再起動が実際に走らなかった場合は下で巻き戻す（2026-08-06修正）。
+# 旧実装は再起動の成否に関わらず先に書いていたため、ガードレールにDENYされた手動実行が
+# 次回の定期実行を消してしまっていた（stampが進む→40hゲートでスキップ→Macが再起動されない）。
+prev_stamp=$(cat "$STATE" 2>/dev/null || echo 0)
+date +%s > "$STATE"
 echo "==== $(date '+%F %T') iPad/iPhone復帰OK → Mac mini 再起動 → 復旧はpost-boot-verify/claudeが確認 ===="
 curl -s -m 8 -X POST "$MARK" -H 'Content-Type: application/json' \
   --data '{"level":"info","text":"DEPLOY-MARKER(weekly-reboot): iPad/iPhone復帰確認済→Mac mini再起動。launchd自動復旧をpost-bootが確認する。"}' >/dev/null 2>&1
@@ -132,4 +136,13 @@ sync
 # ガードレール経由で再起動（祖先検査付きラッパー）。weekly は launchd 配下なので許可される。
 # Claude/IDE 由来だと必ず DENY される（2026-06-18の事故を受けた恒久策・正常動作）。
 step "[5/5] Mac mini を再起動（ガードレール経由）"
-sudo -n /Library/EggCamera/bin/eggcamera-safe-reboot
+if ! sudo -n /Library/EggCamera/bin/eggcamera-safe-reboot; then
+  rc=$?
+  echo "$prev_stamp" > "$STATE"
+  echo "⚠ Mac再起動は実行されなかった (rc=$rc) → 周期ゲートのstampを巻き戻した"
+  echo "   （巻き戻さないと、次回の定期実行が「まだ40h経っていない」と誤判断してスキップする）"
+  echo "   IDE/Claude由来だとガードレールがDENYする。実際に再起動するなら Terminal.app から実行するか、"
+  echo "   人手で 'sudo /sbin/shutdown -r now'（要パスワード）。"
+  echo "==== $(date '+%F %T') Mac再起動は未実行（所要 $(el)） ===="
+  exit $rc
+fi
