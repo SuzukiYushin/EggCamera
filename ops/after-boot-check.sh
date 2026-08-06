@@ -13,7 +13,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PAT
 
 REPO="/Users/eggcamera/EggCamera"
 IPAD_UDID="00008132-001E2934019A401C"
-IPAD_IP="192.168.10.112"          # iPadのWi-Fi IP（変わったらここも直す）
+IPAD_IP="192.168.11.104"          # iPadのWi-Fi IP（変わったらここも直す）
 SAFARI="com.apple.mobilesafari"
 
 FIX_KIOSK=0
@@ -31,13 +31,22 @@ print -r -- "══════════════════════�
 # ── 1. MacのIP（キオスクURLに使う有線側） ─────────────────
 print -r -- ""
 print -r -- "【1】Mac の IP"
-WIRED=$(ipconfig getifaddr en8 2>/dev/null)
+# 有線IFは機器構成で変わる（2026-08-04: USBアダプタ en8 → 内蔵 en0 へ移行）。
+# デフォルト経路が載っているIFを本番IFとみなし、Wi-Fi(en1)だけは除外する。
+WIRED_IF=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
+[[ "$WIRED_IF" == "en1" ]] && WIRED_IF=""
+if [[ -z "$WIRED_IF" ]]; then
+  for i in en0 en8; do
+    [[ -n "$(ipconfig getifaddr $i 2>/dev/null)" ]] && { WIRED_IF=$i; break; }
+  done
+fi
+WIRED=$(ipconfig getifaddr "${WIRED_IF:-en0}" 2>/dev/null)
 WIFI=$(ipconfig getifaddr en1 2>/dev/null)
-print -r -- "  有線(en8)= ${WIRED:-なし}   Wi-Fi(en1)= ${WIFI:-なし}  ← キオスクURLは有線側を使う"
+print -r -- "  有線(${WIRED_IF:-不明})= ${WIRED:-なし}   Wi-Fi(en1)= ${WIFI:-なし}  ← キオスクURLは有線側を使う"
 URL_IN_SCRIPT=$(grep -oE 'http://192\.168\.[0-9]+\.[0-9]+:3000' "$REPO/ops/ipad/ipad-wifi-reboot.sh" 2>/dev/null | head -1)
 KIOSK_IP=$(print -r -- "$URL_IN_SCRIPT" | sed -E 's|http://([0-9.]+):3000|\1|')
 if [[ -z "$WIRED" ]]; then
-  bad "有線(en8)にIPが無い。USB-Ethernetアダプタが抜けていないか確認"
+  bad "有線IFにIPが無い。LANケーブル／USB-Ethernetアダプタが抜けていないか確認"
 elif [[ "$WIRED" == "$KIOSK_IP" ]]; then
   ok "設定ファイルのキオスクURL($URL_IN_SCRIPT)と一致している"
 else

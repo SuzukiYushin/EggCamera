@@ -1,10 +1,14 @@
 {
   "crop": {
-    "zoom": 1,
-    "offsetX": 0,
-    "offsetY": 0
+    "zoom": 1.95,
+    "trim": 25,
+    "offsetX": -20,
+    "offsetY": -13
   },
   "exposure": {
-    "bias": 0
+    "bias": 2
+  },
+  "guide": {
+    "top": 19
   }
 }

@@ -33,6 +33,10 @@ const TEXT_COLOR           = '#8A8A8A'; // TUNABLE: デザイン指定のグレ�
 // UI プレビュー(FinalPreviewServer/FinalPreview)のアスペクトも合わせること。
 const TARGET_ASPECT        = 2768 / 6000;
 
+// 切り抜き(trim)の上限%。48MP撮影ならここまでは切り出した実画素が出力寸法を上回るので、
+// 完成画像の解像度を落とさずに位置調整できる。管理画面・UserUI側の上限とも揃えること。
+const TRIM_MAX_PCT = 25;
+
 // 出力(完成画像)の最大高さ(px)。縦長なので高さが長辺。これを超える出力は縮小する。
 // 無キャップだと 48MP 撮影の原寸クロップがそのまま出力寸法になり、1合成で写真/フレーム/合成の
 // 各レイヤをそのぶんネイティブ確保 → RSS が膨張する。現行は 6000(=2768×6000, 約16.6MP)。
@@ -57,10 +61,15 @@ function computeCropGeometry(iw, ih, crop) {
     ch = Math.round(ch);
 
     const zoom = crop?.zoom || 1;
+    // trim(%): 切り出し枠を各辺この割合だけ内側へ詰める。完成画像の比は保ったまま
+    // 範囲が小さくなるので、その差分が offsetX/offsetY の可動域になる。
+    // trim=0 だと縦は元画像の全高を使い切り、offsetY はクランプされて必ず 0 になる。
+    const trim = Math.min(TRIM_MAX_PCT, Math.max(0, Number(crop?.trim) || 0));
+    const shrink = 1 - trim / 100;
     const offX = crop?.offsetX || 0;
     const offY = crop?.offsetY || 0;
-    const rw = cw / zoom;
-    const rh = ch / zoom;
+    const rw = cw * shrink / zoom;
+    const rh = ch * shrink / zoom;
     let rx = (iw - cw) / 2 + (cw - rw) / 2 + (offX / 100) * rw;
     let ry = (ih - ch) / 2 + (ch - rh) / 2 + (offY / 100) * rh;
     rx = clamp(rx, 0, iw - rw);
@@ -147,11 +156,11 @@ async function composeFinalImage({ sourcePath, framePath, crop, nickname, daysTe
         // extract は原寸座標のまま＝libvips が原寸クロップ領域を縮小出力するだけ。これにより
         // 写真/フレーム/合成の各レイヤ確保が出力寸法ぶんで済み、1合成のネイティブ確保を抑える。
         // 拡大はしない（ch < MAX なら実解像度のまま出す＝偽の解像度を作らない）。
-        let outW = cw, outH = ch;
-        if (outH > MAX_OUTPUT_HEIGHT) {
-            outH = MAX_OUTPUT_HEIGHT;
-            outW = Math.round(outH * TARGET_ASPECT);
-        }
+        // 上限は「実際に切り出した画素数」。切り抜き(trim)を強めると切り出しが小さくなるので、
+        // 切り抜き前の枠(ch)を基準にすると拡大＝偽の解像度を作ってしまう（trim 26%以上で発生）。
+        // 実画素を超えない範囲で MAX_OUTPUT_HEIGHT に収める＝縮小のみ行う。
+        let outH = Math.min(extract.height, MAX_OUTPUT_HEIGHT);
+        let outW = Math.round(outH * TARGET_ASPECT);
 
         // 1) 写真を正立 → TARGET_ASPECT クロップ → 出力寸法へ
         //    .rotate() は extract より先に適用される（実測確認済み）。

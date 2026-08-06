@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Read(//Users/suzukiyoshinobu/Library/Caches/AI_30_6/**)"
+      "Read(//Users/suzukiyoshinobu/Library/Caches/AI_30_6/**)",
+      "Bash(ops/remote/publish-remote-ui.sh*)",
+      "Bash(/Users/eggcamera/EggCamera/ops/remote/publish-remote-ui.sh*)",
+      "Bash(EggCameraPages/deploy.sh*)",
+      "Bash(npx -y wrangler *)",
+      "Bash(npx wrangler *)",
+      "Bash(curl -s -X PATCH \"https://api.cloudflare.com/*)"
     ]
   }
 }

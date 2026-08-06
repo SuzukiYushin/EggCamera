@@ -60,3 +60,8 @@ data/test-screenshots/
 
 # サーバ合成プレビューのサンプル生成物(非ソース)
 .compose-preview/
+.env.remote
+
+# スタッフ用手順書（Wi-Fi/管理画面/再起動のパスワードを直接記載するため履歴に残さない）
+data/admin-pages/
+data/userui-pages/

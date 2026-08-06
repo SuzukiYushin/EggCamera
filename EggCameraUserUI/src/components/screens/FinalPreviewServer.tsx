@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { IPad } from '../IPad';
 import { Page } from '../Page';
 import { useLang } from '../../LangContext';
-import { composePreview, confirmComposite } from '../../api';
+import { composePreview, confirmComposite, ApiError } from '../../api';
 import type { SessionResult } from '../../api';
 import { reportClientError } from '../../clientLog';
 
@@ -23,7 +23,7 @@ interface Props {
   // 満月齢。フレームの区分はこの値で選ばれる（日数ではない）
   months: number;
   onConfirmed: (result: SessionResult, jobId: string) => void;
-  onError: () => void;
+  onError: (code?: string) => void;
 }
 
 type Phase = 'composing' | 'ready' | 'confirming';
@@ -70,7 +70,9 @@ export function FinalPreviewServer({ sessionId, photoId, nickname, days, months,
 
   const fail = useCallback((where: string, err: unknown) => {
     reportClientError(`${where} failed: ${err}`);
-    onErrorRef.current();
+    // 失敗コードも渡す。セッション切れ(session_not_found)は装置の障害ではないので、
+    // 親側でお詫び画面ではなく新セッションでの復帰に振り分けられるようにする。
+    onErrorRef.current(err instanceof ApiError ? err.code : undefined);
   }, []);
 
   // プレビュー入場時にサーバ合成を依頼し、完成画像のサムネを受け取る。

@@ -5,7 +5,7 @@
 # 使い方: ./wda-wifi-recovery.sh   (冪等・稼働中なら何もしない)
 set -u
 IPAD_UDID="00008132-001E2934019A401C"
-IPAD_IP="192.168.10.112"
+IPAD_IP="${IPAD_IP:-192.168.11.104}"   # remote-control.sh が mDNS で解決した実IPを渡してくる
 FWD_PORT=18100
 LOG_DIR="$HOME/Library/Logs"
 
@@ -31,7 +31,7 @@ fi
 # 2. フォワーダ確認 → 死んでいれば再起動
 if ! curl -s -m 5 -o /dev/null "http://127.0.0.1:${FWD_PORT}/status"; then
   echo "$(date '+%F %T') フォワーダ無応答 → 再起動"
-  pkill -f "wda-forwarder" 2>/dev/null
+  pkill -f "wda-forwarder\\.js" 2>/dev/null   # keepalive を巻き込まないよう .js まで指定
   sleep 1
   nohup node /Users/eggcamera/EggCamera/ops/ipad/wda-forwarder.js \
     > "${LOG_DIR}/eggcamera-wda-forwarder.log" 2>&1 &
@@ -43,6 +43,16 @@ if curl -s -m 5 -o /dev/null "http://127.0.0.1:${FWD_PORT}/status"; then
   echo "$(date '+%F %T') ✅ Wi-Fi WDA構成 正常 (127.0.0.1:${FWD_PORT} → ${IPAD_IP}:8100)"
   exit 0
 else
-  echo "$(date '+%F %T') ❌ Wi-Fi WDA構成 復旧失敗"
+  # 失敗の内訳を必ず出す。フォワーダはローカルネットワーク権限(TCC)が要るため、
+  # launchd から起動すると iPad へ繋げず必ず失敗する（Mac再起動で権限がリセットされる
+  # のと同じ既知の制約）。iPadへ直接届くかで原因を確定させる。
+  if curl -s -m 5 -o /dev/null "http://${IPAD_IP}:8100/status"; then
+    echo "$(date '+%F %T') ❌ フォワーダのみ起動不可 (iPadは直接応答OK)"
+    echo "     → 対話シェル(ターミナル/tmux)で $0 を実行すれば復旧する。"
+    echo "        launchd 実行だとローカルネットワーク権限が無いため復旧できない。"
+  else
+    echo "$(date '+%F %T') ❌ iPad本体が不通 (直接 ${IPAD_IP}:8100 も無応答)"
+    echo "     → iPadの電源/Wi-Fi接続/WDA常駐を確認する。"
+  fi
   exit 1
 fi

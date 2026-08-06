@@ -27,23 +27,40 @@ const ALLOWED_EXT = new Set(['.png', '.jpg', '.jpeg']);
 // 7/1生まれの①は7/1〜8/31=62日間）。2026-07-29 クライアント確定。
 // minDays/maxDays は素材ファイル名（270days/331days/…）と対応させた表示用の目安で、
 // 管理画面のプルダウン表記に使う（選択判定には使わない）。
+// minDays/maxDays は「生後0日 = 0」で数えた実日数（表示用の目安）。
+// 以前は妊娠270日を足した 270/331/… で持っていたが、UserUI が実日数表示へ移行した
+// （Birthday.tsx「270日を足す方式は廃止」）のに管理画面だけ旧起点で紛らわしかったため、
+// 2026-08-05 に 0 起点へ計算し直した（各値 −270）。
+// assetDays は素材ファイル名（270days/331days…）に残る旧表記。ファイルとの対応が
+// 分からなくなるとフレームを入れる区分を取り違えるので、対応表としてここに残す。
 const GROWTH_CATEGORIES = [
-    { level: 1, label: '① 1ヶ月〜2ヶ月',        minMonths: 0,  maxMonths: 2,        minDays: 270, maxDays: 330 },
-    { level: 2, label: '② 3ヶ月〜4ヶ月',        minMonths: 2,  maxMonths: 4,        minDays: 331, maxDays: 390 },
-    { level: 3, label: '③ 5ヶ月〜6ヶ月',        minMonths: 4,  maxMonths: 6,        minDays: 391, maxDays: 450 },
-    { level: 4, label: '④ 7ヶ月〜8ヶ月',        minMonths: 6,  maxMonths: 8,        minDays: 451, maxDays: 510 },
-    { level: 5, label: '⑤ 9ヶ月〜10ヶ月',       minMonths: 8,  maxMonths: 10,       minDays: 511, maxDays: 570 },
-    { level: 6, label: '⑥ 11ヶ月〜1歳',         minMonths: 10, maxMonths: 12,       minDays: 571, maxDays: 635 },
-    { level: 7, label: '⑦ 1歳1ヶ月〜1歳3ヶ月',  minMonths: 12, maxMonths: 15,       minDays: 636, maxDays: 725 },
-    { level: 8, label: '⑧ 1歳3ヶ月〜1歳半',     minMonths: 15, maxMonths: 18,       minDays: 726, maxDays: 820 },
-    { level: 9, label: '⑨ 1歳半〜2歳',          minMonths: 18, maxMonths: Infinity, minDays: 821, maxDays: 1000 },
+    { level: 1, label: '① 1ヶ月〜2ヶ月',        minMonths: 0,  maxMonths: 2,        minDays: 0,   maxDays: 60,  assetDays: 270 },
+    { level: 2, label: '② 3ヶ月〜4ヶ月',        minMonths: 2,  maxMonths: 4,        minDays: 61,  maxDays: 120, assetDays: 331 },
+    { level: 3, label: '③ 5ヶ月〜6ヶ月',        minMonths: 4,  maxMonths: 6,        minDays: 121, maxDays: 180, assetDays: 391 },
+    { level: 4, label: '④ 7ヶ月〜8ヶ月',        minMonths: 6,  maxMonths: 8,        minDays: 181, maxDays: 240, assetDays: 451 },
+    { level: 5, label: '⑤ 9ヶ月〜10ヶ月',       minMonths: 8,  maxMonths: 10,       minDays: 241, maxDays: 300, assetDays: 511 },
+    { level: 6, label: '⑥ 11ヶ月〜1歳',         minMonths: 10, maxMonths: 12,       minDays: 301, maxDays: 365, assetDays: 571 },
+    { level: 7, label: '⑦ 1歳1ヶ月〜1歳3ヶ月',  minMonths: 12, maxMonths: 15,       minDays: 366, maxDays: 455, assetDays: 636 },
+    { level: 8, label: '⑧ 1歳3ヶ月〜1歳半',     minMonths: 15, maxMonths: 18,       minDays: 456, maxDays: 550, assetDays: 726 },
+    { level: 9, label: '⑨ 1歳半〜2歳',          minMonths: 18, maxMonths: Infinity, minDays: 551, maxDays: 730, assetDays: 821 },
 ];
 
-// レアアイテム（ランダム表示）も固定2種。管理画面はここからプルダウンで選ぶ。
-const RARE_PRESETS = [
-    { key: 'XB', label: 'SP-XB' },
-    { key: 'XF', label: 'SP-XF' },
-];
+// レアアイテムは 2026-08-06 に「固定2種のプルダウン」をやめ、何件でも追加できる方式へ変更した。
+// key は画像ファイル名にも使うため英数字のみ。管理画面からは名前(label)だけを入力させ、
+// key はサーバ側で採番する（既存の XB / XF はそのまま残る）。
+const RARE_KEY_SAFE = /[^A-Za-z0-9_-]/g;
+
+function sanitizeRareKey(key) {
+    return String(key || '').trim().replace(RARE_KEY_SAFE, '');
+}
+
+// 既存と衝突しない key を採番（R1, R2, …）
+function newRareKey(meta) {
+    const used = new Set(meta.rare.map(r => r.key));
+    let n = meta.rare.length + 1;
+    while (used.has(`R${n}`)) n++;
+    return `R${n}`;
+}
 
 function categoryOf(level) {
     return GROWTH_CATEGORIES.find(c => c.level === Number(level)) || null;
@@ -101,17 +118,18 @@ function addGrowthFrame({ level }, buffer, ext) {
     return entry;
 }
 
-// レアアイテムを1件追加（key は RARE_PRESETS のいずれか）。同じ key は差し替える。
+// レアアイテムを1件追加。key 省略時はサーバが採番するので、何件でも追加できる。
+// key を明示したときだけ既存を差し替える（一覧の「差し替え」操作用）。
 function addRareFrame({ key, label }, buffer, ext) {
     if (!ALLOWED_EXT.has(ext)) throw new Error('invalid_ext');
-    const k = (key || '').trim();
-    if (!k) throw new Error('key_required');
-    const preset = RARE_PRESETS.find(r => r.key === k);
     const meta = loadMetaRaw();
+    const k = sanitizeRareKey(key) || newRareKey(meta);
     fs.mkdirSync(GROWTH_DIR, { recursive: true });
     const file = `growth/r_${k}_${Date.now()}${ext}`;
     fs.writeFileSync(path.join(FRAMES_DIR, file), buffer);
-    const entry = { key: k, label: (label || '').trim() || (preset && preset.label) || k, file };
+    // 出現率はアイテムごとには持たない（全体率を枚数で割る方式）。
+    // 追加すると1枚あたりは薄まるが、レア全体の出現率は変わらない。
+    const entry = { key: k, label: String(label || '').trim() || k, file };
     const idx = meta.rare.findIndex(r => r.key === k);
     if (idx === -1) {
         meta.rare.push(entry);
@@ -171,6 +189,45 @@ function pickGrowthByMonths(growth, months) {
     return chosen;
 }
 
+// レアの出現率は 2026-08-06 からアイテムごとに持つ。従来は全体で1つの rareProbability を
+// 持ち、当たった中から等確率で1件を選んでいた。prob 未設定の既存エントリは
+// 「旧・全体確率 ÷ 件数」とみなすので、移行しただけでは出方が変わらない。
+// 出現率の入力を検証して 0..1 に正規化する。未指定は null を返す。
+// null/undefined/'' を Number() に通すと 0 になり「0%指定」と区別できないため明示的に弾く。
+function parseProb(v) {
+    if (v === null || v === undefined || v === '') return null;
+    const p = Number(v);
+    if (!Number.isFinite(p) || p < 0 || p > 1) return null;
+    return p;
+}
+
+// 出現率は「レアアイテム全体で1つ」持つ。当たったら登録アイテムから均等に選ぶので、
+// 1枚あたりの出やすさは 全体率 ÷ 枚数 になる（例: 全体50%でレア10枚 → 1枚5%）。
+// 枚数を足せば1枚あたりは自動的に薄まり、全体の出現率は動かない。
+function rareTotalProb(meta) {
+    const p = typeof meta.rareProbability === 'number' ? meta.rareProbability : 0;
+    return Math.max(0, Math.min(1, p));
+}
+
+function rarePerItemProb(meta) {
+    const rare = Array.isArray(meta.rare) ? meta.rare : [];
+    return rare.length ? rareTotalProb(meta) / rare.length : 0;
+}
+
+// レアアイテム全体の出現率を更新（0..1）。
+// 2026-08-06 に一度アイテムごとの prob を実装したが、運用意図（全体で決めて均等割り）と
+// 合わなかったため全体設定へ戻した。古いデータに残る個別 prob は保存時に落とす。
+function setRareProbability(prob) {
+    const p = parseProb(prob);
+    if (p === null) throw new Error('invalid_prob');
+    const meta = loadMetaRaw();
+    meta.rareProbability = p;
+    for (const r of meta.rare) delete r.prob;
+    saveMeta(meta);
+    console.log(`[${ts()}] rare probability (total): ${(p * 100).toFixed(1)}% / ${meta.rare.length}枚 → 1枚あたり ${(rarePerItemProb(meta) * 100).toFixed(2)}%`);
+    return { rareProbability: p, perItem: rarePerItemProb(meta), count: meta.rare.length };
+}
+
 // 年齢連動＋低確率レアの最終選択。months は満月齢（暦ベース）。
 // rng は 0..1（テスト差し込み用、既定 Math.random）。
 // 戻り値: { kind, framePath, file, level?, minDays?, label?, key? } / メタ無なら null。
@@ -178,10 +235,13 @@ function selectFrame(months, rng = Math.random) {
     const meta = loadMeta();
     if (!meta) return null;
 
-    const rareProb = typeof meta.rareProbability === 'number' ? meta.rareProbability : 0;
-    if (meta.rare && meta.rare.length && rng() < rareProb) {
-        const r = meta.rare[Math.floor(rng() * meta.rare.length) % meta.rare.length];
-        return { kind: 'rare', key: r.key, label: r.label, file: r.file, framePath: path.join(FRAMES_DIR, r.file) };
+    // まず「レアが出るか」を全体の出現率で判定し、当たったら登録アイテムから均等に1枚選ぶ。
+    const rare = Array.isArray(meta.rare) ? meta.rare : [];
+    if (rare.length && rng() < rareTotalProb(meta)) {
+        const i = Math.min(rare.length - 1, Math.floor(rng() * rare.length));
+        const r = rare[i];
+        return { kind: 'rare', key: r.key, label: r.label, file: r.file,
+                 framePath: path.join(FRAMES_DIR, r.file) };
     }
 
     const g = pickGrowthByMonths(meta.growth, Number(months) || 0);
@@ -196,15 +256,14 @@ function listAll() {
     const withUrl = f => ({ ...f, url: `/frames/${f.file}` });
     return {
         enabled: isEnabled(),
-        rareProbability: meta.rareProbability || 0,
+        rareProbability: rareTotalProb(meta),   // レア全体の出現率
+        rarePerItem: rarePerItemProb(meta),     // 1枚あたり（全体 ÷ 枚数）
         growth: meta.growth.map(withUrl),
         rare: meta.rare.map(withUrl),
-        // 管理画面のプルダウン用（登録済みかどうかも返し、差し替えか新規かを表示できるようにする）
+        // 成長フレームの区分だけはプルダウンのまま（月齢の区切りは固定仕様のため）。
+        // レアは固定プリセットを廃止したので rarePresets は返さない（2026-08-06）。
         categories: GROWTH_CATEGORIES.map(c => ({
             ...c, registered: meta.growth.some(g => g.level === c.level),
-        })),
-        rarePresets: RARE_PRESETS.map(r => ({
-            ...r, registered: meta.rare.some(x => x.key === r.key),
         })),
     };
 }
@@ -212,5 +271,5 @@ function listAll() {
 module.exports = {
     isEnabled, selectFrame, pickGrowthByMonths, listAll, META_PATH,
     addGrowthFrame, addRareFrame, deleteGrowthFrame, deleteRareFrame,
-    GROWTH_CATEGORIES, RARE_PRESETS,
+    setRareProbability, GROWTH_CATEGORIES,
 };

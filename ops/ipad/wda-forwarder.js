@@ -1,8 +1,8 @@
-// WDA Wi-Fi フォワーダ: 127.0.0.1:18100 -> 192.168.10.112:8100
+// WDA Wi-Fi フォワーダ: 127.0.0.1:18100 -> 192.168.11.104:8100
 // launchd 起動 Appium のローカルネットワーク権限ブロックを回避するため、
 // シェル権限のプロセスが iPad への接続を中継する。
 const net = require('net');
-const TARGET_HOST = '192.168.10.112';
+const TARGET_HOST = process.env.IPAD_IP || '192.168.11.104';  // remote-control.sh が実IPを渡してくる
 const TARGET_PORT = 8100;
 const LISTEN_PORT = 18100;
 

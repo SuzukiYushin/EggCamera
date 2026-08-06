@@ -2,7 +2,7 @@
 
 ## Phase 1: セッション開始 & adminBusy確認
 1. `start_session` capsOverride: `{"appium:usePrebuiltWDA":true,"appium:derivedDataPath":"/Users/eggcamera/Library/Developer/Xcode/DerivedData/WebDriverAgent-dopylywrbtefnbfmomfcvcirfvqt","appium:newCommandTimeout":300}`
-2. `navigate` → `http://192.168.10.104:3000/`
+2. `navigate` → `http://192.168.11.106:3000/`
 3. `execute_script` → `return localStorage.getItem('eggcamera-admin-busy');`
    - null以外 → `end_session` して「管理操作中のためスキップ (adminBusy=<値>)」で終了
 

@@ -63,7 +63,11 @@ profile_expiry_epoch() {
   for f in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"/*.mobileprovision(N) \
            "$HOME/Library/MobileDevice/Provisioning Profiles"/*.mobileprovision(N); do
     appid=$(security cms -D -i "$f" 2>/dev/null | plutil -extract Entitlements.application-identifier raw - 2>/dev/null)
-    [[ "$appid" == *eggcamera* ]] || continue
+    # Xcode の自動署名が作るのはワイルドカード（"TEAMID.*"）のチーム用プロファイルで、
+    # バンドルIDは入らない。eggcamera 名での一致だけを見ていたため常に「見つからない」と
+    # 判定され、有効期限が1年あるのに毎朝フルビルド＋再インストールしていた
+    # （その再インストールが LaunchServicesDataMismatch を誘発し、カメラ停止の原因になっていた）。
+    [[ "$appid" == *eggcamera* || "$appid" == *.\* ]] || continue
     exp=$(security cms -D -i "$f" 2>/dev/null | plutil -extract ExpirationDate raw - 2>/dev/null)
     e=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$exp" "+%s" 2>/dev/null) || continue
     (( e > newest )) && newest=$e
@@ -111,6 +115,17 @@ profile_expiry_epoch() {
 
   # 再デプロイした場合は :8080 が200に戻ったことを必ず確認し、結果をマーカーで申し送る
   if (( did_redeploy )); then
+    if ! verify_iphone_up; then
+      # ここで諦めるとカメラが落ちたまま朝まで放置される（2026-07-29〜31 は毎朝
+      # 約5時間停止し、9:50のwatchdogが拾うまで撮影不能だった）。インストール自体は
+      # 成功していて起動だけが失敗しているケースが大半なので、起動をやり直す。
+      echo "起動できていない → launch をやり直して復旧を試みる"
+      for i in 1 2; do
+        ./iphone.sh launch || true
+        verify_iphone_up && break
+        echo "  復旧できず（$i/2）"
+      done
+    fi
     if verify_iphone_up; then
       post_marker "iPhone再デプロイ完了。:8080/frame=200 で復旧確認済み。以降は正常稼働。"
     else

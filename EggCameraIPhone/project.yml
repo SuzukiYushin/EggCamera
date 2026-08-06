@@ -28,7 +28,7 @@ targets:
         CFBundleName: EggCamera
         CFBundleDisplayName: EggCamera
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "25"
+        CFBundleVersion: "31"
         LSRequiresIPhoneOS: true
         UIRequiredDeviceCapabilities:
           - arm64

@@ -81,12 +81,58 @@ router.post('/growth-frames/rare',
         }
     });
 
+// ── Mac mini ローカルのファイルを読む共通処理（ホーム以下に制限） ──────────
+// 成長フレーム/レアの「Mac miniのデータから選ぶ」経路で使う。旧フレームの
+// /frames/from-server と同じガード（ホーム外・非ファイル・拡張子）を掛ける。
+function readServerImage(srcPath) {
+    const resolved = path.resolve(srcPath || '');
+    if (!resolved.startsWith(HOME)) throw new Error('path_outside_home');
+    if (!fs.existsSync(resolved) || !fs.statSync(resolved).isFile()) throw new Error('file_not_found');
+    const ext = path.extname(resolved).toLowerCase();
+    if (!['.png', '.jpg', '.jpeg'].includes(ext)) throw new Error('invalid_ext');
+    return { buffer: fs.readFileSync(resolved), ext: ext === '.jpeg' ? '.jpg' : ext };
+}
+
+// ── 成長フレーム追加（Mac mini ローカルのファイルパスから） ────────────────
+router.post('/growth-frames/growth/from-server', (req, res) => {
+    const { path: srcPath, level } = req.body || {};
+    try {
+        const { buffer, ext } = readServerImage(srcPath);
+        res.json(growthFrameToJson(growthFrames.addGrowthFrame({ level }, buffer, ext)));
+    } catch (err) {
+        console.error(`[${ts()}] growth frame add (server) failed: ${err.message}`);
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// ── レアアイテム追加（Mac mini ローカルのファイルパスから） ────────────────
+router.post('/growth-frames/rare/from-server', (req, res) => {
+    const { path: srcPath, key, label } = req.body || {};
+    try {
+        const { buffer, ext } = readServerImage(srcPath);
+        res.json(growthFrameToJson(growthFrames.addRareFrame({ key, label }, buffer, ext)));
+    } catch (err) {
+        console.error(`[${ts()}] rare frame add (server) failed: ${err.message}`);
+        res.status(400).json({ error: err.message });
+    }
+});
+
 // ── 成長フレーム削除（一覧から外すだけ。実ファイルは .trash に残る） ───────
 router.delete('/growth-frames/growth/:level', (req, res) => {
     try {
         res.json(growthFrameToJson(growthFrames.deleteGrowthFrame(req.params.level)));
     } catch (err) {
         res.status(404).json({ error: err.message });
+    }
+});
+
+// ── レアアイテム全体の出現率を更新（prob は 0..1。1枚あたりは自動で均等割り） ──
+router.patch('/growth-frames/rare-probability', (req, res) => {
+    try {
+        res.json(growthFrames.setRareProbability((req.body || {}).prob));
+    } catch (err) {
+        console.error(`[${ts()}] rare probability update failed: ${err.message}`);
+        res.status(400).json({ error: err.message });
     }
 });
 

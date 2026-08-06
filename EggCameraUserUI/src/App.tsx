@@ -17,7 +17,7 @@ import { LocalMaintenance } from './components/LocalMaintenance';
 import { IdleTimeoutModal } from './components/IdleTimeoutModal';
 import { QuitFlow } from './components/QuitFlow';
 import { createSession, wakeCamera, selectPhoto, uploadComposite, getMode, PROTO,
-         getJobStatus, reportIncident, probeRecovery, CURRENT_BUNDLE } from './api';
+         getJobStatus, reportIncident, probeRecovery, CURRENT_BUNDLE, ApiError } from './api';
 import type { SessionPhoto, SessionResult } from './api';
 import { reportClientError } from './clientLog';
 // プロト⑥プレビュー専用: 990x1485=ちょうど2:3 なのでクロップ/拡縮ゼロで
@@ -102,25 +102,58 @@ export default function App() {
   // createSession の世代管理。リロード直後のマウント生成と retake/restart の生成が
   // 競合したとき、解決順が逆転して「古い session」を掴むのを防ぐ。常に最新要求だけ採用。
   const sessionGen = useRef(0);
+  // 起動直後の1発目は、端末の通信が立ち上がりきる前に投げてしまい network で落ちることが
+  // ある（2026-07-31 14:24〜14:50 に遠隔UIの端末で7回発生。いずれも失敗の1〜3秒後には
+  // 同じ端末から通信が通っており、装置側は正常だった）。ここで即お詫び画面に落とすと
+  // 実害のない一過性の失敗で客の操作が止まるため、短い間隔で数回やり直す。
+  const SESSION_RETRY_DELAYS_MS = [800, 2000, 4000];
   const newSession = () => {
     const gen = ++sessionGen.current;
-    return createSession()
-      .then(({ sessionId }) => {
-        if (gen === sessionGen.current) setSessionId(sessionId); // 最新だけ採用
-        return sessionId;
-      })
-      .catch(err => { triggerFatal(`createSession failed: ${err}`); return null; });
+    const attempt = (i: number): Promise<string | null> =>
+      createSession()
+        .then(({ sessionId }) => {
+          if (gen === sessionGen.current) setSessionId(sessionId); // 最新だけ採用
+          return sessionId;
+        })
+        .catch(err => {
+          if (gen !== sessionGen.current) return null;   // 新しい要求に追い越されたら黙って終わる
+          const transient = err instanceof ApiError && err.status === 0;  // 通信断/タイムアウト
+          if (transient && i < SESSION_RETRY_DELAYS_MS.length) {
+            reportClientError(`createSession retry ${i + 1}/${SESSION_RETRY_DELAYS_MS.length} (${err.code})`, 'info');
+            return new Promise<string | null>(r =>
+              setTimeout(() => r(attempt(i + 1)), SESSION_RETRY_DELAYS_MS[i]));
+          }
+          triggerFatal(`createSession failed: ${err}`);
+          return null;
+        });
+    return attempt(0);
   };
 
   // 致命エラー（系統A）: お詫びを数秒見せてから、トップではなくメンテ画面へ移し、
   // 裏で自己復旧（selftest）を試みる。原因はサーバログ＋管理画面（incident通知）に残す。
   const triggerFatal = (detail: string) => {
+    if (/session_not_found/.test(detail)) { recoverFromLostSession(detail); return; }
     if (handlingRef.current) return;      // 既に障害対応中なら無視
     handlingRef.current = true;
     reportClientError(detail);
     reportIncident({ kind: 'fatal', detail, sessionId });
     setFatal(true);
     setTimeout(() => { setFatal(false); setLocalPhase('recovering'); }, APOLOGY_MS);
+  };
+
+  // セッション切れ（session_not_found）は装置の障害ではない。アプリを背面に置いたまま
+  // 時間が経つとタイマーが止まり、復帰後の最初の操作でこれが出る（2026-07-30 18:54 に
+  // 遠隔UIで実際に発生し、お詫び画面＋アラートまで出てしまった）。新しいセッションを
+  // 張ってトップへ戻すだけで足り、通知も出さない。
+  const recoverFromLostSession = (detail: string) => {
+    reportClientError(`session lost → 新セッションでトップへ復帰 (${detail})`, 'info');
+    setPhotos([]);
+    setSelectedPhotoId(null);
+    setResult(null);
+    setPendingJob(null);
+    setSessionId(null);
+    newSession();
+    go('start');
   };
 
   // 想定外のJSエラー（捕捉漏れ）も系統Aに乗せる。描画中の例外は ErrorBoundary が別途担当。
@@ -452,13 +485,13 @@ export default function App() {
       {screen === 'start'    && <Start       onNext={() => { wakeCamera().catch(() => {}); go('nick'); }} />}
       {screen === 'nick'     && <Nickname    nickname={nickname} onChange={setNickname} onNext={() => go('bday')} onSkip={() => go('bday')} />}
       {screen === 'bday'     && <Birthday    nickname={nickname} onNext={goCapture} onSkip={() => goCapture(0, 0)} />}
-      {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={() => triggerFatal('capture error')} />}
+      {screen === 'capture'  && <Capture     sessionId={sessionId} onComplete={photos => { setPhotos(photos); go('photosel'); }} onError={code => triggerFatal(`capture error${code ? `: ${code}` : ''}`)} />}
       {screen === 'photosel' && <PhotoSelect photos={photos} onNext={photoId => { setSelectedPhotoId(photoId); go('preview'); }} onBack={retake} />}
       {screen === 'preview'  && (serverCompose
         ? <FinalPreviewServer
             sessionId={sessionId} photoId={selectedPhotoId} nickname={nickname} days={days} months={months}
             onConfirmed={(r, jobId) => { setResult(r); setPendingJob({ jobId }); go('qr'); }}
-            onError={() => triggerFatal('server-compose error')} />
+            onError={code => triggerFatal(`server-compose error${code ? `: ${code}` : ''}`)} />
         : <FinalPreview nickname={nickname} days={days}
             photoUrl={PROTO ? protoPreviewPhoto : (selectedPhoto?.url ?? '')}
             onNext={goUpload} />)}

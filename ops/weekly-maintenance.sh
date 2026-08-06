@@ -12,7 +12,7 @@ set -u
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
 IPAD_UDID="00008132-001E2934019A401C"   # EggCameraのiPad
-URL="http://192.168.10.104:3000/"
+URL="http://192.168.11.106:3000/"
 LOG="$HOME/Library/Logs/eggcamera-weekly-maint.log"
 MARK_URL="http://127.0.0.1:3000/api/test-report"
 

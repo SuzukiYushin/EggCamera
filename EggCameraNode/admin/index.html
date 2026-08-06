@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Photo Booth 管理画面</title>
+<title>Egg Camera 管理画面</title>
 <link rel="stylesheet" href="admin.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
 <header class="topbar">
   <div class="brand">
     <span class="brand-logo">PB</span>
-    <h1>Photo Booth <span>管理画面</span></h1>
+    <h1>Egg Camera <span>管理画面</span></h1>
   </div>
   <nav class="tabs">
     <button class="tab active" data-tab="frames">フレーム管理</button>
@@ -19,6 +19,12 @@
     <button class="tab" data-tab="failed">失敗画像<span id="failed-count" class="tab-badge" hidden>0</span></button>
     <button class="tab" data-tab="restart">再起動<span id="restart-badge" class="tab-badge" hidden>!</span></button>
     <button class="tab" data-tab="logs">ログ</button>
+    <!-- スタッフ向け操作手順書（別タブで開く。A4横・印刷/PDF保存できる） -->
+    <span class="tab-gap"></span>
+    <a class="doc-link" href="/docs/admin/管理画面_操作手順書_スタッフ用.html" target="_blank" rel="noopener"
+       title="この管理画面の使い方（スタッフ用・印刷可）">📘 管理画面</a>
+    <a class="doc-link" href="/docs/userui/操作手順書_スタッフ用.html" target="_blank" rel="noopener"
+       title="お客様が触る撮影画面の使い方（スタッフ用・印刷可）">📗 操作画面</a>
   </nav>
 </header>
 
@@ -44,6 +50,12 @@
       <div class="panel-head">
         <h3 class="growth-h">レアアイテム（低確率でランダム表示）</h3>
         <button id="btn-add-rare" class="btn-pink">+ レアアイテムを追加</button>
+      </div>
+      <div class="rare-prob-bar">
+        <label>レアアイテム全体の出現率
+          <input id="rare-total-prob" type="number" min="0" max="100" step="0.1"> %
+        </label>
+        <span id="rare-prob-detail" class="hint"></span>
       </div>
       <div id="rare-grid" class="grid"></div>
     </div>
@@ -78,12 +90,20 @@
           <input id="crop-ev" type="number" step="0.1" min="-3" max="3" value="0">
         </label>
         <input id="crop-ev-range" type="range" step="0.1" min="-2" max="2" value="0" class="zoom-range">
+        <label>切り抜き（0〜25 %・上下左右を内側へ詰める。0だと縦は全高を使い切るため縦シフトは動きません）
+          <input id="crop-trim" type="number" step="1" min="0" max="25" value="0">
+        </label>
+        <input id="crop-trim-range" type="range" step="1" min="0" max="25" value="0" class="zoom-range">
         <label>横オフセット（-50〜50 %）
           <input id="crop-ox" type="number" step="1" min="-50" max="50" value="0">
         </label>
         <label>縦オフセット（-50〜50 %）
           <input id="crop-oy" type="number" step="1" min="-50" max="50" value="0">
         </label>
+        <label>顔合わせガイドの縦位置（0〜90 %・撮影画面の破線の丸。完成画像には出ません）
+          <input id="guide-top" type="number" step="1" min="0" max="90" value="13">
+        </label>
+        <input id="guide-top-range" type="range" step="1" min="0" max="90" value="13" class="zoom-range">
         <button id="btn-save-crop" class="btn-pink">設定を保存</button>
         <div id="crop-status" class="status"></div>
       </div>
@@ -181,13 +201,20 @@
       <h3>成長フレームを追加</h3>
       <button id="growth-modal-close" class="modal-x">×</button>
     </div>
-    <p class="hint">素材のファイル名（270days / 331days …）と同じ区分を選んでください。対象日数は区分ごとに決まっています。既に登録済みの区分を選ぶと画像を差し替えます（旧画像は Mac mini 内に残ります）。</p>
+    <p class="hint">日数は<b>生後0日を 0 として</b>数えた実日数です。素材のファイル名は旧表記（270days / 331days …）のままなので、
+      各区分に［素材名］を併記しています。<b>素材名が一致する区分</b>を選んでください。
+      既に登録済みの区分を選ぶと画像を差し替えます（旧画像は Mac mini 内に残ります）。</p>
     <label class="field">フレームの区分
       <select id="growth-level"></select>
     </label>
-    <label class="field">画像ファイル
+    <label class="field">画像ファイル（この端末から選ぶ）
       <input id="growth-file" type="file" accept="image/png,image/jpeg">
     </label>
+    <div class="field">
+      <button type="button" id="btn-growth-browse" class="btn-ghost-sm">Mac mini の中から選ぶ</button>
+      <div id="growth-picked" class="picked" hidden></div>
+      <div id="growth-browser" class="browser" hidden></div>
+    </div>
     <div class="modal-foot">
       <button id="btn-growth-upload" class="btn-pink">追加する</button>
       <div id="growth-add-status" class="status"></div>
@@ -202,13 +229,20 @@
       <h3>レアアイテムを追加</h3>
       <button id="rare-modal-close" class="modal-x">×</button>
     </div>
-    <p class="hint">ランダム表示されるレアアイテムです。既に登録済みのものを選ぶと画像を差し替えます（旧画像は Mac mini 内に残ります）。</p>
-    <label class="field">種類
-      <select id="rare-key"></select>
+    <p class="hint">ランダム表示されるレアアイテムです。<b>何件でも追加できます。</b>
+      出現率はレアアイテム<b>全体で1つ</b>設定し、登録枚数で均等に割ります（追加しても全体の出現率は変わりません）。
+      名前は一覧に表示されるだけの目印なので自由に付けてかまいません（空欄なら自動で付きます）。</p>
+    <label class="field">名前
+      <input id="rare-label" type="text" placeholder="例: 七五三" maxlength="40">
     </label>
-    <label class="field">画像ファイル
+    <label class="field">画像ファイル（この端末から選ぶ）
       <input id="rare-file" type="file" accept="image/png,image/jpeg">
     </label>
+    <div class="field">
+      <button type="button" id="btn-rare-browse" class="btn-ghost-sm">Mac mini の中から選ぶ</button>
+      <div id="rare-picked" class="picked" hidden></div>
+      <div id="rare-browser" class="browser" hidden></div>
+    </div>
     <div class="modal-foot">
       <button id="btn-rare-upload" class="btn-pink">追加する</button>
       <div id="rare-add-status" class="status"></div>

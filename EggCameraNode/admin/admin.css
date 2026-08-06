@@ -35,21 +35,40 @@ body {
   display: flex; align-items: center; justify-content: center;
   font-weight: 800; font-size: 15px;
 }
-.brand h1 { font-size: 19px; font-weight: 800; letter-spacing: 0.02em; }
+/* 手順書リンクを足してヘッダが詰まったので、ブランド名は折り返さず縮めない */
+.brand { flex: 0 0 auto; }
+.brand h1 { font-size: 19px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
 .brand h1 span { font-weight: 600; margin-left: 6px; }
 
-.tabs { display: flex; }
+/* 手順書リンク2つを足したぶん、狭い画面(1280px)でもブランド名に被らないよう余白を詰める */
+.tabs { display: flex; flex: 1 1 auto; min-width: 0; justify-content: flex-end; }
 .tab {
   border: none;
   background: var(--dark-2);
   color: #9aa0b4;
   font-size: 15px;
   font-weight: 700;
-  padding: 0 38px;
+  padding: 0 22px;
   cursor: pointer;
   border-left: 1px solid #2a2a3a;
+  white-space: nowrap;
 }
 .tab.active { background: var(--pink); color: #fff; }
+
+/* スタッフ向け手順書へのショートカット（タブ右端に寄せる。押しても画面遷移せず別タブで開く） */
+.tab-gap { width: 22px; background: var(--dark-2); border-left: 1px solid #2a2a3a; }
+.doc-link {
+  display: flex; align-items: center;
+  background: var(--dark-2);
+  color: #9aa0b4;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 0 13px;
+  text-decoration: none;
+  border-left: 1px solid #2a2a3a;
+  white-space: nowrap;
+}
+.doc-link:hover { color: #fff; background: #33334a; }
 .tab-badge {
   display: inline-block;
   margin-left: 8px;
@@ -320,3 +339,40 @@ hr { border: none; border-top: 1px solid #E8E9EF; margin: 20px 0 26px; }
 .lux-indicator.ok  { color: #1c7a52; }
 .lux-indicator.dim { color: #b5811e; font-weight: 700; }
 .lux-indicator.low { color: #c0392b; font-weight: 700; }
+
+/* ── Mac mini の中から画像を選ぶ（成長フレーム／レア追加モーダル） ────────── */
+.btn-ghost-sm {
+  background: transparent; border: 1px solid var(--line, #ccc); border-radius: 4px;
+  padding: 6px 10px; font-size: 13px; cursor: pointer;
+}
+.btn-ghost-sm:hover { background: rgba(0, 0, 0, 0.04); }
+.picked {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  font-size: 13px; word-break: break-all;
+}
+.browser {
+  margin-top: 8px; border: 1px solid var(--line, #ccc); border-radius: 4px;
+  max-height: 260px; overflow-y: auto; background: #fff;
+}
+.browser-head {
+  padding: 6px 10px; font-size: 12px; color: #666;
+  border-bottom: 1px solid var(--line, #eee); word-break: break-all;
+}
+.browser-list { display: flex; flex-direction: column; }
+.browser-row {
+  text-align: left; background: transparent; border: 0; padding: 8px 10px;
+  font-size: 13px; cursor: pointer; border-bottom: 1px solid #f2f2f2;
+}
+.browser-row:hover { background: rgba(0, 0, 0, 0.04); }
+.browser-row.file { color: #1a5fb4; }
+.browser-empty { padding: 10px; font-size: 13px; color: #888; }
+
+/* レアアイテム全体の出現率バー */
+.rare-prob-bar {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  margin: 4px 0 12px; padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.03); border-radius: 6px;
+}
+.rare-prob-bar label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; }
+.rare-prob-bar input { width: 84px; padding: 5px 6px; font-size: 14px; text-align: right; }
+.rare-prob-bar .hint { margin: 0; }

@@ -13,7 +13,7 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PAT
 set -u
 
 IPAD="00008132-001E2934019A401C"
-URL="http://192.168.10.104:3000/"
+URL="http://192.168.11.106:3000/"
 SAFARI="com.apple.mobilesafari"
 MARK="http://127.0.0.1:3000/api/test-report"
 POLL=12                 # 試行間隔(秒)

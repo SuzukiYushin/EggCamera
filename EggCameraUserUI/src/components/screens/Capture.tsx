@@ -5,12 +5,15 @@ import { capturePhoto, ApiError, PROTO } from '../../api';
 import type { SessionPhoto } from '../../api';
 import { reportClientError } from '../../clientLog';
 import { ParticleEl, makeBurst, CANVAS_REACH, type Burst } from '../ParticleBurst';
+import { FINAL_ASPECT, computePlacement, type PreviewPlacement } from '../../cropPlacement';
 import babyImg from '../../assets/baby_illustrator.png';
 
 interface CaptureProps {
   sessionId: string | null;
   onComplete: (photos: SessionPhoto[]) => void;
-  onError: () => void;
+  // 失敗コードを渡す。session_not_found のように「装置は正常でセッションだけ切れた」
+  // ケースを、親側でお詫び画面ではなく通常の復帰として扱えるようにする。
+  onError: (code?: string) => void;
 }
 
 const MAX_SHOTS = 3;
@@ -42,29 +45,39 @@ const PREVIEW_INTERVAL_MS = 333; // poll フォールバックは ~3fps に抑�
 const PREVIEW_RETRY_MS = 1500;
 const STREAM_LOAD_TIMEOUT_MS = 2500; // この間に1枚も表示されなければ MJPEG 非対応とみなし poll へ
 
-// 完成画像のアスペクト比（compose.js の TARGET_ASPECT と揃えること）。
-// ライブビューはこの比の枠内に cover 表示することで、完成画像に写る範囲だけを見せる
-// （枠外は合成で捨てられる領域＝見せると「写ると思ったのに切れた」事故になる）。
-const FINAL_ASPECT = 2768 / 6000;
-// プレビュー映像は常に 3:4 縦（CameraController videoOutput の縦向き固定）。
-// 管理画面で横オフセット(pan)が設定された場合に、合成と同じ範囲を見せるための換算係数。
-const PREVIEW_ASPECT = 3 / 4;
+// 完成画像のアスペクト比・プレビュー比・切り抜き上限は src/cropPlacement.ts に集約
+// （写真選択のサムネイルと同じ切り出しを見せるため）。FINAL_ASPECT は import 済み。
 
-const COVER_STYLE = {
-  position: 'absolute' as const, inset: 0,
-  width: '100%', height: '100%',
-  objectFit: 'cover' as const, display: 'block',
-};
+// ライブビュー枠の上下マージン（設計キャンバス768x1024基準。青地が上下に見える）。
+// 枠の高さは 1024-(上+下) で決まり、差を付けると枠ごと上下に動く。
+const LIVE_MARGIN_TOP    = 80;    // 100 から 20px 上へ
+const LIVE_MARGIN_BOTTOM = 120;
+// シャッターボタンのキャンバス下端からの距離
+const SHUTTER_BOTTOM = 33;   // 36 から 3px 下へ
+// 撮影進捗（ドット3つ＋「n枚目を撮影中…」）のキャンバス下端からの距離
+const SHOT_PROGRESS_BOTTOM = 128;
+// 顔合わせガイドの既定縦位置（ライブビュー枠の高さに対する%）。管理画面から変更できる。
+const GUIDE_TOP_DEFAULT = 13;
+// ガイドの大きさもライブビュー枠に対する比率で持つ。管理画面のプレビュー(admin.js の
+// GUIDE_W_PCT/GUIDE_H_PCT)と同じ値にすること。ズレると現場の見え方と食い違う。
+const GUIDE_W_PCT = 48.8;
+// 管理画面での調整を撮影画面へ反映する間隔。小さなJSONの取得なので負荷は無視できる。
+const SETTINGS_POLL_MS = 2000;
+const GUIDE_H_PCT = 25.2;
+
+// ライブ映像の配置ロジックは写真選択のサムネイルと共用する（src/cropPlacement.ts）。
+// 片方だけ直すと「ライブビューで見えた範囲」と「選んだ写真の仕上がり」がズレるため。
 
 interface LiveCameraViewProps {
   // ライブ映像を実際に表示できているかを親へ通知する。プロト時は常に true
   // （同梱イラストはプロト仕様であり未接続エラーではないため）。
   onReadyChange: (ready: boolean) => void;
-  // 合成の横pan(crop.offsetX)を反映した objectPosition。既定は中央クロップ。
-  objectPosition?: string;
+  // 合成の切り出し(trim/offsetX/offsetY)を反映した配置。
+  placement: PreviewPlacement;
 }
 
-function LiveCameraView({ onReadyChange, objectPosition = '50% 50%' }: LiveCameraViewProps) {
+function LiveCameraView({ onReadyChange, placement }: LiveCameraViewProps) {
+  const imgStyle = { position: 'absolute' as const, display: 'block', ...placement };
   // 'stream' = MJPEG / 'poll' = 単写真ポーリング(MJPEG非対応の fallback)
   const [mode, setMode] = useState<'stream' | 'poll'>('stream');
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
@@ -129,13 +142,13 @@ function LiveCameraView({ onReadyChange, objectPosition = '50% 50%' }: LiveCamer
         alt="camera preview"
         onLoad={() => { streamLoaded.current = true; onReadyChange(true); }}
         onError={() => { onReadyChange(false); setMode('poll'); }}
-        style={{ ...COVER_STYLE, objectPosition }}
+        style={imgStyle}
       />
     );
   }
 
   if (!PROTO && mode === 'poll' && frameUrl) {
-    return <img src={frameUrl} alt="camera preview" style={{ ...COVER_STYLE, objectPosition }} />;
+    return <img src={frameUrl} alt="camera preview" style={imgStyle} />;
   }
 
   // フォールバック（プロトタイプ / iPhone未接続・プレビュー取得失敗時）
@@ -163,22 +176,32 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
   const [cameraReady, setCameraReady] = useState(false);
   // 合成の横pan(crop.offsetX)をライブビューにも反映するための objectPosition。
   // 縦(offsetY)はプレビュー・raw とも縦全高が写るため合成側で常に効かず、反映不要。
-  const [previewObjectPos, setPreviewObjectPos] = useState('50% 50%');
+  const [placement, setPlacement] = useState<PreviewPlacement>(() => computePlacement(0, 0, 0));
+  // 顔合わせガイド(破線の丸)の縦位置。管理画面の設定値(ライブビュー枠の高さに対する%)。
+  const [guideTop, setGuideTop] = useState(GUIDE_TOP_DEFAULT);
 
+  // 設定は撮影画面にいる間ずっと見張る。管理画面でガイド位置やpanを動かしたとき、
+  // 保存のたびにキオスクを再読込しなくても数秒で反映される（現場での調整を往復なしで行う）。
   useEffect(() => {
     if (PROTO) return;
-    (async () => {
+    let cancelled = false;
+    const apply = async () => {
       try {
         const res = await fetch('/api/settings', { cache: 'no-store' });
         const s = await res.json();
-        const offsetX = Number(s?.crop?.offsetX) || 0;
-        // offsetX(クロップ幅に対する%)→objectPosition% 換算。p% は「画像の p% 点を
-        // 枠の p% 点へ合わせる」ため、中央50% + 移動量×(クロップ幅/余白幅)。
-        const factor = FINAL_ASPECT / (PREVIEW_ASPECT - FINAL_ASPECT);
-        const p = Math.max(0, Math.min(100, 50 + offsetX * factor));
-        setPreviewObjectPos(`${p}% 50%`);
-      } catch { /* 取得失敗時は中央クロップのまま（設定変更時はSSEリロードで再取得される） */ }
-    })();
+        if (cancelled) return;
+        setPlacement(computePlacement(
+          Number(s?.crop?.trim) || 0,
+          Number(s?.crop?.offsetX) || 0,
+          Number(s?.crop?.offsetY) || 0,
+        ));
+        const g = Number(s?.guide?.top);
+        if (Number.isFinite(g)) setGuideTop(g);
+      } catch { /* 取得失敗時は前回値のまま。次のポーリングで復帰する */ }
+    };
+    apply();
+    const t = setInterval(apply, SETTINGS_POLL_MS);
+    return () => { cancelled = true; clearInterval(t); };
   }, []);
   // 連打の即時ガード。started(state)は再描画後にしか反映されず、撮影ボタンを高速連打すると
   // 再描画前に shoot() が複数走って余計なシャッターが鳴る。ref は同期で即反映されるので隙が無い。
@@ -217,7 +240,7 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
         // 撮影エラーは全画面共通のお詫びオーバーレイへ（自動リロードで復帰）
         const code = err instanceof ApiError ? err.code : 'capture_failed';
         reportClientError(`capture failed: ${code} (shot ${acc.length + 1}/3)`);
-        onError();
+        onError(code);
         return;
       }
     }
@@ -235,12 +258,27 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
             完成画像(2768:6000)と同じ範囲だけを見せる枠に収める。枠外(左右)は合成で
             捨てられる領域のため、見せると「写ると思ったのに切れた」事故になる。 */}
         <div style={{
-          position: 'absolute', top: 0, bottom: 0, left: '50%',
+          position: 'absolute', top: LIVE_MARGIN_TOP, bottom: LIVE_MARGIN_BOTTOM, left: '50%',
           transform: 'translateX(-50%)',
           aspectRatio: String(FINAL_ASPECT),
           overflow: 'hidden',
         }}>
-          <LiveCameraView onReadyChange={setCameraReady} objectPosition={previewObjectPos} />
+          <LiveCameraView onReadyChange={setCameraReady} placement={placement} />
+
+          {/* 顔合わせガイド(破線の丸)。位置・大きさはライブビュー枠に対する比率で持つ
+              （管理画面のプレビューも同じ比率で描くので、見た目が一致する）。
+              縦位置は管理画面から変更でき、保存すると数秒で反映される。 */}
+          <div style={{
+            position: 'absolute',
+            top: `${guideTop}%`, left: '50%',
+            transform: 'translateX(-50%)',
+            width: `${GUIDE_W_PCT}%`, height: `${GUIDE_H_PCT}%`,
+            borderRadius: '50%',
+            border: '6.5px dashed var(--color-brand-500)',
+            pointerEvents: 'none',
+            opacity: 0.85,
+            boxSizing: 'border-box',
+          }} />
         </div>
 
         {/* カメラ準備中（未接続/再接続中）: シャッター無効化と合わせて状態を正直に伝える */}
@@ -259,7 +297,7 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
 
         {/* Instruction text at top */}
         <div style={{
-          position: 'absolute', top: 44, left: 0, right: 0,
+          position: 'absolute', top: 39, left: 0, right: 0,   // 44 から 5px 上へ
           textAlign: 'center',
           fontFamily: "var(--font-ui)", fontSize: 18, fontWeight: 700,
           color: '#06236F',
@@ -267,19 +305,6 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
         }}>
           {T.capture.instruction}
         </div>
-
-        {/* Dashed oval face guide */}
-        <div style={{
-          position: 'absolute',
-          top: '13%', left: '50%',
-          transform: 'translateX(-50%)',
-          width: 185, height: 207,
-          borderRadius: '50%',
-          border: '6.5px dashed var(--color-brand-500)',
-          strokeDasharray: '16.5',
-          pointerEvents: 'none',
-          opacity: 0.85,
-        }} />
 
         {/* Shutter flash overlay */}
         <div key={flashKey} style={{
@@ -304,7 +329,7 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
             1枚あたりサーバ応答に数秒かかるため、タップ直後から常時表示して固まった印象を防ぐ。 */}
         {(started || photos.length > 0) && (
           <div style={{
-            position: 'absolute', bottom: 108, left: 0, right: 0,
+            position: 'absolute', bottom: SHOT_PROGRESS_BOTTOM, left: 0, right: 0,
             textAlign: 'center', pointerEvents: 'none',
           }}>
             <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
@@ -331,7 +356,7 @@ export function Capture({ sessionId, onComplete, onError }: CaptureProps) {
 
         {/* Circular shutter button — outer navy ring + inner blue circle with label */}
         <div style={{
-          position: 'absolute', bottom: 36, left: '50%',
+          position: 'absolute', bottom: SHUTTER_BOTTOM, left: '50%',
           transform: 'translateX(-50%)',
         }}>
           <button

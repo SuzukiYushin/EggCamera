@@ -46,16 +46,41 @@ bump_build_number() {
 # ── 接続デバイスを自動検出 ───────────────────────────────
 # devicectl 用の識別子（install/launch）と xcodebuild 用の UDID（build）を取る。
 # ★必ず iPhone を選ぶ: テスト用 iPad(EggCameraのiPad) も同時接続されており、
-#   無条件に「最初の connected」を取ると iPad を掴んでしまう（reboot/refresh が誤爆）。
+#   無条件に「最初の1台」を取ると iPad を掴んでしまう（reboot/refresh が誤爆）。
 #   名前/機種に "iPhone" を含む行だけに絞る。
+# ★状態列で判定しない（2026-08-06修正）: `list devices` の状態は接続経路によって
+#   "connected" ではなく "available (paired)" のままのことがあり、その状態でも
+#   device info/reboot は正常に通る。旧実装は "connected" を必須にしていたため
+#   実際には使えるiPhoneを「見つからない」と誤判定し、週次再起動が無音で失敗していた。
+#   一覧は候補出しに留め、採否は `device info details` の tunnelState=connected で決める。
 detect_device() {
-  CORE_ID="${DEVICE_CORE_ID:-$(xcrun devicectl list devices 2>/dev/null \
-    | awk -F'  +' '/connected/ && /iPhone/ {print $3; exit}')}"
+  if [[ -n "${DEVICE_CORE_ID:-}" ]]; then
+    CORE_ID="$DEVICE_CORE_ID"
+  else
+    # ★判定に `| grep -q` を使わないこと（2026-08-06に実害）。このスクリプトは
+    #   `set -euo pipefail` なので、grep -q が最初の一致で即終了すると xcrun に SIGPIPE が飛び、
+    #   pipefail によってパイプ全体が非ゼロ＝「一致しなかった」と誤判定される。成否が出力量と
+    #   タイミングで変わるため、接続できているのに散発的に「iPhoneが見つかりません」となり、
+    #   週次再起動が無音で中止されていた。出力を変数に取り、パイプなしで判定する。
+    CORE_ID=""
+    local cand try det
+    for try in 1 2 3; do
+      for cand in $(xcrun devicectl list devices 2>/dev/null \
+          | awk -F'  +' '/iPhone/ && !/unavailable/ {print $3}'); do
+        det=$(xcrun devicectl device info details --device "$cand" 2>/dev/null) || det=""
+        if [[ "$det" =~ 'tunnelState:[[:space:]]*connected' ]]; then
+          CORE_ID="$cand"; break 2
+        fi
+      done
+      [ "$try" -lt 3 ] && { echo "  iPhoneの応答待ち（$try/3）…" >&2; sleep 5; }
+    done
+  fi
   BUILD_UDID="${DEVICE_UDID:-$(xcrun xctrace list devices 2>/dev/null \
     | grep -i 'iPhone' \
-    | sed -n 's/.*(\([0-9A-Fa-f]\{8\}-[0-9A-Fa-f]\{16\}\))$/\1/p' | head -1)}"
+    | sed -n 's/.*(\([0-9A-Fa-f]\{8\}-[0-9A-Fa-f]\{16\}\))$/\1/p' | head -1 || true)}"
   if [[ -z "${CORE_ID:-}" ]]; then
-    echo "ERROR: 接続中のiPhoneが見つかりません。USB接続とロック解除を確認してください。" >&2
+    echo "ERROR: 応答するiPhoneが見つかりません（一覧に出ていても tunnelState が connected でない）。" >&2
+    echo "       確認: xcrun devicectl list devices / xcrun devicectl device info details --device <id>" >&2
     exit 1
   fi
 }
@@ -115,8 +140,20 @@ cmd_install() {
 cmd_launch() {
   detect_device
   echo "▶ 起動（既存プロセスは終了して入れ替え）"
-  xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID"
-  trigger_warmup
+  # 再インストール直後の1回目は iOS 側の LaunchServices が古い情報を持っていて
+  # LaunchServicesDataMismatch で必ず弾かれることがある。2回目以降は通るので、
+  # 1回失敗しただけで諦めない（2026-07-29〜31 は毎朝ここで諦め、カメラが
+  # 9:50 の watchdog に拾われるまで約5時間停止していた）。
+  for i in 1 2 3; do
+    if xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID"; then
+      trigger_warmup
+      return 0
+    fi
+    echo "  起動に失敗（$i/3）→ 5秒待って再試行"
+    sleep 5
+  done
+  echo "⚠ 3回試しても起動できなかった" >&2
+  return 1
 }
 
 # iPhone本体を再起動 → 復帰を待つ → アプリを起動。
@@ -126,15 +163,26 @@ cmd_launch() {
 cmd_reboot() {
   detect_device
   echo "▶ iPhone本体を再起動（--wait-for-device で復帰待ち）"
-  xcrun devicectl device reboot --device "$CORE_ID" --wait-for-device --timeout 180 || true
+  # ★失敗を握りつぶさない（2026-08-06修正）: 旧実装は `|| true` で devicectl の失敗を捨て、
+  #   さらに起動ループが6回全滅しても 0 を返していた。呼び出し側(週次再起動)は終了ステータスで
+  #   Mac再起動の可否を判断するため、ここが常に0だと「再起動できていないのに合格」になる。
+  if ! xcrun devicectl device reboot --device "$CORE_ID" --wait-for-device --timeout 180; then
+    echo "ERROR: devicectl device reboot に失敗（本体は再起動できていない）" >&2
+    return 1
+  fi
   echo "▶ 復帰後、アプリを起動"
   # 再起動直後はサービスが立ち上がるまで数回リトライ
+  local launched=0
   for i in 1 2 3 4 5 6; do
     if xcrun devicectl device process launch --terminate-existing --device "$CORE_ID" "$BUNDLE_ID" 2>/dev/null; then
-      echo "アプリ起動OK"; trigger_warmup; break
+      echo "アプリ起動OK"; trigger_warmup; launched=1; break
     fi
     echo "  起動待ち… ($i)"; sleep 10
   done
+  if [[ "$launched" != 1 ]]; then
+    echo "ERROR: 本体は再起動したがアプリを起動できず（6回試行）" >&2
+    return 1
+  fi
 }
 
 # プロファイル更新を伴う再ビルド（週次の自動更新用）。
@@ -157,7 +205,9 @@ cmd_refresh() {
 }
 
 cmd_status() {
-  echo "=== 接続デバイス ==="; xcrun devicectl list devices 2>/dev/null | grep -i connected || echo "なし"
+  # 状態列は "connected" とは限らない（available (paired) でも通信可）。unavailable以外を全部見せる。
+  echo "=== 認識中のデバイス（unavailable以外・状態列は当てにしない）==="
+  xcrun devicectl list devices 2>/dev/null | grep -viE '^$|^Devices|^-+|unavailable' || echo "なし"
   detect_device
   echo "core-id=$CORE_ID / build-udid=${BUILD_UDID:-?} / bundle=$BUNDLE_ID / team=$DEVELOPMENT_TEAM"
 }

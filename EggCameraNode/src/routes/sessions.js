@@ -175,7 +175,7 @@ router.post('/:id/compose', async (req, res) => {
         const crop = settings.getSettings().crop;
         // ズームは撮影時にカメラ(センサークロップ)で適用済みのため、合成段のデジタルズームは1とし
         // 二重ズームを防ぐ。pan(offset)は中央固定のセンサークロップでは表現できないので合成段に残す。
-        const composeCrop = { zoom: 1, offsetX: crop.offsetX, offsetY: crop.offsetY };
+        const composeCrop = { zoom: 1, trim: crop.trim, offsetX: crop.offsetX, offsetY: crop.offsetY };
         const { frameId, frameFile, framePath } = pickFrame(months);
 
         const fileName = makeFileName();

@@ -15,7 +15,7 @@ const http         = require('node:http');
 const os           = require('node:os');
 
 // ── 設定 ───────────────────────────────────────────────────────────────────
-const TARGET_URL     = 'http://192.168.10.104:3000/';
+const TARGET_URL     = 'http://192.168.11.106:3000/';
 const SERVER_BASE    = 'http://localhost:3000';
 const ADMIN_BASE     = 'http://localhost:3001';
 const SCREENSHOT_DIR = path.join(__dirname, '../../data/test-screenshots');

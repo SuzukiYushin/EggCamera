@@ -6,7 +6,7 @@ const http    = require('node:http');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 
-const { ADMIN_PORT, PORT, ADMIN_DIR, FRAMES_DIR, ts } = require('./src/config');
+const { ADMIN_PORT, PORT, ADMIN_DIR, FRAMES_DIR, PROXY_SECRET, ts } = require('./src/config');
 const logger = require('./src/logger');
 logger.install('admin'); // app.jsonl は core が書く。adminは読むだけ（writer指定しない）。
 
@@ -58,6 +58,10 @@ app.use(adminLimiter);
 // core(:3000) へそのまま中継（ヘッダ=トークン含む・ボディはストリーム）
 function proxyToCore(req, res) {
     const headers = { ...req.headers, host: `127.0.0.1:${PORT}` };
+    // 管理画面をトンネル経由で開くと CF-Connecting-IP が付き、core(:3000) の層2ゲートが
+    // 403 を返してライブビュー等が死ぬ。admin は信頼できるプロセスなので、中継時に
+    // 正しい secret を付けて通す（末端の実IPはレート制限のため残す）。
+    if (PROXY_SECRET) headers['x-ec-proxy-secret'] = PROXY_SECRET;
     const up = http.request({ host: '127.0.0.1', port: PORT, path: req.originalUrl, method: req.method, headers }, r => {
         res.writeHead(r.statusCode, r.headers);
         r.pipe(res);
@@ -82,6 +86,16 @@ app.use('/api/admin', adminRouter);
 // 一覧を描き直すたびに数MBのPNGを取り直さないよう短時間キャッシュする。追加/削除で
 // ファイル名は変わるため、この程度の猶予で古い画像が見え続けることはない。
 app.use('/frames', express.static(FRAMES_DIR, { maxAge: '60s' }));
+
+// スタッフ向け操作手順書（A4横・印刷/PDF用）。管理画面から開けるよう、同じ認証で配信する。
+// data/ 全体を晒すと settings.json や raw画像まで見えてしまうため、資料の2ディレクトリだけを個別に公開する。
+const path = require('node:path');
+for (const [route, dir] of [
+    ['/docs/admin',  path.resolve(__dirname, '../data/admin-pages')],
+    ['/docs/userui', path.resolve(__dirname, '../data/userui-pages')],
+]) {
+    app.use(route, adminAuth, express.static(dir, { maxAge: '60s' }));
+}
 
 // 管理画面の静的UI（Basic認証で保護＝開いた瞬間にブラウザのログインダイアログ）
 app.use('/admin', adminAuth, express.static(ADMIN_DIR, {

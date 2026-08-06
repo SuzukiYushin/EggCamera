@@ -9,14 +9,26 @@ interface BirthdayProps {
   onSkip: () => void;
 }
 
+// new Date(year, ...) は year が 0〜99 のとき 1900+year に読み替えられる（JSの仕様）。
+// 入力可能年を 0〜9999 に広げたため、必ず setFullYear で年を明示して組み立てる。
+function makeDate(year: number, month: number, day: number): Date {
+  const d = new Date(0);
+  d.setFullYear(year, month - 1, day);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 function calcDays(year: number, month: number, day: number): number {
-  const birth = new Date(year, month - 1, day);
+  const birth = makeDate(year, month, day);
   const today = new Date();
   return Math.max(0, Math.floor((today.getTime() - birth.getTime()) / 86_400_000));
 }
 
 function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
+  // 「翌月の0日」＝当月末日。閏年判定を正しくするため年は setFullYear で渡す。
+  const d = new Date(0);
+  d.setFullYear(year, month, 0);
+  return d.getDate();
 }
 
 // 満月齢（暦ベース）。同じ「◯ヶ月」でも実日数はお誕生日によって変わる。
@@ -28,7 +40,16 @@ function monthsSinceBirth(year: number, month: number, day: number): number {
   return Math.max(0, m);
 }
 
-const YEARS = Array.from({ length: 7 }, (_, i) => 2020 + i); // 2020–2026
+// 入力できる年は 0〜9999（スクロールピッカーなので「無制限」は表現できず、
+// 実質的な上限＝西暦4桁の全域とする）。1万件になるため PickerCol は仮想化必須。
+const YEAR_MIN = 0;
+const YEAR_MAX = 9999;
+const YEAR_COUNT = YEAR_MAX - YEAR_MIN + 1;
+
+// 誕生日ページを開いたときの初期値
+const DEFAULT_YEAR = 2026;
+const DEFAULT_MONTH = 4;
+const DEFAULT_DAY = 12;
 
 const C = {
   number: 'var(--color-brand-500)',
@@ -38,9 +59,9 @@ const C = {
 export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
   const { lang, T } = useLang();
 
-  const [year, setYear] = useState(2024);
-  const [month, setMonth] = useState(8);
-  const [day, setDay] = useState(12);
+  const [year, setYear] = useState(DEFAULT_YEAR);
+  const [month, setMonth] = useState(DEFAULT_MONTH);
+  const [day, setDay] = useState(DEFAULT_DAY);
 
   const maxDay = daysInMonth(year, month);
   const safeDay = Math.min(day, maxDay);
@@ -50,25 +71,32 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
   // フレームは月齢で選ぶ（暦の月数なので、対象期間はお誕生日によって長さが変わる）。
   const months = monthsSinceBirth(year, month, safeDay);
 
-  const handleYearChange = (i: number) => setYear(YEARS[i]);
-  const handleMonthChange = (i: number) => {
+  const handleYearChange = useCallback((i: number) => setYear(YEAR_MIN + i), []);
+  const handleMonthChange = useCallback((i: number) => {
     const m = i + 1;
     setMonth(m);
-    setDay(d => Math.min(d, daysInMonth(year, m)));
-  };
-  const handleDayChange = (i: number) => setDay(i + 1);
+    setDay(d => Math.min(d, daysInMonth(year, m)));   // 月末日を超える日付を丸める
+  }, [year]);
+  const handleDayChange = useCallback((i: number) => setDay(i + 1), []);
 
   const dateLabel = lang === 'ja'
     ? `${year}年 ${month}月 ${safeDay}日 生まれ`
     : `Born on ${year}.${month}.${safeDay}`;
 
-  const yearItems = YEARS.map(y => lang === 'ja' ? `${y}年` : String(y));
-  const monthItems = Array.from({ length: 12 }, (_, i) =>
-    lang === 'ja' ? `${i + 1}月` : String(i + 1)
-  );
-  const dayItems = Array.from({ length: maxDay }, (_, i) =>
-    lang === 'ja' ? `${i + 1}日` : String(i + 1)
-  );
+  // 1万件を配列化せず、表示される分だけラベルを組み立てる
+  const yearLabel = useCallback(
+    (i: number) => lang === 'ja' ? `${YEAR_MIN + i}年` : String(YEAR_MIN + i), [lang]);
+  const monthLabel = useCallback(
+    (i: number) => lang === 'ja' ? `${i + 1}月` : String(i + 1), [lang]);
+  const dayLabel = useCallback(
+    (i: number) => lang === 'ja' ? `${i + 1}日` : String(i + 1), [lang]);
+
+  // 年を広げた結果、日数が最大7桁になりうる。120pxのままだと画面幅を超えるので縮める。
+  const daysDigits = String(days).length;
+  const daysFontSize = daysDigits <= 4 ? 120
+    : daysDigits === 5 ? 96
+    : daysDigits === 6 ? 78
+    : 62;
 
   return (
     <IPad step={2} totalSteps={5} animKey="bday">
@@ -84,19 +112,38 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
           borderRadius: 4, overflow: 'hidden',
           marginBottom: 40, background: 'transparent',
         }}>
+          {/* 列の見出し。表記順が国によって違うため、どの列が何かを明示する */}
+          <div style={{
+            display: 'flex',
+            borderBottom: '1px solid var(--color-brand-200)',
+            fontFamily: 'var(--font-ui)', fontSize: 13, fontWeight: 600,
+            color: 'var(--color-brand-600)', letterSpacing: '0.06em',
+          }}>
+            {[T.birthday.colYear, T.birthday.colMonth, T.birthday.colDay].map((label, i) => (
+              <div key={label} style={{
+                flex: 1, textAlign: 'center', padding: '8px 0',
+                borderRight: i < 2 ? '1px solid var(--color-brand-200)' : 'none',
+              }}>
+                {label}
+              </div>
+            ))}
+          </div>
           <div style={{ display: 'flex', height: 200 }}>
             <PickerCol
-              items={yearItems}
-              selectedIndex={YEARS.indexOf(year)}
+              count={YEAR_COUNT}
+              label={yearLabel}
+              selectedIndex={year - YEAR_MIN}
               onChange={handleYearChange}
             />
             <PickerCol
-              items={monthItems}
+              count={12}
+              label={monthLabel}
               selectedIndex={month - 1}
               onChange={handleMonthChange}
             />
             <PickerCol
-              items={dayItems}
+              count={maxDay}
+              label={dayLabel}
               selectedIndex={Math.min(safeDay - 1, maxDay - 1)}
               onChange={handleDayChange}
               isLast
@@ -106,19 +153,36 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
 
         <div className="t-body" style={{ marginBottom: 10 }}>{T.birthday.body}</div>
 
-        {/* Days since birth（生まれ日ラベル＋日数をブロックごと 70px 下げる） */}
+        {/* Days since birth（生まれ日ラベル＋日数＋名前をブロックごと動かす） */}
         <div data-ui="birthday-result" style={{
           marginBottom: 10,
-          marginTop: 140,
+          marginTop: 120,
           position: 'relative',
           textAlign: 'center',
         }}>
 
+          {nickname && (
+            /* 名前は生年月日ラベルの上。文字設定はラベルと完全に同じ（書体・サイズ・太さ・字間・色） */
+            <div style={{
+              fontFamily: "'HiraKakuPro-W8', 'Hiragino Kaku Gothic Pro W8', 'ヒラギノ角ゴ Pro W8', 'Noto Sans JP', sans-serif",
+              fontSize: 12, fontWeight: 800,
+              letterSpacing: '0.18em',
+              color: C.number,
+              WebkitTextStroke: '0.3px currentColor',
+              marginBottom: 20,
+            }}>
+              {nickname}
+            </div>
+          )}
+
+          {/* 生年月日ラベル以下（日数・days・since birth）をまとめて15px上へ。
+              名前はこの上にあり、位置を変えない */}
           <div style={{
             fontFamily: "'HiraKakuPro-W8', 'Hiragino Kaku Gothic Pro W8', 'ヒラギノ角ゴ Pro W8', 'Noto Sans JP', sans-serif",
             fontSize: 12, fontWeight: 800,
             letterSpacing: '0.18em',
             color: C.number,
+            marginTop: -15,
             marginBottom: 20,
             WebkitTextStroke: '0.3px currentColor',
           }}>
@@ -134,49 +198,45 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
             </span>
           </div>
 
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto auto',
-            justifyContent: 'center',
-            alignItems: 'center',
-            columnGap: 10,
-          }}>
+          {/* 日数の数字そのものを画面の左右中央に置き、days はその右へ添える。
+              数字と days をひとまとまりで中央寄せすると、数字が中心より左へずれる。 */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
             <span key={days} style={{
+              position: 'relative',
               fontFamily: "'Futura', 'Century Gothic', sans-serif",
               fontWeight: 700,
-              fontSize: 120,
+              fontSize: daysFontSize,
               lineHeight: 0.82,
               color: C.number,
               letterSpacing: '-0.03em',
               display: 'inline-block',
               animation: 'countPop 0.5s cubic-bezier(0.22, 1, 0.36, 1) both',
-              alignSelf: 'end',
             }}>
               {days}
-            </span>
-
-            <span style={{
-              justifySelf: 'start',
-              alignSelf: 'end',
-              fontFamily: "'Futura', 'Century Gothic', sans-serif",
-              fontSize: 30, fontWeight: 700,
-              color: C.number,
-            }}>
-              days
+              <span style={{
+                position: 'absolute',
+                left: '100%', bottom: 0, marginLeft: 10,
+                fontFamily: "'Futura', 'Century Gothic', sans-serif",
+                fontSize: 30, fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: 'normal',
+                color: C.number,
+              }}>
+                days
+              </span>
             </span>
           </div>
 
-          {nickname && (
-            <div style={{
-              fontFamily: 'var(--font-ui)',
-              fontSize: 13, fontWeight: 400,
-              color: '#C2DEE8',
-              letterSpacing: '0.02em',
-              marginTop: 4,
-            }}>
-              {nickname}
-            </div>
-          )}
+          {/* 「718 days」の下に改行して置く */}
+          <div style={{
+            fontFamily: "'Futura', 'Century Gothic', sans-serif",
+            fontSize: 30, fontWeight: 700,
+            color: C.number,
+            marginTop: 6,
+          }}>
+            since birth
+          </div>
+
         </div>
 
         {/* 1000days の説明文は廃止（カウントが「お誕生日から撮影日までの日数」になったため） */}
@@ -193,20 +253,33 @@ export function Birthday({ nickname, onNext, onSkip }: BirthdayProps) {
 
 // ── Scroll-snap picker column ─────────────────────────────────────
 const ITEM_H = 40;
+const VIEW_H = 200;          // 列の見える高さ（親のheightと一致させる）
+const OVERSCAN = 6;          // 前後に余分に描く件数（スクロール時のちらつき防止）
 
 interface PickerColProps {
-  items: string[];
+  count: number;
+  label: (index: number) => string;
   selectedIndex: number;
   onChange: (index: number) => void;
   isLast?: boolean;
 }
 
-function PickerCol({ items, selectedIndex, onChange, isLast }: PickerColProps) {
+function PickerCol({ count, label, selectedIndex, onChange, isLast }: PickerColProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isProgrammatic = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rafRef = useRef<number | null>(null);
 
-  const PAD = (200 - ITEM_H) / 2;
+  // 年は1万件あるため全件は描かない。見えている範囲だけ描き、上下はスペーサーで高さを作る。
+  // 項目を通常フローに残すことで scroll-snap の効き方を従来と同じに保つ。
+  const [scrollTop, setScrollTop] = useState(selectedIndex * ITEM_H);
+
+  const PAD = (VIEW_H - ITEM_H) / 2;
+  // count が減ったとき（例: 31日→28日）に scrollTop が古いままだと first が件数を超え、
+  // 上スペーサーだけが伸びて総高さが狂う。first を必ず範囲内に丸める。
+  // これで first ≤ last が保たれ、上スペーサー+描画分+下スペーサー = count*ITEM_H が常に成立する。
+  const first = Math.max(0, Math.min(count - 1, Math.floor(scrollTop / ITEM_H) - OVERSCAN));
+  const last = Math.min(count - 1, Math.max(first, Math.ceil((scrollTop + VIEW_H) / ITEM_H) + OVERSCAN));
 
   useEffect(() => {
     const el = containerRef.current;
@@ -221,19 +294,32 @@ function PickerCol({ items, selectedIndex, onChange, isLast }: PickerColProps) {
     setTimeout(() => { isProgrammatic.current = false; }, 350);
   }, [selectedIndex]);
 
+  useEffect(() => () => {
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+  }, []);
+
   const handleScroll = useCallback(() => {
+    // 描画範囲の更新はrAFで間引く（scrollイベントは高頻度）
+    if (rafRef.current == null) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const el = containerRef.current;
+        if (el) setScrollTop(el.scrollTop);
+      });
+    }
     if (isProgrammatic.current) return;
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       const el = containerRef.current;
       if (!el) return;
-      const idx = Math.max(0, Math.min(Math.round(el.scrollTop / ITEM_H), items.length - 1));
+      const idx = Math.max(0, Math.min(Math.round(el.scrollTop / ITEM_H), count - 1));
       isProgrammatic.current = true;
       el.scrollTo({ top: idx * ITEM_H, behavior: 'smooth' });
       onChange(idx);
       setTimeout(() => { isProgrammatic.current = false; }, 350);
     }, 100);
-  }, [items.length, onChange]);
+  }, [count, onChange]);
 
   return (
     <div style={{
@@ -263,7 +349,9 @@ function PickerCol({ items, selectedIndex, onChange, isLast }: PickerColProps) {
           paddingBottom: PAD,
         }}
       >
-        {items.map((item, i) => {
+        {first > 0 && <div style={{ height: first * ITEM_H }} />}
+        {Array.from({ length: Math.max(0, last - first + 1) }, (_, k) => {
+          const i = first + k;
           const isSelected = i === selectedIndex;
           return (
             <div
@@ -291,10 +379,11 @@ function PickerCol({ items, selectedIndex, onChange, isLast }: PickerColProps) {
                 position: 'relative', zIndex: 3,
               }}
             >
-              {item}
+              {label(i)}
             </div>
           );
         })}
+        {last < count - 1 && <div style={{ height: (count - 1 - last) * ITEM_H }} />}
       </div>
     </div>
   );

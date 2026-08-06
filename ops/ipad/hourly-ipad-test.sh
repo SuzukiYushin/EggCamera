@@ -147,7 +147,14 @@ if [ -f "$WIFI_MODE_FLAG" ]; then
     export CYCLES=1
     log "Wi-Fiモード: WDA=$IPAD_TEST_WDA_URL CYCLES=$CYCLES (USBトンネルチェックはスキップ)"
   else
-    run_api_fallback "Wi-Fiモード: WDA構成の自動復旧失敗(iPad電源/Wi-Fi要確認)"
+    # 復旧失敗時は「iPad本体が不通」と「Mac側フォワーダだけ停止」を必ず切り分ける。
+    # 2026-07-28〜30 は後者（フォワーダ停止のみ）を2日以上「iPad不通」と誤報し続け、
+    # 実機テストを取り戻す機会を逃していた。iPadへ直接届くかで判定する。
+    if curl -s -m 5 -o /dev/null "http://${IPAD_IP:-192.168.11.104}:8100/status" 2>/dev/null; then
+      run_api_fallback "iPadは正常応答(直接:8100 OK)だがMac側フォワーダが起動できない。launchdにはローカルネットワーク権限が無いため自動復旧不可 → 対話シェル(ターミナル/tmux)で ops/ipad/wda-wifi-recovery.sh を実行すれば復旧する"
+    else
+      run_api_fallback "iPad本体が不通(直接:8100も無応答) → iPadの電源/Wi-Fi/WDA常駐を確認"
+    fi
   fi
 else
   # 従来: iPad が Appium公式トンネルレジストリ:42314 に居るか。落ちていたら自動復旧を試行
@@ -210,10 +217,18 @@ fails=$(echo "$summary_line" | grep -oE '失敗[0-9]+' | grep -oE '[0-9]+')
 # 完了数。Appiumのセッション起動失敗などで1サイクルも走らないと「完了0 失敗0 rc=0」となり、
 # 従来はこれを正常完走として無音で流していた(2026-07-12夜〜13未明に6枠を取りこぼした)。
 done_n=$(echo "$summary_line" | grep -oE '完了[0-9]+' | head -1 | grep -oE '[0-9]+')
+# フォルトOK/スキップも「サイクルが走った」証拠として数える。ハーネスは一部のサイクルへ
+# 意図的に障害を注入し、アプリが正しくエラー表示できたものを「フォルトOK」に数えるため、
+# 完了数には入らない。Wi-Fiモードは省電力で CYCLES=1 のため、その1本にフォルトが当たると
+# 「完了0 フォルトOK1 失敗0」＝正常な結果になる。完了数だけを見ると、これを
+# 「1サイクルも走っていない」と誤報する（2026-07-30 15:15枠で実際に誤報）。
+faultok=$(echo "$summary_line" | grep -oE 'フォルトOK[0-9]+' | grep -oE '[0-9]+')
+skips=$(echo "$summary_line"  | grep -oE 'スキップ[0-9]+'   | grep -oE '[0-9]+')
+ran=$(( ${done_n:-0} + ${faultok:-0} + ${skips:-0} ))
 counts=$(echo "$summary_line" | sed -E 's/.*完了/完了/; s/ ===.*//')
 log "完了: $counts (rc=$rc)"
-if [ "${done_n:-0}" -eq 0 ] && [ "${fails:-0}" -eq 0 ]; then
-  txt="毎時テストが1サイクルも走っていない(完了0/失敗0: セッション起動失敗の疑い): $counts"
+if [ "$ran" -eq 0 ] && [ "${fails:-0}" -eq 0 ]; then
+  txt="毎時テストが1サイクルも走っていない(完了/フォルトOK/スキップ/失敗すべて0: セッション起動失敗の疑い): $counts"
   log "$txt"; post_marker alert "$txt"; notify_slack investigate "$txt"; exit 0
 fi
 if [ "${fails:-0}" -gt 0 ] || [ "$rc" -ne 0 ]; then

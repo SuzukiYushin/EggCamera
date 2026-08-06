@@ -40,7 +40,14 @@ function useKeyboardLift() {
 export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) {
   const { T } = useLang();
   const [focused, setFocused] = useState(false);
+  // 未入力で「次へ」を押したときの案内。スキップとは違い、次へは入力を求める。
+  const [showRequired, setShowRequired] = useState(false);
   const kbLift = useKeyboardLift();
+
+  const handleNext = () => {
+    if (!nickname.trim()) { setShowRequired(true); return; }   // 未入力なら進めない
+    onNext();
+  };
 
   return (
     <IPad step={1} totalSteps={5} animKey="nick">
@@ -61,7 +68,7 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
             aria-required="false"
             maxLength={10}
             value={nickname}
-            onChange={e => onChange(e.target.value.replace(/[^A-Za-z]/g, ''))}
+            onChange={e => { setShowRequired(false); onChange(e.target.value.replace(/[^A-Za-z]/g, '')); }}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             placeholder={T.nickname.placeholder}
@@ -78,6 +85,14 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
             spellCheck={false}
           />
         </div>
+        {showRequired && (
+          <div style={{
+            fontFamily: 'var(--font-ui)', fontSize: 15, fontWeight: 600,
+            color: '#DC2626', marginTop: -28, marginBottom: 12,
+          }}>
+            {T.nickname.required}
+          </div>
+        )}
         <div className="t-body" style={{ marginBottom: 'auto' }}>{T.nickname.body}</div>
 
         <div className="screen-actions" style={{
@@ -85,7 +100,7 @@ export function Nickname({ nickname, onChange, onNext, onSkip }: NicknameProps) 
           transform: `translateY(-${kbLift}px)`,
           transition: 'transform 0.25s ease',
         }}>
-          <button className="btn-primary" onClick={onNext}>{T.nickname.next}</button>
+          <button className="btn-primary" onClick={handleNext}>{T.nickname.next}</button>
           <button className="btn-ghost" onClick={onSkip}>{T.nickname.skip}</button>
         </div>
       </Page>

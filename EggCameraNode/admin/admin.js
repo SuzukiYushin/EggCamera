@@ -1,10 +1,12 @@
-/* Photo Booth 管理画面 */
+/* Egg Camera 管理画面 */
 const $ = sel => document.querySelector(sel);
 
 // 完成画像のアスペクト。iPhone の画面比(1179:2556 ≒ 19.5:9)で縦いっぱい = 2768×6000。
 // サーバ合成(src/compose.js の TARGET_ASPECT)と必ず同じ値にすること。ズレるとクロップ
 // プレビュー(WYSIWYG)と実際の完成画像の画角が食い違う。
 const TARGET_ASPECT = 2768 / 6000;
+// 切り抜きの上限%。完成画像の解像度(2768x6000)を維持できる限界。サーバ(compose.js)と揃える。
+const TRIM_MAX_PCT = 25;
 
 // 管理APIにトークンが要る場合: ?token=… を一度開くと localStorage に保存し、
 // 以降は自動付与する。トークン無効なら従来どおり素通り。
@@ -21,6 +23,14 @@ function withToken(url) {
   if (!boot) return url;
   return url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(boot);
 }
+
+// スタッフ手順書のショートカット(.doc-link)は別タブで開くため、Authorization も
+// localStorage も引き継がれない。?token= を明示的に付けないと 401 になる。
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.doc-link').forEach(a => {
+    a.href = withToken(a.getAttribute('href'));
+  });
+});
 
 const api = {
   async get(path)        { return req(path); },
@@ -64,20 +74,27 @@ async function loadGrowthFrames() {
   const section = $('#growth-section');
   if (!data || !Array.isArray(data.growth)) { section.hidden = true; return; }
   growthCategories = data.categories || [];
-  rarePresets = data.rarePresets || [];
   // 0件でもセクションは隠さない。隠すと「+ 追加」ボタンごと消えてしまい、全部削除した
   // あとに管理画面から登録し直せなくなる（2026-07-29に実際に発生）。
   section.hidden = false;
-  const pct = Math.round((data.rareProbability || 0) * 100);
+  // 出現率はレアアイテム全体で1つ。1枚あたりは「全体 ÷ 枚数」で自動的に決まる。
+  const pct = Math.round((data.rareProbability || 0) * 1000) / 10;
+  const perItemPct = Math.round((data.rarePerItem || 0) * 1000) / 10;
+  const rareCount = (data.rare || []).length;
+  $('#rare-total-prob').value = String(pct);
+  $('#rare-prob-detail').textContent = rareCount
+    ? `登録 ${rareCount}枚 → 1枚あたり ${perItemPct}%（全体 ${pct}% を均等に割ります）`
+    : 'レアアイテムが未登録です。登録するとこの出現率で表示されます。';
   const state = !data.growth.length
     ? '【成長フレームが0件です。0件の間は完成画像にサンプル枠が使われます。下の「+ 成長フレームを追加」から登録してください】'
     : data.enabled
       ? '【現在このモードが有効です】'
       : '【現在は無効。.env に GROWTH_FRAMES=1 を設定して再起動すると有効化されます】';
   $('#growth-hint').textContent =
-    `生後日数(days)に応じて9種類を自動選択し、レアは約${pct}%でランダム表示します。x で削除（ファイルは Mac mini 内に残ります）。`
+    `生後日数(days)に応じて9種類を自動選択し、レアは全体${pct}%でランダム表示します（登録枚数で均等割り）。`
+    + `x で削除（ファイルは Mac mini 内に残ります）。`
     + state;
-  const fill = (sel, items, labelFn, onDelete) => {
+  const fill = (sel, items, labelFn, onDelete, decorate) => {
     const grid = $(sel);
     grid.innerHTML = '';
     for (const f of items) {
@@ -85,6 +102,7 @@ async function loadGrowthFrames() {
       card.className = 'card';
       card.innerHTML = `<img class="thumb" src="${f.url}" alt=""><div class="name"></div><button class="del" title="削除">x</button>`;
       card.querySelector('.name').textContent = labelFn(f);
+      if (decorate) decorate(card, f);
       card.querySelector('.del').addEventListener('click', async () => {
         if (!confirm(`「${labelFn(f)}」を削除しますか？\n（ファイルは Mac mini 内に残ります）`)) return;
         await onDelete(f);
@@ -103,9 +121,29 @@ async function loadGrowthFrames() {
   };
   fill('#growth-grid', data.growth, cardLabel,
        f => api.del(`/growth-frames/growth/${f.level}`));
+  // 出現率はカードごとには持たない（全体で1つ・上のバーで設定する）
   fill('#rare-grid',   data.rare,   f => f.label,
        f => api.del(`/growth-frames/rare/${encodeURIComponent(f.key)}`));
 }
+
+/* ── レアアイテム全体の出現率（入力を離れた時点で保存）────────────────── */
+$('#rare-total-prob').addEventListener('change', async () => {
+  const input = $('#rare-total-prob');
+  const pct = Number(input.value);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+    await loadGrowthFrames();   // 不正値は現在値へ戻す
+    return;
+  }
+  input.disabled = true;
+  try {
+    await api.patch('/growth-frames/rare-probability', { prob: pct / 100 });
+  } catch (err) {
+    alert(`出現率を保存できませんでした: ${err.message}`);
+  } finally {
+    input.disabled = false;
+    await loadGrowthFrames();   // 1枚あたりの表示を更新
+  }
+});
 
 async function loadDisk() {
   try {
@@ -121,12 +159,19 @@ async function loadDisk() {
 // 月齢の区分はサーバ側の固定表（/growth-frames の categories）から作る。開始/終了日の
 // 手入力は廃止（選べる区分は9種で決まっており、手入力は取り違えの元だった）。
 let growthCategories = [];
-let rarePresets = [];
 
-// 表示は素材ファイル名（270days / 331days …）と同じ days 表記を先頭にする。
-// 月齢は補足として括弧内に出し、どの区分か取り違えないようにする。
+// 日数は「生後0日 = 0」で数えた実日数で出す（2026-08-05〜）。
+// 以前は素材ファイル名に合わせて 270days 起点で出していたが、お客様に見える生後日数
+// （UserUI は実日数表示）と 270 日ずれていて紛らわしかった。
 function growthLabel(c) {
-  return `${c.minDays}days（${c.label}）`;
+  const to = Number.isFinite(c.maxDays) ? `〜${c.maxDays}` : '〜';
+  return `${c.label}（生後${c.minDays}${to}日）`;
+}
+
+// プルダウンだけは素材ファイル名の旧表記も併記する。
+// ファイル名が 270days/331days… のままなので、これが無いと入れる区分を取り違える。
+function growthOptionLabel(c) {
+  return `${growthLabel(c)}　［素材名 ${c.assetDays}days］`;
 }
 
 function fillGrowthLevelOptions() {
@@ -135,26 +180,109 @@ function fillGrowthLevelOptions() {
   for (const c of growthCategories) {
     const o = document.createElement('option');
     o.value = c.level;
-    o.textContent = `${growthLabel(c)}${c.registered ? '（登録済み → 差し替え）' : ''}`;
+    o.textContent = `${growthOptionLabel(c)}${c.registered ? '（登録済み → 差し替え）' : ''}`;
     sel.appendChild(o);
   }
 }
 
-function fillRareKeyOptions() {
-  const sel = $('#rare-key');
-  sel.innerHTML = '';
-  for (const r of rarePresets) {
-    const o = document.createElement('option');
-    o.value = r.key;
-    o.textContent = `${r.label}${r.registered ? '（登録済み → 差し替え）' : ''}`;
-    sel.appendChild(o);
-  }
+/* ── Mac mini の中から画像を選ぶ（ホーム以下だけ閲覧できる） ──────────────
+   成長フレーム/レアの両方で使う。選んだパスは pickedPath[kind] に持ち、
+   「追加する」時にファイル入力より優先する。API は GET /api/admin/browse。 */
+const pickedPath = { growth: null, rare: null };
+
+function renderPicked(kind) {
+  const el = $(`#${kind}-picked`);
+  const p = pickedPath[kind];
+  el.hidden = !p;
+  if (!p) return;
+  el.innerHTML = '';
+  const label = document.createElement('span');
+  label.textContent = `選択中: ${p}`;
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'btn-ghost-sm';
+  clear.textContent = '取り消す';
+  clear.addEventListener('click', () => { pickedPath[kind] = null; renderPicked(kind); });
+  el.append(label, clear);
 }
+
+async function openBrowser(kind, dir) {
+  const box = $(`#${kind}-browser`);
+  box.hidden = false;
+  box.textContent = '読み込み中…';
+  let data;
+  try {
+    const res = await fetch(`/api/admin/browse?dir=${encodeURIComponent(dir || '')}`, {
+      headers: ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {},
+    });
+    if (!res.ok) throw new Error('読み込めませんでした');
+    data = await res.json();
+  } catch (err) {
+    box.textContent = err.message;
+    return;
+  }
+  box.innerHTML = '';
+
+  const head = document.createElement('div');
+  head.className = 'browser-head';
+  head.textContent = data.dir;
+  box.appendChild(head);
+
+  const list = document.createElement('div');
+  list.className = 'browser-list';
+
+  if (data.parent) {
+    const up = document.createElement('button');
+    up.type = 'button';
+    up.className = 'browser-row dir';
+    up.textContent = '‹ 上の階層へ';
+    up.addEventListener('click', () => openBrowser(kind, data.parent));
+    list.appendChild(up);
+  }
+  for (const d of data.dirs) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'browser-row dir';
+    row.textContent = `📁 ${d}`;
+    row.addEventListener('click', () => openBrowser(kind, `${data.dir}/${d}`));
+    list.appendChild(row);
+  }
+  for (const f of data.files) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'browser-row file';
+    row.textContent = `🖼 ${f}`;
+    row.addEventListener('click', () => {
+      pickedPath[kind] = `${data.dir}/${f}`;
+      $(`#${kind}-file`).value = '';   // 端末側の選択と二重にならないよう消す
+      box.hidden = true;
+      renderPicked(kind);
+    });
+    list.appendChild(row);
+  }
+  if (!data.dirs.length && !data.files.length) {
+    const empty = document.createElement('div');
+    empty.className = 'browser-empty';
+    empty.textContent = '画像ファイルがありません';
+    list.appendChild(empty);
+  }
+  box.appendChild(list);
+}
+
+function resetPicker(kind) {
+  pickedPath[kind] = null;
+  renderPicked(kind);
+  $(`#${kind}-browser`).hidden = true;
+}
+
+$('#btn-growth-browse').addEventListener('click', () => openBrowser('growth'));
+$('#btn-rare-browse').addEventListener('click', () => openBrowser('rare'));
 
 $('#btn-add-growth').addEventListener('click', async () => {
   $('#growth-modal').hidden = false;
   $('#growth-file').value = '';
   $('#growth-add-status').textContent = '';
+  resetPicker('growth');
   if (!growthCategories.length) await loadGrowthFrames(); // 初回描画前に押された場合の保険
   fillGrowthLevelOptions();
 });
@@ -166,18 +294,28 @@ $('#btn-growth-upload').addEventListener('click', async () => {
   status.className = 'status';
   try {
     const file = $('#growth-file').files[0];
-    if (!file) throw new Error('ファイルを選択してください');
+    const srcPath = pickedPath.growth;
+    if (!file && !srcPath) throw new Error('ファイルを選ぶか、Mac mini の中から選んでください');
     const level = $('#growth-level').value;
     if (!level) throw new Error('月齢の区分を選んでください');
-    status.textContent = 'アップロード中…';
-    const res = await fetch(`/api/admin/growth-frames/growth?level=${encodeURIComponent(level)}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
-        ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
-      },
-      body: file,
-    });
+    status.textContent = srcPath ? '取り込み中…' : 'アップロード中…';
+    const res = srcPath
+      ? await fetch('/api/admin/growth-frames/growth/from-server', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
+          },
+          body: JSON.stringify({ path: srcPath, level }),
+        })
+      : await fetch(`/api/admin/growth-frames/growth?level=${encodeURIComponent(level)}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
+            ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
+          },
+          body: file,
+        });
     if (!res.ok) {
       let code = 'アップロードに失敗しました';
       try { const j = await res.json(); if (j.error) code = j.error; } catch {}
@@ -193,12 +331,12 @@ $('#btn-growth-upload').addEventListener('click', async () => {
 });
 
 /* ── レアアイテム追加モーダル ────────────────── */
-$('#btn-add-rare').addEventListener('click', async () => {
+$('#btn-add-rare').addEventListener('click', () => {
   $('#rare-modal').hidden = false;
   $('#rare-file').value = '';
+  $('#rare-label').value = '';
   $('#rare-add-status').textContent = '';
-  if (!rarePresets.length) await loadGrowthFrames();
-  fillRareKeyOptions();
+  resetPicker('rare');
 });
 $('#rare-modal-close').addEventListener('click', () => { $('#rare-modal').hidden = true; });
 $('#rare-modal').addEventListener('click', e => { if (e.target === $('#rare-modal')) $('#rare-modal').hidden = true; });
@@ -208,21 +346,29 @@ $('#btn-rare-upload').addEventListener('click', async () => {
   status.className = 'status';
   try {
     const file = $('#rare-file').files[0];
-    if (!file) throw new Error('ファイルを選択してください');
-    const key = $('#rare-key').value;
-    const label = (rarePresets.find(r => r.key === key) || {}).label || key;
-    if (!key) throw new Error('種類を選んでください');
-    status.textContent = 'アップロード中…';
-    const res = await fetch('/api/admin/growth-frames/rare', {
-      method: 'POST',
-      headers: {
-        'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
-        'X-Rare-Key': encodeURIComponent(key),
-        'X-Rare-Label': encodeURIComponent(label),
-        ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
-      },
-      body: file,
-    });
+    const srcPath = pickedPath.rare;
+    if (!file && !srcPath) throw new Error('ファイルを選ぶか、Mac mini の中から選んでください');
+    // key は送らない＝サーバが採番する。同名でも別アイテムとして何件でも追加できる。
+    const label = $('#rare-label').value.trim();
+    status.textContent = srcPath ? '取り込み中…' : 'アップロード中…';
+    const res = srcPath
+      ? await fetch('/api/admin/growth-frames/rare/from-server', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
+          },
+          body: JSON.stringify({ path: srcPath, label }),
+        })
+      : await fetch('/api/admin/growth-frames/rare', {
+          method: 'POST',
+          headers: {
+            'Content-Type': file.type === 'image/jpeg' ? 'image/jpeg' : 'image/png',
+            'X-Rare-Label': encodeURIComponent(label),
+            ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
+          },
+          body: file,
+        });
     if (!res.ok) {
       let code = 'アップロードに失敗しました';
       try { const j = await res.json(); if (j.error) code = j.error; } catch {}
@@ -250,11 +396,16 @@ async function loadSettings() {
     if (s.meta) zoomMeta = s.meta;
     $('#crop-zoom').value = s.crop.zoom;
     $('#crop-zoom-range').value = s.crop.zoom;
+    $('#crop-trim').value = s.crop.trim ?? 0;
+    $('#crop-trim-range').value = s.crop.trim ?? 0;
     $('#crop-ox').value = s.crop.offsetX;
     $('#crop-oy').value = s.crop.offsetY;
     const ev = s.exposure?.bias ?? 0;
     $('#crop-ev').value = ev;
     $('#crop-ev-range').value = ev;
+    const gt = s.guide?.top ?? 13;
+    $('#guide-top').value = gt;
+    $('#guide-top-range').value = gt;
     updateZoomGauge();
   } catch {}
 }
@@ -262,6 +413,7 @@ async function loadSettings() {
 function currentCrop() {
   return {
     zoom:    parseFloat($('#crop-zoom').value) || 1,
+    trim:    parseFloat($('#crop-trim').value) || 0,
     offsetX: parseFloat($('#crop-ox').value) || 0,
     offsetY: parseFloat($('#crop-oy').value) || 0,
   };
@@ -269,6 +421,11 @@ function currentCrop() {
 
 function currentExposure() {
   return { bias: parseFloat($('#crop-ev').value) || 0 };
+}
+
+// 撮影画面の顔合わせガイド(破線の丸)の縦位置。ライブビュー枠の高さに対する%。
+function currentGuide() {
+  return { top: parseFloat($('#guide-top').value) || 0 };
 }
 
 /* プレビュー枠を完成画像と同じ比に揃える。
@@ -293,7 +450,7 @@ function drawCropPreview() {
   if (!testImage) return;
   const canvas = $('#crop-canvas');
   const ctx = canvas.getContext('2d');
-  const { offsetX, offsetY } = currentCrop();
+  const { trim, offsetX, offsetY } = currentCrop();
 
   const targetAspect = TARGET_ASPECT;
   const iw = testImage.naturalWidth, ih = testImage.naturalHeight;
@@ -301,15 +458,42 @@ function drawCropPreview() {
   if (iw / ih > targetAspect) { ch = ih; cw = ch * targetAspect; }
   else { cw = iw; ch = cw / targetAspect; }
 
-  // ライブ映像は既にカメラ側でズーム済み → デジタルズーム=1。offset(pan)のみ反映してWYSIWYGに。
-  let rw = cw, rh = ch;
-  let rx = (iw - cw) / 2 + (offsetX / 100) * rw;
-  let ry = (ih - ch) / 2 + (offsetY / 100) * rh;
+  // ライブ映像は既にカメラ側でズーム済み → デジタルズーム=1。切り抜き(trim)と offset(pan)を
+  // サーバ合成(compose.js computeCropGeometry)と同じ式で反映してWYSIWYGにする。
+  const shrink = 1 - Math.min(TRIM_MAX_PCT, Math.max(0, trim)) / 100;
+  const rw = cw * shrink, rh = ch * shrink;
+  let rx = (iw - cw) / 2 + (cw - rw) / 2 + (offsetX / 100) * rw;
+  let ry = (ih - ch) / 2 + (ch - rh) / 2 + (offsetY / 100) * rh;
   rx = Math.max(0, Math.min(rx, iw - rw));
   ry = Math.max(0, Math.min(ry, ih - rh));
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(testImage, rx, ry, rw, rh, 0, 0, canvas.width, canvas.height);
+  drawFaceGuide(ctx, canvas);
+}
+
+// 撮影画面に出る顔合わせガイド(破線の丸)を、このプレビューにも同じ比率で描く。
+// スライダーを動かすと即座にここへ反映されるので、保存前に位置を決められる。
+// 比率は UserUI 側(Capture.tsx の GUIDE_W_PCT/GUIDE_H_PCT)と必ず同じ値にすること。
+const GUIDE_W_PCT = 48.8;
+const GUIDE_H_PCT = 25.2;
+
+function drawFaceGuide(ctx, canvas) {
+  const topPct = currentGuide().top;
+  const w = canvas.width  * (GUIDE_W_PCT / 100);
+  const h = canvas.height * (GUIDE_H_PCT / 100);
+  const cx = canvas.width / 2;
+  const cy = canvas.height * (topPct / 100) + h / 2;   // top基準（撮影画面と同じ）
+
+  ctx.save();
+  ctx.strokeStyle = '#518FCC';
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = Math.max(2, canvas.width * 0.017);
+  ctx.setLineDash([canvas.width * 0.043, canvas.width * 0.026]);
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // ズームゲージ更新: 無劣化上限と現在値の実情報MPを表示し、レンジ背景を色分けする。
@@ -370,12 +554,32 @@ $('#crop-zoom-range').addEventListener('input', () => {
   onCropInput();
 });
 
+$('#crop-trim-range').addEventListener('input', () => {
+  $('#crop-trim').value = $('#crop-trim-range').value;
+  $('#btn-save-crop').classList.add('unsaved');
+  drawCropPreview();
+});
+$('#crop-trim').addEventListener('input', () => {
+  $('#crop-trim-range').value = $('#crop-trim').value;
+  drawCropPreview();
+});
+
+$('#guide-top-range').addEventListener('input', () => {
+  $('#guide-top').value = $('#guide-top-range').value;
+  $('#btn-save-crop').classList.add('unsaved');
+  drawCropPreview();
+});
+$('#guide-top').addEventListener('input', () => {
+  $('#guide-top-range').value = $('#guide-top').value;
+  drawCropPreview();
+});
+
 $('#crop-ev-range').addEventListener('input', () => {
   $('#crop-ev').value = $('#crop-ev-range').value;
   onCropInput();
 });
 
-['crop-zoom', 'crop-ox', 'crop-oy', 'crop-ev'].forEach(id => {
+['crop-zoom', 'crop-trim', 'crop-ox', 'crop-oy', 'crop-ev'].forEach(id => {
   $(`#${id}`).addEventListener('input', onCropInput);
 });
 
@@ -488,7 +692,7 @@ $('#btn-save-crop').addEventListener('click', async () => {
   status.className = 'status saving';
   status.textContent = '保存中…';
   try {
-    const saved = await api.put('/settings', { crop: currentCrop(), exposure: currentExposure() });
+    const saved = await api.put('/settings', { crop: currentCrop(), exposure: currentExposure(), guide: currentGuide() });
     savedCrop = saved.crop;
     btn.classList.remove('unsaved');
     const t = new Date().toLocaleTimeString('ja-JP');
